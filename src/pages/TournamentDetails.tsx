@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getTournamentMatches, getTournamentPlayers } from '../services/repository'; // getTournamentPlayers EKLENDİ
+import { getTournamentMatches, getTournamentPlayers } from '../services/repository';
 import LanguageSelector from '../components/LanguageSelector';
 import type { TournamentPlayer } from '../types';
 
@@ -10,26 +10,29 @@ export default function TournamentDetails() {
     const { teamId, tournamentId } = useParams<{ teamId: string; tournamentId: string }>();
     const navigate = useNavigate();
 
-    // State Tanımları
     const [matches, setMatches] = useState<any[]>([]);
     const [players, setPlayers] = useState<TournamentPlayer[]>([]);
-    const [activeTab, setActiveTab] = useState<'matches' | 'stats'>('matches'); // Tab Kontrolü
-    const [loading, setLoading] = useState(true);
+
+    // Yükleme durumlarını ayırdık
+    const [loadingMatches, setLoadingMatches] = useState(true);
+    const [loadingPlayers, setLoadingPlayers] = useState(true);
+
+    const [activeTab, setActiveTab] = useState<'matches' | 'stats'>('matches');
 
     useEffect(() => {
         if (!teamId || !tournamentId) return;
 
-        // 1. Maçları Dinle
+        // 1. Maçları Çek
         const unsubscribeMatches = getTournamentMatches(teamId, tournamentId, (data) => {
             setMatches(data);
+            setLoadingMatches(false); // Maçlar yüklendi
         });
 
-        // 2. Oyuncu İstatistiklerini Dinle
+        // 2. Oyuncu İstatistiklerini Çek
         const unsubscribePlayers = getTournamentPlayers(teamId, tournamentId, (data) => {
-            // Gol sayısına göre sıralayalım (Opsiyonel)
             const sortedData = data.sort((a, b) => (b.goals || 0) - (a.goals || 0));
             setPlayers(sortedData);
-            setLoading(false); // Veriler geldiğinde yüklemeyi bitir
+            setLoadingPlayers(false); // Oyuncular yüklendi
         });
 
         return () => {
@@ -38,11 +41,14 @@ export default function TournamentDetails() {
         };
     }, [teamId, tournamentId]);
 
-    if (loading) return <div className="p-8 text-center">{t('loading')}</div>;
+    // Herhangi biri hala yükleniyorsa bekleme ekranı göster
+    // (İsteğe bağlı: İkisi de bitsin isterseniz && yerine || kullanın)
+    if (loadingMatches && loadingPlayers) {
+        return <div className="p-8 text-center">{t('loading')}</div>;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-            {/* Üst Bar */}
             <div className="mb-6 flex items-center justify-between">
                 <button
                     onClick={() => navigate(`/team/${teamId}`)}
@@ -58,7 +64,7 @@ export default function TournamentDetails() {
                     {t('tournament_matches_title')}
                 </h1>
 
-                {/* Sekmeler (Tabs) */}
+                {/* Sekmeler */}
                 <div className="mb-6 border-b border-gray-200">
                     <nav className="-mb-px flex space-x-8">
                         <button
@@ -82,7 +88,7 @@ export default function TournamentDetails() {
                     </nav>
                 </div>
 
-                {/* İÇERİK: MAÇLAR */}
+                {/* MAÇLAR TABLOSU */}
                 {activeTab === 'matches' && (
                     <div className="space-y-4">
                         {matches.map((match) => {
@@ -130,28 +136,18 @@ export default function TournamentDetails() {
                     </div>
                 )}
 
-                {/* İÇERİK: İSTATİSTİKLER */}
+                {/* İSTATİSTİKLER TABLOSU */}
                 {activeTab === 'stats' && (
                     <div className="overflow-hidden rounded-lg bg-white shadow">
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                                            {t('col_player')}
-                                        </th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                                            {t('col_goals')}
-                                        </th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                                            {t('col_assists')}
-                                        </th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                                            {t('col_blocks')}
-                                        </th>
-                                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                                            {t('col_turns')}
-                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">{t('col_player')}</th>
+                                        <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">{t('col_goals')}</th>
+                                        <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">{t('col_assists')}</th>
+                                        <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">{t('col_blocks')}</th>
+                                        <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">{t('col_turns')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 bg-white">
@@ -162,23 +158,13 @@ export default function TournamentDetails() {
                                                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
                                                         {player.jerseyNumber || '#'}
                                                     </div>
-                                                    <div className="ml-4">
-                                                        <div className="text-sm font-medium text-gray-900">{player.name}</div>
-                                                    </div>
+                                                    <div className="ml-4 font-medium text-gray-900">{player.name}</div>
                                                 </div>
                                             </td>
-                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm font-bold text-gray-900">
-                                                {player.goals || 0}
-                                            </td>
-                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">
-                                                {player.assists || 0}
-                                            </td>
-                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">
-                                                {player.blocks || 0}
-                                            </td>
-                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">
-                                                {player.turnovers || 0}
-                                            </td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm font-bold text-gray-900">{player.goals || 0}</td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">{player.assists || 0}</td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">{player.blocks || 0}</td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">{player.turnovers || 0}</td>
                                         </tr>
                                     ))}
                                     {players.length === 0 && (
