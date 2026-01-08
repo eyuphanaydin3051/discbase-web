@@ -4,7 +4,7 @@ import { auth } from '../services/firebase';
 import { getUserTeams } from '../services/repository';
 import type { TeamProfile } from '../types';
 import { useNavigate } from 'react-router-dom';
-import type { User } from 'firebase/auth'; // Tip eklendi
+import type { User } from 'firebase/auth';
 
 export default function Dashboard() {
     const [teams, setTeams] = useState<TeamProfile[]>([]);
@@ -53,7 +53,13 @@ export default function Dashboard() {
                 ) : (
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {teams.map((team) => (
-                            <div key={team.teamId} className="cursor-pointer overflow-hidden rounded-lg bg-white shadow transition hover:shadow-lg">
+                            <div
+                                key={team.teamId}
+                                // --- İŞTE EKSİK OLAN KISIM BURASIYDI ---
+                                onClick={() => navigate(`/team/${team.teamId}`)}
+                                // ---------------------------------------
+                                className="cursor-pointer overflow-hidden rounded-lg bg-white shadow transition hover:shadow-lg"
+                            >
                                 <div className="h-32 bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
                                     <span className="text-4xl font-bold text-white uppercase">
                                         {team.teamName.substring(0, 2)}
