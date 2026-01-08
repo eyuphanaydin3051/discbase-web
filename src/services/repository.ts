@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament } from '../types';
+import type { TournamentPlayer } from '../types';
 
 // Mevcut fonksiyonlarınız (getUserTeams, getPlayers, getTournaments) burada duruyor olmalı...
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
@@ -50,5 +51,18 @@ export const getTournamentMatches = (teamId: string, tournamentId: string, callb
             ...doc.data()
         }));
         callback(matchesData);
+    });
+};
+export const getTournamentPlayers = (teamId: string, tournamentId: string, callback: (players: TournamentPlayer[]) => void) => {
+    // Veritabanı yolu: teams/{teamId}/tournaments/{tournamentId}/players
+    // İsterseniz 'goals' veya 'name' e göre sıralama yapabilirsiniz.
+    const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/players`));
+
+    return onSnapshot(q, (snapshot) => {
+        const playersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as TournamentPlayer));
+        callback(playersData);
     });
 };

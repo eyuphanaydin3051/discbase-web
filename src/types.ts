@@ -176,3 +176,14 @@ export interface BackupData {
     tournaments: Tournament[];
     trainings: Training[];
 }
+export interface TournamentPlayer {
+    id: string;
+    name: string;
+    jerseyNumber?: string;
+    goals?: number;
+    assists?: number;
+    blocks?: number; // D-Blocks
+    turnovers?: number;
+    matchesPlayed?: number;
+    gender?: string;
+}

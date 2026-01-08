@@ -29,5 +29,13 @@
     "date_unknown": "No Date",
     "label_win": "W",
     "label_loss": "L",
-    "label_draw": "D"
+    "label_draw": "D",
+    "tab_matches": "Matches",
+    "tab_stats": "Stats",
+    "col_player": "Player",
+    "col_goals": "Goals",
+    "col_assists": "Assists",
+    "col_blocks": "Blocks",
+    "col_turns": "Turns",
+    "no_stats_data": "No stats data available for this tournament."
 }

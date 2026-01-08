@@ -29,5 +29,13 @@
     "date_unknown": "Tarih Yok",
     "label_win": "G",
     "label_loss": "M",
-    "label_draw": "B"
+    "label_draw": "B",
+    "tab_matches": "Maçlar",
+    "tab_stats": "İstatistikler",
+    "col_player": "Oyuncu",
+    "col_goals": "Gol",
+    "col_assists": "Asist",
+    "col_blocks": "Blok",
+    "col_turns": "Top Kaybı",
+    "no_stats_data": "Bu turnuva için oyuncu istatistiği bulunamadı."
 }
