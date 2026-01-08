@@ -1,19 +1,20 @@
-// src/App.tsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import TeamDetails from './pages/TeamDetails'; // <-- Bu satır eklenmeli
+import TeamDetails from './pages/TeamDetails';
+import TournamentDetails from './pages/TournamentDetails'; // <--- Import
 
 function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Dashboard />} />
-        {/* Aşağıdaki satır eklenmeli */}
         <Route path="/team/:teamId" element={<TeamDetails />} />
+        {/* YENİ ROTA */}
+        <Route path="/team/:teamId/tournament/:tournamentId" element={<TournamentDetails />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 }
 
