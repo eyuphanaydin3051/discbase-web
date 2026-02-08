@@ -1,21 +1,39 @@
 @import "tailwindcss";
 
 @theme {
-    /* Stitch / HTML Tasarım Renkleri */
-    --color-primary: #6366F1;
-    --color-primary-dark: #4F46E5;
-    --color-background-light: #F9F9F9;
+    /* STITCH TASARIM RENKLERİ (Doğru Kodlar) */
+    --color-primary: #5B4DBC;
+    /* Deep Purple */
+    --color-primary-dark: #4B3CA0;
+    --color-secondary: #2F58CD;
+    /* Blue-ish Purple */
+
+    --color-accent: #00C4B4;
+    /* Teal (Pozitif) */
+    --color-danger: #EF4444;
+    /* Red (Negatif) */
+    --color-warning: #F59E0B;
+    /* Orange */
+
+    --color-background-light: #F9F9FB;
     --color-background-dark: #121212;
     --color-card-light: #FFFFFF;
     --color-card-dark: #1E1E1E;
 
-    --color-text-main-light: #111827;
-    --color-text-main-dark: #F3F4F6;
-    --color-text-sub-light: #6B7280;
-    --color-text-sub-dark: #9CA3AF;
+    --color-text-light: #1F2937;
+    --color-text-dark: #F3F4F6;
+    --color-text-muted-light: #6B7280;
+    --color-text-muted-dark: #9CA3AF;
 
-    --color-accent-teal: #2DD4BF;
-    --color-accent-red: #EF4444;
+    /* Özel İstatistik Arka Planları */
+    --color-stat-bg-purple-light: #EBEAF8;
+    --color-stat-bg-purple-dark: #2D2B42;
+    --color-stat-bg-teal-light: #E0F7FA;
+    --color-stat-bg-teal-dark: #1A383C;
+    --color-stat-bg-orange-light: #FFF3E0;
+    --color-stat-bg-orange-dark: #3E2C1C;
+    --color-stat-bg-red-light: #FFEBEE;
+    --color-stat-bg-red-dark: #3E1F21;
 
     /* Gölge Ayarları */
     --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
@@ -25,5 +43,5 @@
 body {
     font-family: 'Inter', sans-serif;
     background-color: var(--color-background-light);
-    color: var(--color-text-main-light);
+    color: var(--color-text-light);
 }

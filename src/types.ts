@@ -1,30 +1,21 @@
 // src/types.ts
 
 // --- Temel Tipler ve Enumlar ---
-
-export type GameMode =
-    | 'IDLE'
-    | 'MODE_SELECTION'
-    | 'SIMPLE_ENTRY'
-    | 'DEFENSE_PULL'
-    | 'DEFENSE_PULL_RESULT'
-    | 'OFFENSE'
-    | 'DEFENSE';
-
+export type GameMode = 'IDLE' | 'MODE_SELECTION' | 'SIMPLE_ENTRY' | 'DEFENSE_PULL' | 'DEFENSE_PULL_RESULT' | 'OFFENSE' | 'DEFENSE';
 export type CaptureMode = 'SIMPLE' | 'ADVANCED' | 'PRO';
-
 export type PointStartMode = 'OFFENSE' | 'DEFENSE';
-
 export type LineType = 'FULL' | 'HANDLER_SET' | 'CUTTER_SET';
-
-// Android'deki Resource ID'li enumlar yerine String değerlerini kullanıyoruz
-// Çünkü veritabanında (Firestore) "TIMEOUT", "INJURY" gibi string olarak saklanıyorlar.
 export type StoppageType = 'TIMEOUT' | 'INJURY' | 'CALL' | 'OTHER';
-
 export type CalculationMode = 'TOTAL' | 'PER_MATCH' | 'PER_POINT';
 
-// --- Ana Veri Yapıları ---
+// --- Yeni Eklenen Tipler (Hataları Çözen Kısım) ---
+export interface MatchEvent {
+    playerId: string;
+    type: 'goal' | 'assist' | 'block' | 'turnover';
+    timestamp?: number;
+}
 
+// --- Ana Veri Yapıları ---
 export interface UserProfile {
     displayName: string | null;
     email: string | null;
@@ -33,16 +24,16 @@ export interface UserProfile {
 export interface TeamProfile {
     teamId: string;
     teamName: string;
-    members: { [uid: string]: string }; // Map<String, String> karşılığı: uid -> role ('admin', 'member')
+    members: { [uid: string]: string };
     logoPath: string | null;
 }
 
 export interface Player {
     id: string;
     name: string;
-    gender: string; // "Erkek" veya "Kadın" (DB değeri)
+    gender: string;
     jerseyNumber: number | null;
-    position: string; // "Cutter" veya "Handler"
+    position: string;
     isCaptain: boolean;
     email: string | null;
     photoUrl: string | null;
@@ -54,18 +45,18 @@ export interface PlayerStats {
     successfulPass: number;
     assist: number;
     throwaway: number;
-    catchStat: number; // 'catch' reserved word olduğu için catchStat kullanılmış olabilir
+    catchStat: number;
     drop: number;
     goal: number;
     pullAttempts: number;
     successfulPulls: number;
     block: number;
     callahan: number;
-    secondsPlayed: number; // Long -> number
+    secondsPlayed: number;
     totalTempoSeconds: number;
     pointsPlayed: number;
-    totalPullTimeSeconds: number; // Double -> number
-    passDistribution: { [playerName: string]: number }; // Map<String, Int>
+    totalPullTimeSeconds: number;
+    passDistribution: { [playerName: string]: number };
 }
 
 export interface AdvancedPlayerStats {
@@ -76,11 +67,11 @@ export interface AdvancedPlayerStats {
 }
 
 export interface ProEventData {
-    fromX: number | null; // Float -> number
+    fromX: number | null;
     fromY: number | null;
     toX: number;
     toY: number;
-    type: string; // "PASS", "GOAL", "TURNOVER" vb.
+    type: string;
     distanceYards: number;
     throwerName: string | null;
     receiverName: string | null;
@@ -114,6 +105,9 @@ export interface Match {
     matchDurationSeconds: number;
     isProMode: boolean;
     date?: string;
+    // Hata veren eksik alanlar eklendi:
+    events?: MatchEvent[];
+    playerStats?: Record<string, any>;
 }
 
 export interface PresetLine {
@@ -129,7 +123,7 @@ export interface Tournament {
     ourTeamName: string;
     date: string;
     rosterPlayerIds: string[];
-    matches: Match[]; // @get:Exclude olsa da web tarafında tam objeyi yönetmek için ekliyoruz
+    matches: Match[];
     presetLines: PresetLine[];
 }
 
@@ -144,48 +138,14 @@ export interface Training {
     isVisibleToMembers: boolean;
 }
 
-export interface AdvancedTeamStats {
-    totalMatchesPlayed: number;
-    wins: number;
-    losses: number;
-    totalPointsPlayed: number;
-    totalGoals: number;
-    totalAssists: number;
-    totalSuccessfulPass: number;
-    totalThrowaways: number;
-    totalDrops: number;
-    totalBlocks: number;
-    totalPulls: number;
-    totalOffensePoints: number;
-    offensiveHolds: number;
-    cleanHolds: number;
-    totalDefensePoints: number;
-    breakPointsScored: number;
-    totalPassesAttempted: number;
-    totalPassesCompleted: number;
-    totalBlockPoints: number;
-    blocksConvertedToGoals: number;
-    totalPossessions: number;
-    totalTempoSeconds: number;
-    totalPullTimeSeconds: number;
-}
-
-// BackupData genellikle JSON import/export için kullanılır
-export interface BackupData {
-    profile: TeamProfile;
-    players: Player[];
-    tournaments: Tournament[];
-    trainings: Training[];
-}
 export interface TournamentPlayer {
     id: string;
     name: string;
     jerseyNumber?: string;
     goals?: number;
     assists?: number;
-    blocks?: number; // D-Blocks
+    blocks?: number;
     turnovers?: number;
     matchesPlayed?: number;
     gender?: string;
 }
-
