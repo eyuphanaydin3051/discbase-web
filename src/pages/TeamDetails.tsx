@@ -1,12 +1,13 @@
+// src/pages/TeamDetails.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getPlayers, getTournaments } from '../services/repository';
 import type { Player, Tournament } from '../types';
-import { useTranslation } from 'react-i18next'; // Import
+import { useTranslation } from 'react-i18next';
 import LanguageSelector from '../components/LanguageSelector';
 
 export default function TeamDetails() {
-    const { t } = useTranslation(); // BU SATIR OLMADIĞI İÇİN HATA ALIYORDUNUZ
+    const { t } = useTranslation();
     const { teamId } = useParams<{ teamId: string }>();
     const navigate = useNavigate();
 
