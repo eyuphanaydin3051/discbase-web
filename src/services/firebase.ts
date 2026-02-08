@@ -6,12 +6,13 @@ import { getStorage } from "firebase/storage";
 
 // Firebase Konsolundan aldığın "firebaseConfig" nesnesini buraya yapıştır:
 const firebaseConfig = {
-    apiKey: "AIzaSyDlVKokBVPEPEPxuO0iPvZb2t8bwj62Ors",
+    apiKey: "AIzaSyD9qud9v1F_Zgk2RzjoS4wbv_X2TWCL4bY",
     authDomain: "ultimate-stats-a2c89.firebaseapp.com",
     projectId: "ultimate-stats-a2c89",
     storageBucket: "ultimate-stats-a2c89.firebasestorage.app",
     messagingSenderId: "860197339001",
-    appId: "1:860197339001:web:0c4a22b2ce400481f679a8"
+    appId: "1:860197339001:web:a81bc12238af6ca3f679a8",
+    measurementId: "G-63EY01Q4TL"
 };
 
 // Uygulamayı başlat

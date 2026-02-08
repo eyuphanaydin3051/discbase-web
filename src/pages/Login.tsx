@@ -1,67 +1,99 @@
-import React, { useState } from 'react';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '../services/firebase';
+// src/pages/Login.tsx
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import LanguageSelector from '../components/LanguageSelector';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth } from '../services/firebase';
 
 export default function Login() {
-    const { t } = useTranslation();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-            navigate('/');
-        } catch (err: any) {
-            setError(t('login_error') + err.message);
-        }
-    };
-
+    // Google ile Giriş Fonksiyonu
     const handleGoogleLogin = async () => {
         try {
-            await signInWithPopup(auth, googleProvider);
-            navigate('/');
-        } catch (err: any) {
-            setError(t('google_login_error') + err.message);
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider);
+            // Başarılı giriş sonrası Dashboard'a git
+            navigate('/dashboard');
+        } catch (error: any) {
+            console.error("Giriş Hatası:", error);
+            alert("Giriş yapılırken bir hata oluştu: " + error.message);
         }
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-100 relative">
-            <div className="absolute top-4 right-4">
-                <LanguageSelector />
+        <div className="bg-slate-50 min-h-screen w-full flex flex-col md:flex-row font-sans text-slate-900">
+            {/* SOL TARAF: Marka ve Görsel Alanı */}
+            <div className="relative w-full md:w-1/2 min-h-[40vh] md:h-screen bg-gradient-to-br from-[#3A1078] to-[#2F58CD] flex flex-col justify-center items-center p-8 md:p-16 text-white overflow-hidden">
+
+                {/* Arka Plan Efektleri */}
+                <div className="absolute inset-0 opacity-10 pointer-events-none">
+                    <svg height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <pattern height="40" id="grid" patternUnits="userSpaceOnUse" width="40">
+                                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1"></path>
+                            </pattern>
+                        </defs>
+                        <rect fill="url(#grid)" height="100%" width="100%"></rect>
+                    </svg>
+                </div>
+
+                {/* İçerik */}
+                <div className="relative z-10 max-w-lg text-center md:text-left flex flex-col items-center md:items-start">
+                    <div className="mb-8 p-4 bg-white/10 backdrop-blur-md rounded-full border border-white/20 shadow-xl flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+
+                    <h1 className="text-3xl md:text-5xl font-bold leading-tight mb-4 tracking-tight drop-shadow-sm">
+                        Takımının İstatistiklerini <br className="hidden md:block" />
+                        <span className="text-indigo-200">Profesyonelce Yönet.</span>
+                    </h1>
+
+                    <p className="text-lg md:text-xl text-indigo-100 font-light opacity-90 max-w-md mx-auto md:mx-0">
+                        DiscBase ile maç analizlerini yap, oyuncu performanslarını takip et ve şampiyonluğa giden yolda verileri kullan.
+                    </p>
+                </div>
             </div>
 
-            <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
-                <h2 className="mb-6 text-center text-2xl font-bold text-gray-800">
-                    {t('login_title')}
-                </h2>
-                {error && <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-700">{error}</div>}
-                <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">{t('label_email')}</label>
-                        <input type="email" className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            {/* SAĞ TARAF: Giriş Formu */}
+            <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-white">
+                <div className="w-full max-w-md space-y-8 flex flex-col justify-center">
+                    <div className="text-center">
+                        <h2 className="text-3xl font-bold tracking-tight text-slate-900">
+                            DiscBase
+                        </h2>
+                        <p className="mt-2 text-sm text-slate-600">
+                            Hesabınıza erişmek için giriş yapın
+                        </p>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">{t('label_password')}</label>
-                        <input type="password" className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm" value={password} onChange={(e) => setPassword(e.target.value)} required />
+
+                    <div className="mt-8 bg-white py-8 px-6 shadow-xl rounded-2xl border border-slate-100">
+                        {/* GOOGLE BUTONU */}
+                        <button
+                            type="button"
+                            onClick={handleGoogleLogin}
+                            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-slate-300 rounded-2xl shadow-sm bg-white hover:bg-slate-50 transition-all duration-200 cursor-pointer group"
+                        >
+                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+                            <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900">
+                                Google ile Giriş Yap
+                            </span>
+                        </button>
+
+                        <div className="relative mt-6">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-slate-200"></div>
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                <span className="px-2 bg-white text-slate-500">veya</span>
+                            </div>
+                        </div>
+
+                        <p className="mt-6 text-center text-xs text-slate-500">
+                            Hesabınız yok mu? <span className="font-medium text-indigo-600">Giriş yapınca otomatik oluşur.</span>
+                        </p>
                     </div>
-                    <button type="submit" className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-                        {t('btn_login')}
-                    </button>
-                </form>
-                <div className="mt-6">
-                    <div className="relative flex justify-center text-sm">
-                        <span className="bg-white px-2 text-gray-500">{t('or')}</span>
-                    </div>
-                    <button onClick={handleGoogleLogin} className="mt-4 flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
-                        {t('btn_google_login')}
-                    </button>
                 </div>
             </div>
         </div>

@@ -1,1 +1,18 @@
 @import "tailwindcss";
+
+@theme {
+    /* Stitch Tasarım Renkleri */
+    --color-stitch-primary: #6200EA;
+    --color-stitch-offense: #00C49A;
+    --color-stitch-defense: #FF6B6B;
+    --color-stitch-bg-light: #F9F9F9;
+    --color-stitch-bg-dark: #121212;
+    --color-stitch-card-bg: #FFFFFF;
+}
+
+/* Temel Ayarlar */
+body {
+    background-color: var(--color-stitch-bg-light);
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+}

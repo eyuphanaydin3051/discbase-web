@@ -113,6 +113,7 @@ export interface Match {
     pointsArchive: PointData[];
     matchDurationSeconds: number;
     isProMode: boolean;
+    date?: string;
 }
 
 export interface PresetLine {
@@ -187,16 +188,4 @@ export interface TournamentPlayer {
     matchesPlayed?: number;
     gender?: string;
 }
-// src/types.ts dosyasının en altına ekleyin:
 
-export interface TournamentPlayer {
-    id: string;
-    name: string;
-    jerseyNumber?: string;
-    goals?: number;
-    assists?: number;
-    blocks?: number;
-    turnovers?: number;
-    matchesPlayed?: number;
-    gender?: string;
-}
