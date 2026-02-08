@@ -13,7 +13,7 @@ export default function Login() {
             const provider = new GoogleAuthProvider();
             await signInWithPopup(auth, provider);
             // Başarılı giriş sonrası Dashboard'a git
-            navigate('/dashboard');
+            navigate('/teams');
         } catch (error: any) {
             console.error("Giriş Hatası:", error);
             alert("Giriş yapılırken bir hata oluştu: " + error.message);
