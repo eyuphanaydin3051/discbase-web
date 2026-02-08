@@ -23,7 +23,7 @@ function App() {
           <Route path="/roster" element={<Roster />} />
           <Route path="/tournaments" element={<TournamentList />} />
           {/* Detay sayfasında da sidebar görünmesi kullanıcı deneyimi için iyidir */}
-          <Route path="/tournaments/:id" element={<TournamentDetail />} />
+          <Route path="/tournament/:id" element={<TournamentDetail />} />
         </Route>
       </Routes>
     </Router>

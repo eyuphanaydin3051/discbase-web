@@ -107,7 +107,7 @@ export default function TournamentDetail() {
                     <div className="flex justify-between h-16">
                         <div className="flex items-center gap-4">
                             <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors">
-                                <span className="material-icons-round">arrow_back</span>
+                                <span className="material-icons-outlined">arrow_back</span>
                             </button>
                             <div className="flex-shrink-0 flex items-center">
                                 <span className="text-xl font-bold text-[#5B4DBC] tracking-tight">DiscBase</span>
@@ -115,10 +115,10 @@ export default function TournamentDetail() {
                         </div>
                         <div className="flex items-center space-x-4">
                             <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                <span className="material-icons-round">notifications</span>
+                                <span className="material-icons-outlined">notifications</span>
                             </button>
                             <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                <span className="material-icons-round">account_circle</span>
+                                <span className="material-icons-outlined">account_circle</span>
                             </button>
                         </div>
                     </div>
@@ -131,12 +131,12 @@ export default function TournamentDetail() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
                     <div className="flex items-center gap-4 mb-4 md:mb-0">
                         <div className="h-16 w-16 bg-purple-100 dark:bg-purple-900/30 rounded-2xl flex items-center justify-center text-[#5B4DBC]">
-                            <span className="material-icons-round text-3xl">trophy</span>
+                            <span className="material-icons-outlined text-3xl">trophy</span>
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Turnuva Detayı</h1>
                             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                                <span className="material-icons-round text-base">calendar_today</span>
+                                <span className="material-icons-outlined text-base">calendar_today</span>
                                 <span>2025 Sezonu</span>
                                 <span className="w-1 h-1 bg-gray-400 rounded-full mx-1"></span>
                                 <span>{tournamentId}</span>
@@ -176,7 +176,7 @@ export default function TournamentDetail() {
                             {/* Galibiyet */}
                             <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
                                 <div className="h-12 w-12 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center mb-3">
-                                    <span className="material-icons-round text-[#00C896] text-2xl">emoji_events</span>
+                                    <span className="material-icons-outlined text-[#00C896] text-2xl">emoji_events</span>
                                 </div>
                                 <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">Galibiyet</h3>
                                 <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{wins}</p>
@@ -188,7 +188,7 @@ export default function TournamentDetail() {
                             {/* Mağlubiyet */}
                             <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
                                 <div className="h-12 w-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-3">
-                                    <span className="material-icons-round text-[#FF6B6B] text-2xl">thumb_down</span>
+                                    <span className="material-icons-outlined text-[#FF6B6B] text-2xl">thumb_down</span>
                                 </div>
                                 <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">Mağlubiyet</h3>
                                 <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{losses}</p>
@@ -200,7 +200,7 @@ export default function TournamentDetail() {
                             {/* Sayı Farkı */}
                             <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
                                 <div className="h-12 w-12 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-3">
-                                    <span className="material-icons-round text-blue-500 text-2xl">compare_arrows</span>
+                                    <span className="material-icons-outlined text-blue-500 text-2xl">compare_arrows</span>
                                 </div>
                                 <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">Sayı Farkı</h3>
                                 <p className={`text-4xl font-bold mt-2 ${pointDiff >= 0 ? 'text-[#00C896]' : 'text-[#FF6B6B]'}`}>
@@ -214,7 +214,7 @@ export default function TournamentDetail() {
                             {/* Spirit */}
                             <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
                                 <div className="h-12 w-12 rounded-full bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center mb-3">
-                                    <span className="material-icons-round text-yellow-600 text-2xl">stars</span>
+                                    <span className="material-icons-outlined text-yellow-600 text-2xl">stars</span>
                                 </div>
                                 <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">Spirit Puanı</h3>
                                 <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">11.4</p>
@@ -229,7 +229,7 @@ export default function TournamentDetail() {
                             {/* Sayı Lideri */}
                             <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <span className="material-icons-round text-8xl text-[#5B4DBC]">sports_handball</span>
+                                    <span className="material-icons-outlined text-8xl text-[#5B4DBC]">sports_handball</span>
                                 </div>
                                 <div className="flex items-start justify-between">
                                     <div>
@@ -249,7 +249,7 @@ export default function TournamentDetail() {
                             {/* Asist Lideri */}
                             <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <span className="material-icons-round text-8xl text-[#00C896]">handshake</span>
+                                    <span className="material-icons-outlined text-8xl text-[#00C896]">handshake</span>
                                 </div>
                                 <div className="flex items-start justify-between">
                                     <div>
@@ -333,7 +333,7 @@ export default function TournamentDetail() {
                                         <div className="flex flex-col">
                                             <h3 className="font-bold text-lg text-gray-900 dark:text-white">vs {match.opponentName}</h3>
                                             <span className={`text-xs font-bold uppercase tracking-wide mt-1 flex items-center gap-1 ${isWin ? 'text-[#00C896]' : 'text-[#FF6B6B]'}`}>
-                                                {isWin ? <><span className="material-icons-round text-[10px]">emoji_events</span> KAZANDIK</> : 'KAYBETTİK'}
+                                                {isWin ? <><span className="material-icons-outlined text-[10px]">emoji_events</span> KAZANDIK</> : 'KAYBETTİK'}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-4">
@@ -343,7 +343,7 @@ export default function TournamentDetail() {
                                                 </span>
                                             </div>
                                             <div className="h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:bg-[#5B4DBC] group-hover:text-white transition-colors">
-                                                <span className="material-icons-round text-sm">arrow_forward_ios</span>
+                                                <span className="material-icons-outlined text-sm">arrow_forward_ios</span>
                                             </div>
                                         </div>
                                     </div>
@@ -352,7 +352,7 @@ export default function TournamentDetail() {
                         })}
                         {matches.length === 0 && (
                             <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
-                                <span className="material-icons-round text-4xl mb-2 opacity-50">sports_score</span>
+                                <span className="material-icons-outlined text-4xl mb-2 opacity-50">sports_score</span>
                                 <p>Bu turnuvada henüz maç oynanmadı.</p>
                             </div>
                         )}
@@ -363,7 +363,7 @@ export default function TournamentDetail() {
             {/* FAB - Yeni Maç */}
             <div className="fixed bottom-8 right-8 z-40">
                 <button className="bg-[#5B4DBC] hover:bg-opacity-90 text-white rounded-2xl p-4 shadow-lg flex items-center gap-2 transition-transform transform hover:scale-105 active:scale-95">
-                    <span className="material-icons-round">add</span>
+                    <span className="material-icons-outlined">add</span>
                     <span className="font-medium pr-1">Yeni Maç</span>
                 </button>
             </div>
