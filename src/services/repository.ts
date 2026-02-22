@@ -1,15 +1,17 @@
+// src/services/repository.ts
+
 import {
     collection,
     query,
     where,
-    onSnapshot
+    onSnapshot,
+    doc,
+    updateDoc,
+    getDocs
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { TeamProfile, Player, Tournament, TournamentPlayer } from '../types';
-import { getDocs } from 'firebase/firestore';
-import type { Match, PlayerStats } from '../types';
+import type { TeamProfile, Player, Tournament, TournamentPlayer, Match } from '../types';
 
-// Mevcut fonksiyonlarınız (getUserTeams, getPlayers, getTournaments) burada duruyor olmalı...
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
     const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
     return onSnapshot(q, (snapshot) => {
@@ -43,7 +45,6 @@ export const getTournaments = (teamId: string, callback: (tournaments: Tournamen
     });
 };
 
-// --- YENİ EKLENEN FONKSİYON ---
 export const getTournamentMatches = (teamId: string, tournamentId: string, callback: (matches: any[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/matches`));
     return onSnapshot(q, (snapshot) => {
@@ -54,11 +55,9 @@ export const getTournamentMatches = (teamId: string, tournamentId: string, callb
         callback(matchesData);
     });
 };
-export const getTournamentPlayers = (teamId: string, tournamentId: string, callback: (players: TournamentPlayer[]) => void) => {
-    // Veritabanı yolu: teams/{teamId}/tournaments/{tournamentId}/players
-    // 'goals' (gol sayısı) alanına göre sıralama yapabilirsiniz, ancak burada ham veriyi çekiyoruz.
-    const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/players`));
 
+export const getTournamentPlayers = (teamId: string, tournamentId: string, callback: (players: TournamentPlayer[]) => void) => {
+    const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/players`));
     return onSnapshot(q, (snapshot) => {
         const playersData = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -67,7 +66,68 @@ export const getTournamentPlayers = (teamId: string, tournamentId: string, callb
         callback(playersData);
     });
 };
-// Oyuncunun tüm kariyer istatistiklerini hesaplayan fonksiyon
+
+// --- YENİ EKLENEN: OYUNCU GÜNCELLEME ---
+export const updatePlayer = async (teamId: string, player: Player) => {
+    try {
+        const playerRef = doc(db, `teams/${teamId}/players`, player.id);
+        await updateDoc(playerRef, {
+            name: player.name,
+            jerseyNumber: player.jerseyNumber,
+            position: player.position,
+            isCaptain: player.isCaptain,
+            photoUrl: player.photoUrl // Fotoğraf güncellemesi için
+        });
+        return true;
+    } catch (error) {
+        console.error("Oyuncu güncellenirken hata:", error);
+        return false;
+    }
+};
+
+// --- YENİ EKLENEN: TAKIM ORTALAMALARINI HESAPLA ---
+export const getTeamAggregates = async (teamId: string) => {
+    try {
+        const tourSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments`));
+        let allMatches: Match[] = [];
+        
+        // Tüm maçları topla
+        for (const tourDoc of tourSnapshot.docs) {
+            const matchesSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments/${tourDoc.id}/matches`));
+            const matchesData = matchesSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Match));
+            allMatches = [...allMatches, ...matchesData];
+        }
+
+        let totalGoals = 0, totalAssists = 0, totalBlocks = 0, totalTurns = 0;
+        let uniquePlayerIds = new Set<string>();
+
+        allMatches.forEach(match => {
+            match.pointsArchive?.forEach(point => {
+                point.stats?.forEach(stat => {
+                    uniquePlayerIds.add(stat.playerId);
+                    totalGoals += stat.goal || 0;
+                    totalAssists += stat.assist || 0;
+                    totalBlocks += stat.block || 0;
+                    totalTurns += (stat.throwaway || 0) + (stat.drop || 0);
+                });
+            });
+        });
+
+        const playerCount = uniquePlayerIds.size || 1;
+
+        return {
+            avgGoals: parseFloat((totalGoals / playerCount).toFixed(1)),
+            avgAssists: parseFloat((totalAssists / playerCount).toFixed(1)),
+            avgBlocks: parseFloat((totalBlocks / playerCount).toFixed(1)),
+            avgTurns: parseFloat((totalTurns / playerCount).toFixed(1))
+        };
+    } catch (e) {
+        console.error("Takım ortalamaları hatası:", e);
+        return null;
+    }
+};
+
+// --- GÜNCELLENEN: Oyuncunun tüm kariyer istatistiklerini hesaplayan fonksiyon ---
 export const getPlayerCareerStats = async (teamId: string, playerId: string) => {
     try {
         // 1. Takımın tüm turnuvalarını çek
@@ -75,6 +135,7 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
         
         let allMatches: Match[] = [];
         let passDistribution: Record<string, number> = {};
+        
         // 2. Her turnuvanın içindeki maçları çek
         for (const tourDoc of tourSnapshot.docs) {
             const matchesSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments/${tourDoc.id}/matches`));
@@ -104,6 +165,8 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
                     throwaways += pStat.throwaway || 0;
                     catches += pStat.catchStat || 0;
                     passes += pStat.successfulPass || 0;
+                    
+                    // Pas dağılımını hesapla
                     if (pStat.passDistribution) {
                         Object.entries(pStat.passDistribution).forEach(([targetName, count]) => {
                             passDistribution[targetName] = (passDistribution[targetName] || 0) + count;
@@ -120,7 +183,7 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
 
         return {
             goals, assists, blocks, drops, throwaways, catches, passes,
-            oPoints, dPoints, pointsPlayed, plusMinus, catchRate, passRate,passDistribution
+            oPoints, dPoints, pointsPlayed, plusMinus, catchRate, passRate, passDistribution
         };
     } catch (error) {
         console.error("İstatistikler çekilirken hata oluştu:", error);
