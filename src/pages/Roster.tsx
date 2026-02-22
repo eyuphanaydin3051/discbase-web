@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { auth } from '../services/firebase';
 import { getUserTeams, getPlayers } from '../services/repository';
 import type { Player, TeamProfile } from '../types';
-
+import PlayerDetailModal from '../components/PlayerDetailModal';
 export default function Roster() {
     const [user] = useState(auth.currentUser);
     const [teams, setTeams] = useState<TeamProfile[]>([]);
@@ -10,7 +10,7 @@ export default function Roster() {
     const [players, setPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-
+    const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
     useEffect(() => {
         if (!user) return;
         const unsubscribe = getUserTeams(user.uid, (fetchedTeams) => {
@@ -94,7 +94,9 @@ export default function Roster() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredPlayers.map((player) => (
-                        <div key={player.id} className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 border border-transparent flex flex-col items-center text-center cursor-pointer">
+                        <div key={player.id} 
+                        onClick={() => setSelectedPlayer(player)}
+                        className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 border border-transparent flex flex-col items-center text-center cursor-pointer">
                             <div className="relative mb-4">
                                 <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-2xl font-bold 
                                     ${!player.position ? 'border-gray-300 bg-gray-100 text-gray-600' : 
@@ -121,6 +123,14 @@ export default function Roster() {
                     </div>
                 </div>
             )}
+            {/* Modalı Render Et */}
+    {selectedPlayer && selectedTeamId && (
+        <PlayerDetailModal 
+            player={selectedPlayer} 
+            teamId={selectedTeamId} 
+            onClose={() => setSelectedPlayer(null)} 
+        />
+    )}
         </div>
     );
 }
