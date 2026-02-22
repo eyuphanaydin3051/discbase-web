@@ -99,6 +99,19 @@ export default function Dashboard() {
     const passSuccess = teamStats?.passSuccess || 0;
     const totalPasses = teamStats?.totalPassAttempts || 0;
     const totalTurns = teamStats?.totalTurnovers || 0;
+    
+    // Verimlilik Analizi Değişkenleri
+    const totalMatches = teamStats?.totalMatches || 0;
+    const totalPointsPlayed = teamStats?.totalPointsPlayed || 0;
+    const cleanHolds = teamStats?.cleanHolds || 0;
+    const cleanHoldPercentage = teamStats?.oPoints > 0 ? ((cleanHolds / teamStats.oPoints) * 100).toFixed(1) : 0;
+    const avgTurnPerMatch = totalMatches > 0 ? (totalTurns / totalMatches).toFixed(1) : 0;
+    
+    // Conversion Rate (Sayıya Dönüşüm: Aldığımız tüm sayılar / Oynanan toplam pozisyon)
+    const totalGoalsScored = (teamStats?.oHolds || 0) + (teamStats?.dBreaks || 0);
+    const conversionRate = totalPointsPlayed > 0 ? ((totalGoalsScored / totalPointsPlayed) * 100).toFixed(1) : 0;
+    
+    // Ekstra string etiketleri
     const oHoldsStr = `${teamStats?.oHolds || 0} / ${teamStats?.oPoints || 0}`;
     const dBreaksStr = `${teamStats?.dBreaks || 0} / ${teamStats?.dPoints || 0}`;
     const passesStr = `${teamStats?.totalPassesCompleted || 0} / ${teamStats?.totalPassAttempts || 0}`;
@@ -226,6 +239,45 @@ export default function Dashboard() {
                             </div>
                         </div>
                     </section>
+                    {/* YENİ: Verimlilik Analizi Kartı */}
+                    <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                            <span className="material-icons-outlined text-[#00C4B4]">insights</span>
+                            Verimlilik Analizi
+                        </h2>
+                        <div className="space-y-6">
+                            <div>
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-sm font-medium text-gray-500">Sayı Dönüşümü (Conversion Rate)</span>
+                                    <span className="text-lg font-bold text-gray-800">%{conversionRate}</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
+                                    <div className="bg-[#5B4DBC] h-3 rounded-full" style={{ width: `${conversionRate}%` }}></div>
+                                </div>
+                                <p className="text-xs text-gray-400 font-medium">{totalGoalsScored} / {totalPointsPlayed} oynanan pozisyon gol oldu</p>
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-sm font-medium text-gray-500">Hatasız Hücum (Clean Hold)</span>
+                                    <span className="text-lg font-bold text-gray-800">%{cleanHoldPercentage}</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
+                                    <div className="bg-[#00C4B4] h-3 rounded-full" style={{ width: `${cleanHoldPercentage}%` }}></div>
+                                </div>
+                                <p className="text-xs text-gray-400 font-medium">{cleanHolds} / {teamStats?.oPoints || 0} ofans sayısı turnover olmadan bitirildi</p>
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-sm font-medium text-gray-500">Defans Gol Dönüşümü (Break)</span>
+                                    <span className="text-lg font-bold text-gray-800">{breakPercentage}%</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
+                                    <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${breakPercentage}%` }}></div>
+                                </div>
+                                <p className="text-xs text-gray-400 font-medium">{teamStats?.dBreaks || 0} / {teamStats?.dPoints || 0} defans sayısında diski alıp gol bulduk</p>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 {/* Sağ Kolon */}
@@ -243,46 +295,26 @@ export default function Dashboard() {
                                 <span className="text-3xl font-bold text-[#5B4DBC]">{totalPasses}</span>
                             </div>
                             <div className="bg-teal-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
-                                <span className="text-sm text-gray-500">Ort. Gol (Kişi)</span>
-                                <span className="text-3xl font-bold text-[#00C4B4]">{teamStats?.avgGoals || 0}</span>
+                                <span className="text-sm text-gray-500">Başarılı Pas</span>
+                                <span className="text-3xl font-bold text-[#00C4B4]">{teamStats?.totalPassesCompleted || 0}</span>
                             </div>
                             <div className="bg-red-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
                                 <span className="text-sm text-gray-500">Turnover</span>
                                 <span className="text-3xl font-bold text-red-500">{totalTurns}</span>
                             </div>
+                            <div className="bg-red-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
+                                <span className="text-sm text-gray-500">Ort. Turn/Maç</span>
+                                <span className="text-3xl font-bold text-red-500">{avgTurnPerMatch}</span>
+                            </div>
                             <div className="bg-gray-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
-                                <span className="text-sm text-gray-500">O. Turn/Kişi</span>
-                                <span className="text-3xl font-bold text-gray-800">{teamStats?.avgTurns || 0}</span>
+                                <span className="text-sm text-gray-500">Oynanan Sayı</span>
+                                <span className="text-3xl font-bold text-gray-800">{totalPointsPlayed}</span>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
+                                <span className="text-sm text-gray-500">Toplam Maç</span>
+                                <span className="text-3xl font-bold text-gray-800">{totalMatches}</span>
                             </div>
                         </div>
-                    </section>
-
-                    {/* Kadro Özeti */}
-                    <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                <span className="material-icons-outlined text-[#5B4DBC]">groups</span>
-                                Kadro
-                            </h2>
-                        </div>
-                        <div className="space-y-3">
-                            {players.slice(0, 4).map((player) => (
-                                <div key={player.id} onClick={() => navigate(`/player/${selectedTeamId}/${player.id}`)} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-gray-100">
-                                    <div className="w-10 h-10 rounded-full bg-purple-50 text-[#5B4DBC] flex items-center justify-center font-bold border-2 border-purple-100 overflow-hidden">
-                                        {player.photoUrl ? (
-                                            <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
-                                        ) : getInitials(player.name)}
-                                    </div>
-                                    <div>
-                                        <p className="font-semibold text-gray-800">{player.name}</p>
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{player.position || 'Oyuncu'}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <button onClick={() => navigate('/roster')} className="w-full mt-4 py-2 text-sm text-[#5B4DBC] font-medium border border-[#5B4DBC]/30 rounded-lg hover:bg-[#5B4DBC] hover:text-white transition-colors">
-                            Tüm Kadroyu Gör
-                        </button>
                     </section>
                 </div>
             </div>

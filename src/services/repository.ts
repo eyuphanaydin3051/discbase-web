@@ -87,12 +87,12 @@ export const updatePlayer = async (teamId: string, player: Player) => {
 
 // --- YENİ EKLENEN: TAKIM ORTALAMALARINI HESAPLA ---
 // --- GÜNCELLENEN: TAKIM ORTALAMALARINI VE PERFORMANSINI HESAPLA ---
+// --- GÜNCELLENEN: TAKIM ORTALAMALARINI VE PERFORMANSINI HESAPLA ---
 export const getTeamAggregates = async (teamId: string) => {
     try {
         const tourSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments`));
         let allMatches: Match[] = [];
         
-        // Tüm maçları topla
         for (const tourDoc of tourSnapshot.docs) {
             const matchesSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments/${tourDoc.id}/matches`));
             const matchesData = matchesSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Match));
@@ -101,14 +101,19 @@ export const getTeamAggregates = async (teamId: string) => {
 
         let totalGoals = 0, totalAssists = 0, totalBlocks = 0, totalTurns = 0, totalDrops = 0;
         let totalPasses = 0;
-        let oPoints = 0, oHolds = 0;
+        let oPoints = 0, oHolds = 0, cleanHolds = 0;
         let dPoints = 0, dBreaks = 0;
+        let totalPointsPlayed = 0;
         let uniquePlayerIds = new Set<string>();
 
-        // İstatistik Merkezindeki Algoritma
+        const totalMatches = allMatches.length;
+
+        // Her maçı ve oynanan her sayıyı (point) tek tek tarıyoruz
         allMatches.forEach(match => {
             match.pointsArchive?.forEach(point => {
+                totalPointsPlayed++; // Oynanan her pozisyonu/sayıyı say
                 let pointHasOurGoal = false;
+                let pointTurnovers = 0; // Bu sayı içinde yapılan toplam top kaybı
 
                 point.stats?.forEach(stat => {
                     uniquePlayerIds.add(stat.playerId);
@@ -118,16 +123,21 @@ export const getTeamAggregates = async (teamId: string) => {
                     totalTurns += stat.throwaway || 0;
                     totalDrops += stat.drop || 0;
                     totalPasses += stat.successfulPass || 0;
+                    
+                    pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
 
                     if (stat.goal && stat.goal > 0) {
-                        pointHasOurGoal = true; // Bu sayıyı biz almışız (Goal var)
+                        pointHasOurGoal = true; 
                     }
                 });
 
-                // Hold ve Break (Verimlilik) Hesaplaması
+                // Verimlilik: Hold, Break ve Clean Hold (Hatasız Hücum) Hesabı
                 if (point.startMode === 'OFFENSE') {
                     oPoints++;
-                    if (pointHasOurGoal) oHolds++;
+                    if (pointHasOurGoal) {
+                        oHolds++;
+                        if (pointTurnovers === 0) cleanHolds++; // Hiç turnover yapmadan sayı olduysa
+                    }
                 } else if (point.startMode === 'DEFENSE') {
                     dPoints++;
                     if (pointHasOurGoal) dBreaks++;
@@ -140,6 +150,8 @@ export const getTeamAggregates = async (teamId: string) => {
         const totalPassAttempts = totalPasses + totalTurns;
 
         return {
+            totalMatches,
+            totalPointsPlayed,
             avgGoals: parseFloat((totalGoals / playerCount).toFixed(1)),
             avgAssists: parseFloat((totalAssists / playerCount).toFixed(1)),
             avgBlocks: parseFloat((totalBlocks / playerCount).toFixed(1)),
@@ -150,6 +162,7 @@ export const getTeamAggregates = async (teamId: string) => {
             totalPassAttempts,
             totalPassesCompleted: totalPasses,
             totalTurnovers: absoluteTurnovers,
+            cleanHolds,
             oHolds, oPoints,
             dBreaks, dPoints
         };
