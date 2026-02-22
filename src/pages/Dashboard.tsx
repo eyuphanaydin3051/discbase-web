@@ -100,22 +100,24 @@ export default function Dashboard() {
     const totalPasses = teamStats?.totalPassAttempts || 0;
     const totalTurns = teamStats?.totalTurnovers || 0;
     
-    // Verimlilik Analizi Değişkenleri
+    // Verimlilik Analizi Değişkenleri (App ile Birebir)
     const totalMatches = teamStats?.totalMatches || 0;
     const totalPointsPlayed = teamStats?.totalPointsPlayed || 0;
     const cleanHolds = teamStats?.cleanHolds || 0;
     const cleanHoldPercentage = teamStats?.oPoints > 0 ? ((cleanHolds / teamStats.oPoints) * 100).toFixed(1) : 0;
     const avgTurnPerMatch = totalMatches > 0 ? (totalTurns / totalMatches).toFixed(1) : 0;
     
-    // Conversion Rate (Sayıya Dönüşüm: Aldığımız tüm sayılar / Oynanan toplam pozisyon)
-    const totalGoalsScored = (teamStats?.oHolds || 0) + (teamStats?.dBreaks || 0);
-    const conversionRate = totalPointsPlayed > 0 ? ((totalGoalsScored / totalPointsPlayed) * 100).toFixed(1) : 0;
+    // Conversion Rate (Sayı Dönüşümü ve Blok Dönüşümü)
+    const conversionRate = teamStats?.conversionRate || 0;
+    const blockConversionRate = teamStats?.blockConversionRate || 0;
+    const totalPossessions = teamStats?.totalPossessions || 0;
+    const totalGoals = teamStats?.totalGoals || 0;
     
     // Ekstra string etiketleri
     const oHoldsStr = `${teamStats?.oHolds || 0} / ${teamStats?.oPoints || 0}`;
     const dBreaksStr = `${teamStats?.dBreaks || 0} / ${teamStats?.dPoints || 0}`;
+    const blockConversionStr = `${teamStats?.blocksConvertedToGoals || 0} / ${teamStats?.totalBlockPoints || 0}`;
     const passesStr = `${teamStats?.totalPassesCompleted || 0} / ${teamStats?.totalPassAttempts || 0}`;
-
     return (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full pb-24 lg:pb-8">
             {/* Üst Banner */}
@@ -239,7 +241,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                     </section>
-                    {/* YENİ: Verimlilik Analizi Kartı */}
+                    {/* Verimlilik Analizi Kartı */}
                     <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <span className="material-icons-outlined text-[#00C4B4]">insights</span>
@@ -254,7 +256,7 @@ export default function Dashboard() {
                                 <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
                                     <div className="bg-[#5B4DBC] h-3 rounded-full" style={{ width: `${conversionRate}%` }}></div>
                                 </div>
-                                <p className="text-xs text-gray-400 font-medium">{totalGoalsScored} / {totalPointsPlayed} oynanan pozisyon gol oldu</p>
+                                <p className="text-xs text-gray-400 font-medium">{totalGoals} / {totalPossessions} hücum pozisyonu (possession) gol oldu</p>
                             </div>
                             <div>
                                 <div className="flex justify-between items-end mb-1">
@@ -268,13 +270,13 @@ export default function Dashboard() {
                             </div>
                             <div>
                                 <div className="flex justify-between items-end mb-1">
-                                    <span className="text-sm font-medium text-gray-500">Defans Gol Dönüşümü (Break)</span>
-                                    <span className="text-lg font-bold text-gray-800">{breakPercentage}%</span>
+                                    <span className="text-sm font-medium text-gray-500">Blok Dönüşümü (Block Conversion)</span>
+                                    <span className="text-lg font-bold text-gray-800">%{blockConversionRate}</span>
                                 </div>
                                 <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
-                                    <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${breakPercentage}%` }}></div>
+                                    <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${blockConversionRate}%` }}></div>
                                 </div>
-                                <p className="text-xs text-gray-400 font-medium">{teamStats?.dBreaks || 0} / {teamStats?.dPoints || 0} defans sayısında diski alıp gol bulduk</p>
+                                <p className="text-xs text-gray-400 font-medium">{blockConversionStr} blok yapılan sayılarda golü bulduk</p>
                             </div>
                         </div>
                     </section>

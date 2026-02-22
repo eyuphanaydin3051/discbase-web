@@ -85,8 +85,6 @@ export const updatePlayer = async (teamId: string, player: Player) => {
     }
 };
 
-// --- YENİ EKLENEN: TAKIM ORTALAMALARINI HESAPLA ---
-// --- GÜNCELLENEN: TAKIM ORTALAMALARINI VE PERFORMANSINI HESAPLA ---
 // --- GÜNCELLENEN: TAKIM ORTALAMALARINI VE PERFORMANSINI HESAPLA ---
 export const getTeamAggregates = async (teamId: string) => {
     try {
@@ -100,10 +98,12 @@ export const getTeamAggregates = async (teamId: string) => {
         }
 
         let totalGoals = 0, totalAssists = 0, totalBlocks = 0, totalTurns = 0, totalDrops = 0;
-        let totalPasses = 0;
+        let totalSuccessfulPass = 0;
         let oPoints = 0, oHolds = 0, cleanHolds = 0;
         let dPoints = 0, dBreaks = 0;
         let totalPointsPlayed = 0;
+        let totalBlockPoints = 0;
+        let blocksConvertedToGoals = 0;
         let uniquePlayerIds = new Set<string>();
 
         const totalMatches = allMatches.length;
@@ -114,6 +114,7 @@ export const getTeamAggregates = async (teamId: string) => {
                 totalPointsPlayed++; // Oynanan her pozisyonu/sayıyı say
                 let pointHasOurGoal = false;
                 let pointTurnovers = 0; // Bu sayı içinde yapılan toplam top kaybı
+                let pointBlocks = 0; // Bu sayı içinde yapılan toplam blok
 
                 point.stats?.forEach(stat => {
                     uniquePlayerIds.add(stat.playerId);
@@ -122,14 +123,23 @@ export const getTeamAggregates = async (teamId: string) => {
                     totalBlocks += stat.block || 0;
                     totalTurns += stat.throwaway || 0;
                     totalDrops += stat.drop || 0;
-                    totalPasses += stat.successfulPass || 0;
+                    totalSuccessfulPass += stat.successfulPass || 0;
                     
                     pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
+                    pointBlocks += stat.block || 0;
 
                     if (stat.goal && stat.goal > 0) {
                         pointHasOurGoal = true; 
                     }
                 });
+
+                // Blok Dönüşümü Hesabı (App ile birebir aynı: Blok olan sayılarda gol attık mı?)
+                if (pointBlocks > 0) {
+                    totalBlockPoints++;
+                    if (pointHasOurGoal) {
+                        blocksConvertedToGoals++;
+                    }
+                }
 
                 // Verimlilik: Hold, Break ve Clean Hold (Hatasız Hücum) Hesabı
                 if (point.startMode === 'OFFENSE') {
@@ -147,7 +157,11 @@ export const getTeamAggregates = async (teamId: string) => {
 
         const playerCount = uniquePlayerIds.size || 1;
         const absoluteTurnovers = totalTurns + totalDrops;
-        const totalPassAttempts = totalPasses + totalTurns;
+        
+        // Uygulamadaki Gerçek Pas ve Verimlilik (Possession) Hesaplaması
+        const totalPassesCompleted = totalSuccessfulPass + totalAssists;
+        const totalPassAttempts = totalPassesCompleted + totalTurns;
+        const totalPossessions = totalGoals + totalTurns + totalDrops;
 
         return {
             totalMatches,
@@ -158,11 +172,17 @@ export const getTeamAggregates = async (teamId: string) => {
             avgTurns: parseFloat((absoluteTurnovers / playerCount).toFixed(1)),
             holdPercentage: oPoints > 0 ? ((oHolds / oPoints) * 100).toFixed(1) : 0,
             breakPercentage: dPoints > 0 ? ((dBreaks / dPoints) * 100).toFixed(1) : 0,
-            passSuccess: totalPassAttempts > 0 ? ((totalPasses / totalPassAttempts) * 100).toFixed(1) : 0,
+            passSuccess: totalPassAttempts > 0 ? ((totalPassesCompleted / totalPassAttempts) * 100).toFixed(1) : 0,
+            conversionRate: totalPossessions > 0 ? ((totalGoals / totalPossessions) * 100).toFixed(1) : 0,
+            blockConversionRate: totalBlockPoints > 0 ? ((blocksConvertedToGoals / totalBlockPoints) * 100).toFixed(1) : 0,
             totalPassAttempts,
-            totalPassesCompleted: totalPasses,
+            totalPassesCompleted,
             totalTurnovers: absoluteTurnovers,
+            totalPossessions,
+            totalGoals,
             cleanHolds,
+            totalBlockPoints,
+            blocksConvertedToGoals,
             oHolds, oPoints,
             dBreaks, dPoints
         };

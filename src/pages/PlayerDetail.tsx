@@ -211,6 +211,14 @@ export default function PlayerDetail() {
                             <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden mb-2">
                                 <div className="h-full bg-teal-500" style={{ width: `${stats?.catchRate || 0}%` }}></div>
                             </div>
+                            {/* YENİ EKLENEN: Catch ve Drop Sayıları */}
+                            <div className="flex justify-between text-xs font-bold mt-4 pt-3 border-t border-gray-100">
+                                <div className="flex gap-4">
+                                    <span className="text-teal-600">{stats?.catches || 0} Catch</span>
+                                    <span className="text-rose-500">{stats?.drops || 0} Drop</span>
+                                </div>
+                                <span className="text-slate-400 uppercase tracking-wide">{(stats?.catches || 0) + (stats?.drops || 0)} Toplam</span>
+                            </div>
                         </div>
 
                         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
@@ -224,6 +232,14 @@ export default function PlayerDetail() {
                             </div>
                             <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden mb-2">
                                 <div className="h-full bg-indigo-500" style={{ width: `${stats?.passRate || 0}%` }}></div>
+                            </div>
+                            {/* YENİ EKLENEN: Pas ve Turn Sayıları */}
+                            <div className="flex justify-between text-xs font-bold mt-4 pt-3 border-t border-gray-100">
+                                <div className="flex gap-4">
+                                    <span className="text-indigo-600">{stats?.passes || 0} Pas</span>
+                                    <span className="text-rose-500">{stats?.throwaways || 0} Turn</span>
+                                </div>
+                                <span className="text-slate-400 uppercase tracking-wide">{(stats?.passes || 0) + (stats?.throwaways || 0)} Toplam</span>
                             </div>
                         </div>
                     </div>
