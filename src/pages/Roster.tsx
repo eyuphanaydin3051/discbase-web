@@ -100,10 +100,13 @@ export default function Roster() {
                         onClick={() => navigate(`/player/${selectedTeamId}/${player.id}`)}
                         className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 border border-transparent flex flex-col items-center text-center cursor-pointer">
                             <div className="relative mb-4">
-                                <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-2xl font-bold 
-                                    ${!player.position ? 'border-gray-300 bg-gray-100 text-gray-600' : 
-                                      'border-[#00c4b4] bg-teal-50 text-teal-700'}`}>
-                                    {getInitials(player.name)}
+                                <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-2xl font-bold overflow-hidden shadow-inner
+                                    ${!player.position ? 'border-gray-300 bg-gray-100 text-gray-600' : 'border-[#00c4b4] bg-teal-50 text-teal-700'}`}>
+                                    {player.photoUrl ? (
+                                        <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        getInitials(player.name)
+                                    )}
                                 </div>
                                 <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></div>
                             </div>

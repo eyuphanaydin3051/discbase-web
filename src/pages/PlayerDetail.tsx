@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getPlayers, getPlayerCareerStats, getTeamAggregates } from '../services/repository'; // getTeamAggregates eklendi
+import { getPlayers, getPlayerCareerStats, getTeamAggregates } from '../services/repository';
 import type { Player } from '../types';
-import EditPlayerModal from '../components/EditPlayerModal'; // Modal import edildi
+import EditPlayerModal from '../components/EditPlayerModal';
 
 export default function PlayerDetail() {
     const { t } = useTranslation();
@@ -11,13 +11,13 @@ export default function PlayerDetail() {
     const navigate = useNavigate();
 
     const [player, setPlayer] = useState<Player | null>(null);
-    const [allPlayers, setAllPlayers] = useState<Player[]>([]); // İsim eşleşmesi için tüm oyuncular
+    const [allPlayers, setAllPlayers] = useState<Player[]>([]);
     const [stats, setStats] = useState<any>(null);
-    const [teamAvgs, setTeamAvgs] = useState<any>(null); // Takım Ortalamaları
+    const [teamAvgs, setTeamAvgs] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-    // Veri çekme fonksiyonunu dışarı aldık ki güncelleme sonrası tekrar çağırabilelim
+    // Veri çekme fonksiyonu
     const refreshData = async () => {
         if (!teamId || !playerId) return;
         
@@ -59,20 +59,44 @@ export default function PlayerDetail() {
     // ID'den İsim Bulma Helper'ı
     const getPlayerNameById = (id: string) => {
         const p = allPlayers.find(pl => pl.id === id);
-        return p ? p.name.split(" ")[0] : "Bilinmeyen"; // Sadece ilk ismi göster (yer kazanmak için)
+        return p ? p.name.split(" ")[0] : "Bilinmeyen";
     };
 
-    // Pas Dağılımı Hesaplama
+    // --- GRAFİK HESAPLAMALARI (GÜNCELLENEN KISIM) ---
+    
+    // Pas Dağılımını sırala (En çoktan en aza)
     const passNetwork = Object.entries(stats?.passDistribution || {})
         .sort((a, b) => (b[1] as number) - (a[1] as number));
+
+    // Görseldeki altıgen çizim için max 6 kişi alalım
+    const topPasses = passNetwork.slice(0, 6);
     
-    const topPasses = passNetwork.slice(0, 4);
-    const positions = [
-        "top-0 left-1/2 -translate-x-1/2 flex flex-col items-center", 
-        "bottom-0 left-1/2 -translate-x-1/2 flex flex-col items-center",
-        "right-0 top-1/4 flex items-center", 
-        "left-0 top-1/4 flex items-center"
-    ];
+    // Altıgen grafik (Radar Chart) için SVG hesaplamaları
+    const maxPasses = topPasses.length > 0 ? Number(topPasses[0][1]) : 1;
+    const RADIUS = 110; // Grafiğin yarıçapı
+    const CENTER = 160; // Merkez X ve Y (SVG boyutu 320x320)
+    
+    // 6 köşe için açılar (Üst, Üst-Sağ, Alt-Sağ, Alt, Alt-Sol, Üst-Sol)
+    const angles = [-Math.PI/2, -Math.PI/6, Math.PI/6, Math.PI/2, 5*Math.PI/6, 7*Math.PI/6];
+    
+    // Pas oranına göre grafikteki noktaların (X,Y) koordinatını bulur
+    const getPointCoordinates = (index: number, value: number, isLabel: boolean = false) => {
+        const ratio = value / maxPasses;
+        const distance = isLabel ? RADIUS + 40 : RADIUS * ratio; // Etiketler çemberin dışında kalsın
+        return {
+            x: CENTER + distance * Math.cos(angles[index]),
+            y: CENTER + distance * Math.sin(angles[index])
+        };
+    };
+
+    // Veri Poligonu (Renkli alan) için koordinat stringi
+    const polygonPoints = topPasses.map(([, count], index) => {
+        const { x, y } = getPointCoordinates(index, count as number);
+        return `${x},${y}`;
+    }).join(" ");
+    
+    // Arka plan altıgeni için koordinat stringi
+    const bgPolygonPoints = angles.map(angle => `${CENTER + RADIUS * Math.cos(angle)},${CENTER + RADIUS * Math.sin(angle)}`).join(" ");
 
     return (
         <div className="p-4 md:p-8 max-w-[1440px] mx-auto w-full pb-20">
@@ -165,7 +189,7 @@ export default function PlayerDetail() {
                         </div>
                     </div>
 
-                    {/* Ana Skor Grid'i (TAKIM ORTALAMASI KIYASLAMALI) */}
+                    {/* Ana Skor Grid'i (Takım Ortalaması Kıyaslamalı) */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <StatBox label={t('stat_goals')} value={stats?.goals} avg={teamAvgs?.avgGoals} color="indigo" />
                         <StatBox label={t('stat_assists')} value={stats?.assists} avg={teamAvgs?.avgAssists} color="emerald" />
@@ -173,9 +197,8 @@ export default function PlayerDetail() {
                         <StatBox label={t('stat_turnovers')} value={stats?.throwaways + stats?.drops} avg={teamAvgs?.avgTurns} color="rose" />
                     </div>
 
-                    {/* Yüzdeler (Catch/Pass Rate) - Aynen Korundu */}
+                    {/* Yüzdeler (Catch/Pass Rate) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* ... (Catch Rate Kutusu - Değişiklik Yok) ... */}
                         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                              <div className="flex items-center gap-3 mb-6">
                                 <span className="material-icons-outlined text-teal-500">front_hand</span>
@@ -190,7 +213,6 @@ export default function PlayerDetail() {
                             </div>
                         </div>
 
-                        {/* ... (Pass Rate Kutusu - Değişiklik Yok) ... */}
                         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                              <div className="flex items-center gap-3 mb-6">
                                 <span className="material-icons-outlined text-indigo-500">trending_up</span>
@@ -207,7 +229,7 @@ export default function PlayerDetail() {
                     </div>
                 </div>
 
-                {/* Sağ Taraf - Pas Ağı (Connections) */}
+                {/* Sağ Taraf - Pas Ağı (Connections) - YENİ GRAFİK */}
                 <div className="lg:col-span-5">
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm sticky top-8">
                         <div className="flex justify-between items-center mb-8">
@@ -220,40 +242,59 @@ export default function PlayerDetail() {
                             </div>
                         </div>
 
-                        <div className="relative w-full aspect-square mb-10 flex items-center justify-center">
-                            {/* Daireler */}
-                            <div className="absolute inset-0 border border-slate-100 rounded-full"></div>
-                            <div className="absolute inset-[15%] border border-slate-100 rounded-full"></div>
-                            <div className="absolute inset-[30%] border border-slate-100 rounded-full"></div>
-                            
-                            {/* Merkez Oyuncu */}
-                            <div className="relative z-10 w-16 h-16 bg-indigo-100 rounded-full border-4 border-indigo-500 flex items-center justify-center text-indigo-700 font-bold text-xl shadow-lg overflow-hidden">
-                                {player.photoUrl ? (
-                                    <img src={player.photoUrl} className="w-full h-full object-cover" />
-                                ) : getInitials(player.name)}
-                            </div>
+                        {/* Grafik Altıgeni (Radar Chart) */}
+                        <div className="relative w-full aspect-square mb-16 flex items-center justify-center max-w-[340px] mx-auto mt-6">
+                            <svg width="320" height="320" className="absolute inset-0 overflow-visible z-0">
+                                {/* Arka plan altıgenleri (İç içe 3 grid seviyesi) */}
+                                <polygon points={bgPolygonPoints} fill="none" stroke="#e2e8f0" strokeWidth="2" />
+                                <polygon points={angles.map(a => `${CENTER + (RADIUS*0.66) * Math.cos(a)},${CENTER + (RADIUS*0.66) * Math.sin(a)}`).join(" ")} fill="none" stroke="#f1f5f9" strokeWidth="2" />
+                                <polygon points={angles.map(a => `${CENTER + (RADIUS*0.33) * Math.cos(a)},${CENTER + (RADIUS*0.33) * Math.sin(a)}`).join(" ")} fill="none" stroke="#f8fafc" strokeWidth="2" />
+                                
+                                {/* Merkezden 6 köşeye giden kılavuz çizgiler */}
+                                {angles.map((angle, i) => (
+                                    <line key={i} x1={CENTER} y1={CENTER} x2={CENTER + RADIUS * Math.cos(angle)} y2={CENTER + RADIUS * Math.sin(angle)} stroke="#e2e8f0" strokeWidth="2" />
+                                ))}
 
-                            {/* Pas Verilen Oyuncular (İSİMLERLE) */}
+                                {/* Veri Poligonu (Dinamik Renkli Kısım) */}
+                                {topPasses.length > 1 && (
+                                    <polygon 
+                                        points={polygonPoints} 
+                                        fill="rgba(139, 92, 246, 0.25)" 
+                                        stroke="#8b5cf6" 
+                                        strokeWidth="3" 
+                                        strokeLinejoin="round" 
+                                    />
+                                )}
+                            </svg>
+                            {/* Pas Verilen İlk 6 Oyuncu (İsim, Fotoğraf ve Dinamik Konum) */}
                             {topPasses.map(([receiverId, count], index) => {
                                 const receiverName = getPlayerNameById(receiverId);
                                 const receiverPlayer = allPlayers.find(p => p.id === receiverId);
+                                const { x, y } = getPointCoordinates(index, maxPasses, true); // Etiketler en dışta duracak
+                                
                                 return (
-                                    <div key={receiverId} className={`absolute ${positions[index]}`}>
-                                        <div className="flex flex-col items-center">
-                                            <div className="w-10 h-10 bg-purple-500 rounded-full border-2 border-white flex items-center justify-center shadow-lg overflow-hidden">
-                                                {receiverPlayer?.photoUrl ? (
-                                                    <img src={receiverPlayer.photoUrl} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <span className="text-white text-[10px] font-bold">{getInitials(receiverName)}</span>
-                                                )}
-                                            </div>
-                                            <span className="text-[10px] font-bold mt-1 text-slate-600 bg-white/80 px-1 rounded">{receiverName}</span>
+                                    <div key={receiverId} 
+                                         className="absolute flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2 z-20"
+                                         style={{ left: `${(x / 320) * 100}%`, top: `${(y / 320) * 100}%` }}>
+                                        
+                                        <div className="w-10 h-10 bg-purple-500 rounded-full border-2 border-white flex items-center justify-center shadow-md overflow-hidden">
+                                            {receiverPlayer?.photoUrl ? (
+                                                <img src={receiverPlayer.photoUrl} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="text-white text-[10px] font-bold">{getInitials(receiverName)}</span>
+                                            )}
                                         </div>
+                                        
+                                        <span className="text-[10px] font-bold mt-1 text-slate-600 bg-white/90 px-1.5 py-0.5 rounded shadow-sm text-center border border-slate-100">
+                                            {receiverName} <br/> 
+                                            <span className="text-purple-600">{count as number} {t('pass_short', 'Pas')}</span>
+                                        </span>
                                     </div>
                                 );
                             })}
                         </div>
 
+                        {/* Detaylı Liste */}
                         <div className="space-y-4">
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('detailed_connections')}</h4>
                             
