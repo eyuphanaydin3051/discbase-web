@@ -92,7 +92,10 @@ export default function TeamSelect() {
 
                         <div className="grid gap-4">
                             {teams.map((team, index) => (
-                                <div key={team.teamId} className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-5 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-md transition-shadow duration-300 border border-transparent dark:border-gray-800 relative group cursor-pointer" onClick={() => navigate('/dashboard')}>
+                                <div key={team.teamId} className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-5 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-md transition-shadow duration-300 border border-transparent dark:border-gray-800 relative group cursor-pointer" onClick={() => {
+                                    localStorage.setItem('selectedTeamId', team.teamId);
+                                    navigate('/dashboard');
+                                }}>
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex items-start gap-4">
                                             <div className="w-16 h-16 rounded-full bg-gray-50 border border-gray-100 dark:border-gray-700 p-1 flex-shrink-0 overflow-hidden shadow-sm">
