@@ -86,6 +86,7 @@ export const updatePlayer = async (teamId: string, player: Player) => {
 };
 
 // --- YENİ EKLENEN: TAKIM ORTALAMALARINI HESAPLA ---
+// --- GÜNCELLENEN: TAKIM ORTALAMALARINI VE PERFORMANSINI HESAPLA ---
 export const getTeamAggregates = async (teamId: string) => {
     try {
         const tourSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments`));
@@ -98,28 +99,59 @@ export const getTeamAggregates = async (teamId: string) => {
             allMatches = [...allMatches, ...matchesData];
         }
 
-        let totalGoals = 0, totalAssists = 0, totalBlocks = 0, totalTurns = 0;
+        let totalGoals = 0, totalAssists = 0, totalBlocks = 0, totalTurns = 0, totalDrops = 0;
+        let totalPasses = 0;
+        let oPoints = 0, oHolds = 0;
+        let dPoints = 0, dBreaks = 0;
         let uniquePlayerIds = new Set<string>();
 
+        // İstatistik Merkezindeki Algoritma
         allMatches.forEach(match => {
             match.pointsArchive?.forEach(point => {
+                let pointHasOurGoal = false;
+
                 point.stats?.forEach(stat => {
                     uniquePlayerIds.add(stat.playerId);
                     totalGoals += stat.goal || 0;
                     totalAssists += stat.assist || 0;
                     totalBlocks += stat.block || 0;
-                    totalTurns += (stat.throwaway || 0) + (stat.drop || 0);
+                    totalTurns += stat.throwaway || 0;
+                    totalDrops += stat.drop || 0;
+                    totalPasses += stat.successfulPass || 0;
+
+                    if (stat.goal && stat.goal > 0) {
+                        pointHasOurGoal = true; // Bu sayıyı biz almışız (Goal var)
+                    }
                 });
+
+                // Hold ve Break (Verimlilik) Hesaplaması
+                if (point.startMode === 'OFFENSE') {
+                    oPoints++;
+                    if (pointHasOurGoal) oHolds++;
+                } else if (point.startMode === 'DEFENSE') {
+                    dPoints++;
+                    if (pointHasOurGoal) dBreaks++;
+                }
             });
         });
 
         const playerCount = uniquePlayerIds.size || 1;
+        const absoluteTurnovers = totalTurns + totalDrops;
+        const totalPassAttempts = totalPasses + totalTurns;
 
         return {
             avgGoals: parseFloat((totalGoals / playerCount).toFixed(1)),
             avgAssists: parseFloat((totalAssists / playerCount).toFixed(1)),
             avgBlocks: parseFloat((totalBlocks / playerCount).toFixed(1)),
-            avgTurns: parseFloat((totalTurns / playerCount).toFixed(1))
+            avgTurns: parseFloat((absoluteTurnovers / playerCount).toFixed(1)),
+            holdPercentage: oPoints > 0 ? ((oHolds / oPoints) * 100).toFixed(1) : 0,
+            breakPercentage: dPoints > 0 ? ((dBreaks / dPoints) * 100).toFixed(1) : 0,
+            passSuccess: totalPassAttempts > 0 ? ((totalPasses / totalPassAttempts) * 100).toFixed(1) : 0,
+            totalPassAttempts,
+            totalPassesCompleted: totalPasses,
+            totalTurnovers: absoluteTurnovers,
+            oHolds, oPoints,
+            dBreaks, dPoints
         };
     } catch (e) {
         console.error("Takım ortalamaları hatası:", e);

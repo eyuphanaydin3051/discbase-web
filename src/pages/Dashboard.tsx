@@ -93,14 +93,15 @@ export default function Dashboard() {
 
     const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
 
-    // Oranların Hesaplanması
-    const holdPercentage = 66.7; // Backend eklendiğinde dinamikleştirilecek
-    const breakPercentage = 42.9; // Backend eklendiğinde dinamikleştirilecek
-    const passSuccess = teamStats && (teamStats.avgAssists + teamStats.avgTurns) > 0 
-        ? ((teamStats.avgAssists / (teamStats.avgAssists + teamStats.avgTurns)) * 100).toFixed(1) 
-        : 85.3;
-    const totalPasses = teamStats ? Math.round(teamStats.avgAssists * players.length * 10) : 895; 
-    const totalTurns = teamStats ? Math.round(teamStats.avgTurns * players.length) : 154;
+    // Firebase'den Gelen Gerçek Performans ve Analiz Verileri
+    const holdPercentage = teamStats?.holdPercentage || 0;
+    const breakPercentage = teamStats?.breakPercentage || 0;
+    const passSuccess = teamStats?.passSuccess || 0;
+    const totalPasses = teamStats?.totalPassAttempts || 0;
+    const totalTurns = teamStats?.totalTurnovers || 0;
+    const oHoldsStr = `${teamStats?.oHolds || 0} / ${teamStats?.oPoints || 0}`;
+    const dBreaksStr = `${teamStats?.dBreaks || 0} / ${teamStats?.dPoints || 0}`;
+    const passesStr = `${teamStats?.totalPassesCompleted || 0} / ${teamStats?.totalPassAttempts || 0}`;
 
     return (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full pb-24 lg:pb-8">
@@ -135,12 +136,12 @@ export default function Dashboard() {
                     <section>
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                <span className="material-icons text-[#5B4DBC]">history</span>
+                                <span className="material-icons-outlined text-[#5B4DBC]">history</span>
                                 Son Maçlar
                             </h2>
                             <button onClick={() => navigate('/tournaments')} className="text-sm font-medium text-[#5B4DBC] hover:text-[#4a3ea3] flex items-center gap-1">
                                 Tümünü Gör
-                                <span className="material-icons text-sm">chevron_right</span>
+                                <span className="material-icons-outlined text-sm">chevron_right</span>
                             </button>
                         </div>
                         
@@ -172,7 +173,7 @@ export default function Dashboard() {
                                                     </span>
                                                 </div>
                                                 <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center hover:bg-[#5B4DBC] hover:text-white transition-colors">
-                                                    <span className="material-icons text-sm text-gray-400 hover:text-white">arrow_forward_ios</span>
+                                                    <span className="material-icons-outlined text-sm text-gray-400 hover:text-white">arrow_forward_ios</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -186,39 +187,42 @@ export default function Dashboard() {
                         </div>
                     </section>
 
-                    {/* Takım Performans Barları */}
+                    {/* Takım Performansı Barları */}
                     <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                            <span className="material-icons text-[#5B4DBC]">trending_up</span>
-                            Takım Performansı (Ortalama)
+                            <span className="material-icons-outlined text-[#5B4DBC]">trending_up</span>
+                            Takım Performansı
                         </h2>
                         <div className="space-y-6">
                             <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <span className="text-sm font-medium text-gray-500">Hold % (Hücum) - Örnek</span>
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-sm font-medium text-gray-500">Hold % (Hücum)</span>
                                     <span className="text-lg font-bold text-gray-800">{holdPercentage}%</span>
                                 </div>
-                                <div className="w-full bg-gray-100 rounded-full h-3">
+                                <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
                                     <div className="bg-[#00C4B4] h-3 rounded-full" style={{ width: `${holdPercentage}%` }}></div>
                                 </div>
+                                <p className="text-xs text-gray-400 font-medium">{oHoldsStr} pozisyon</p>
                             </div>
                             <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <span className="text-sm font-medium text-gray-500">Break % (Defans) - Örnek</span>
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-sm font-medium text-gray-500">Break % (Defans)</span>
                                     <span className="text-lg font-bold text-gray-800">{breakPercentage}%</span>
                                 </div>
-                                <div className="w-full bg-gray-100 rounded-full h-3">
+                                <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
                                     <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${breakPercentage}%` }}></div>
                                 </div>
+                                <p className="text-xs text-gray-400 font-medium">{dBreaksStr} pozisyon</p>
                             </div>
                             <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <span className="text-sm font-medium text-gray-500">Pas Başarısı (Hesaplanan)</span>
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-sm font-medium text-gray-500">Pas Başarısı</span>
                                     <span className="text-lg font-bold text-gray-800">%{passSuccess}</span>
                                 </div>
-                                <div className="w-full bg-gray-100 rounded-full h-3">
+                                <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
                                     <div className="bg-[#5B4DBC] h-3 rounded-full" style={{ width: `${passSuccess}%` }}></div>
                                 </div>
+                                <p className="text-xs text-gray-400 font-medium">{passesStr} başarılı pas</p>
                             </div>
                         </div>
                     </section>
@@ -230,24 +234,24 @@ export default function Dashboard() {
                     {/* Detaylı Analiz Grid'i */}
                     <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-fit">
                         <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                            <span className="material-icons text-[#5B4DBC]">analytics</span>
+                            <span className="material-icons-outlined text-[#5B4DBC]">analytics</span>
                             Detaylı Analiz
                         </h2>
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-purple-50 p-4 rounded-xl flex flex-col justify-between h-32">
-                                <span className="text-sm text-gray-500">Tahmini Pas</span>
+                            <div className="bg-purple-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
+                                <span className="text-sm text-gray-500">Pas Denemesi</span>
                                 <span className="text-3xl font-bold text-[#5B4DBC]">{totalPasses}</span>
                             </div>
-                            <div className="bg-teal-50 p-4 rounded-xl flex flex-col justify-between h-32">
+                            <div className="bg-teal-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
                                 <span className="text-sm text-gray-500">Ort. Gol (Kişi)</span>
                                 <span className="text-3xl font-bold text-[#00C4B4]">{teamStats?.avgGoals || 0}</span>
                             </div>
-                            <div className="bg-red-50 p-4 rounded-xl flex flex-col justify-between h-32">
-                                <span className="text-sm text-gray-500">Toplam Turn.</span>
+                            <div className="bg-red-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
+                                <span className="text-sm text-gray-500">Turnover</span>
                                 <span className="text-3xl font-bold text-red-500">{totalTurns}</span>
                             </div>
-                            <div className="bg-gray-50 p-4 rounded-xl flex flex-col justify-between h-32">
-                                <span className="text-sm text-gray-500">Kişi Başı Turn.</span>
+                            <div className="bg-gray-50 p-4 rounded-xl flex flex-col justify-between h-32 hover:scale-[1.02] transition-transform">
+                                <span className="text-sm text-gray-500">O. Turn/Kişi</span>
                                 <span className="text-3xl font-bold text-gray-800">{teamStats?.avgTurns || 0}</span>
                             </div>
                         </div>
@@ -257,7 +261,7 @@ export default function Dashboard() {
                     <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                <span className="material-icons text-[#5B4DBC]">groups</span>
+                                <span className="material-icons-outlined text-[#5B4DBC]">groups</span>
                                 Kadro
                             </h2>
                         </div>
