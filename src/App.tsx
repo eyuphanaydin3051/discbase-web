@@ -8,7 +8,7 @@ import Dashboard from './pages/Dashboard';
 import TournamentList from './pages/TournamentList';
 import TournamentDetail from './pages/TournamentDetail';
 import Roster from './pages/Roster'; // Yeni sayfayı import et
-
+import PlayerDetail from './pages/PlayerDetail';
 function App() {
   return (
     <Router>
@@ -24,6 +24,7 @@ function App() {
           <Route path="/tournaments" element={<TournamentList />} />
           {/* Detay sayfasında da sidebar görünmesi kullanıcı deneyimi için iyidir */}
           <Route path="/tournament/:id" element={<TournamentDetail />} />
+          <Route path="/player/:teamId/:playerId" element={<PlayerDetail />} />
         </Route>
       </Routes>
     </Router>

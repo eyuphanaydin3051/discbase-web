@@ -74,7 +74,7 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
         const tourSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments`));
         
         let allMatches: Match[] = [];
-        
+        let passDistribution: Record<string, number> = {};
         // 2. Her turnuvanın içindeki maçları çek
         for (const tourDoc of tourSnapshot.docs) {
             const matchesSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments/${tourDoc.id}/matches`));
@@ -104,6 +104,11 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
                     throwaways += pStat.throwaway || 0;
                     catches += pStat.catchStat || 0;
                     passes += pStat.successfulPass || 0;
+                    if (pStat.passDistribution) {
+                        Object.entries(pStat.passDistribution).forEach(([targetName, count]) => {
+                            passDistribution[targetName] = (passDistribution[targetName] || 0) + count;
+                        });
+                    }
                 }
             });
         });
@@ -115,7 +120,7 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
 
         return {
             goals, assists, blocks, drops, throwaways, catches, passes,
-            oPoints, dPoints, pointsPlayed, plusMinus, catchRate, passRate
+            oPoints, dPoints, pointsPlayed, plusMinus, catchRate, passRate,passDistribution
         };
     } catch (error) {
         console.error("İstatistikler çekilirken hata oluştu:", error);
