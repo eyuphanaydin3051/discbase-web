@@ -3,8 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth'; // Auth Listener eklendi
-import { getUserTeams, getTournamentMatches, getPlayers } from '../services/repository';
-import type { Match, Player, TeamProfile } from '../types';
+import { getUserTeams, getTournamentMatches, getPlayers, getTournaments } from '../services/repository';
+import type { Match, Player, TeamProfile, Tournament } from '../types';
 
 export default function TournamentDetail() {
     const { id: tournamentId } = useParams();
@@ -13,6 +13,8 @@ export default function TournamentDetail() {
     
     // Veriler
     const [teams, setTeams] = useState<TeamProfile[]>([]);
+    const [currentTeam, setCurrentTeam] = useState<TeamProfile | null>(null);
+    const [tournament, setTournament] = useState<Tournament | null>(null);
     const [matches, setMatches] = useState<Match[]>([]);
     const [players, setPlayers] = useState<Player[]>([]);
     
@@ -43,33 +45,37 @@ export default function TournamentDetail() {
             setTeams(fetchedTeams);
             
             if (fetchedTeams.length > 0) {
-                // Varsayılan olarak ilk takımın ID'sini kullanıyoruz.
-                // Not: İleride birden fazla takım varsa, doğru takımı bulmak için ek mantık gerekebilir.
-                const currentTeamId = fetchedTeams[0].teamId;
+                const team = fetchedTeams[0];
+                setCurrentTeam(team);
+                const currentTeamId = team.teamId;
 
-                // A. Maçları Dinle
+                // A. Turnuvayı (Kadroyu almak için) Dinle
+                const unsubTournaments = getTournaments(currentTeamId, (tours) => {
+                    const activeTour = tours.find(t => t.id === tournamentId);
+                    setTournament(activeTour || null);
+                });
+
+                // B. Maçları Dinle
                 const unsubMatches = getTournamentMatches(currentTeamId, tournamentId, (data) => {
                     setMatches(data as Match[]);
                 });
 
-                // B. Oyuncuları Dinle (Takımın genel oyuncu listesini çekiyoruz)
+                // C. Oyuncuları Dinle (Takımın genel oyuncu listesini çekiyoruz)
                 const unsubPlayers = getPlayers(currentTeamId, (data) => {
                     setPlayers(data);
-                    // Oyuncu verisi geldiğinde loading'i kapatıyoruz
                     setLoadingData(false); 
                 });
 
-                // Emniyet sübapı: Eğer veri tabanı boşsa ve listener tetiklenmezse,
-                // 2 saniye sonra loading'i zorla kapat ki sonsuz döngü olmasın.
                 const safetyTimer = setTimeout(() => setLoadingData(false), 2000);
 
                 return () => {
+                    unsubTournaments();
                     unsubMatches();
                     unsubPlayers();
                     clearTimeout(safetyTimer);
                 };
             } else {
-                setLoadingData(false); // Takım yoksa yüklemeyi bitir
+                setLoadingData(false); 
             }
         });
 
@@ -95,6 +101,8 @@ export default function TournamentDetail() {
         blocks: number, 
         passes: number, 
         turns: number, 
+        throwaways: number,
+        drops: number,
         pointsPlayed: number, 
         matchIds: Set<string> 
     }> = {};
@@ -115,7 +123,7 @@ export default function TournamentDetail() {
                 if (!playerStatsMap[stat.playerId]) {
                     playerStatsMap[stat.playerId] = { 
                         goals: 0, assists: 0, blocks: 0, 
-                        passes: 0, turns: 0, pointsPlayed: 0, 
+                        passes: 0, turns: 0, throwaways: 0, drops: 0, pointsPlayed: 0, 
                         matchIds: new Set() 
                     };
                 }
@@ -123,8 +131,10 @@ export default function TournamentDetail() {
                 playerStatsMap[stat.playerId].assists += stat.assist || 0;
                 playerStatsMap[stat.playerId].blocks += stat.block || 0;
                 playerStatsMap[stat.playerId].passes += stat.successfulPass || 0;
+                playerStatsMap[stat.playerId].throwaways += stat.throwaway || 0;
+                playerStatsMap[stat.playerId].drops += stat.drop || 0;
                 playerStatsMap[stat.playerId].turns += (stat.throwaway || 0) + (stat.drop || 0);
-                playerStatsMap[stat.playerId].pointsPlayed += 1; // Oyuncu bu point (sayı) içinde stat oluşturduysa oynamıştır
+                playerStatsMap[stat.playerId].pointsPlayed += 1; 
                 
                 // Oyuncunun maça çıktığını belirlemek için maçı Set'e ekliyoruz
                 playerStatsMap[stat.playerId].matchIds.add(match.id);
@@ -146,9 +156,38 @@ export default function TournamentDetail() {
     const holdRate = oPoints > 0 ? ((oHolds / oPoints) * 100).toFixed(1) : "0.0";
     const breakRate = dPoints > 0 ? ((dBreaks / dPoints) * 100).toFixed(1) : "0.0";
 
+    // --- ÖZEL VERİMLİLİK (EFFICIENCY) HESAPLAMA ---
+    const calculateEfficiency = (playerId: string) => {
+        const stats = playerStatsMap[playerId];
+        if (!stats) return "0.00"; // Veri yoksa da 2 ondalıklı sıfır dönsün
+        
+        const criteria = currentTeam?.efficiencyCriteria;
+        if (criteria && criteria.length > 0) {
+            let score = 0;
+            criteria.forEach(c => {
+                let val = 0;
+                switch (c.statType) {
+                    case 'GOAL': val = stats.goals; break;
+                    case 'ASSIST': val = stats.assists; break;
+                    case 'BLOCK': val = stats.blocks; break;
+                    case 'THROWAWAY': val = stats.throwaways; break;
+                    case 'DROP': val = stats.drops; break;
+                    case 'PASS_COUNT': val = stats.passes; break;
+                    case 'PLUS_MINUS': val = (stats.goals + stats.assists + stats.blocks) - (stats.throwaways + stats.drops); break;
+                }
+                score += val * c.points;
+            });
+            return score.toFixed(2); // Daima 2 ondalıklı dön
+        } else {
+            // Default Plus/Minus (Artı/Eksi)
+            const score = (stats.goals + stats.assists + stats.blocks) - (stats.throwaways + stats.drops);
+            return score.toFixed(2); // Daima 2 ondalıklı dön
+        }
+    };
+
     // Tablo ve Top 3 listesi için sadece bu turnuvada (maçlarda) oynamış oyuncuları filtreleyip eşleştiriyoruz
     const computedPlayers = players
-        .filter(p => playerStatsMap[p.id]) // Sadece turnuvada istatistiği olan oyuncuları göster
+        .filter(p => playerStatsMap[p.id]) 
         .map(p => ({
             ...p,
             goals: playerStatsMap[p.id]?.goals || 0,
@@ -157,7 +196,8 @@ export default function TournamentDetail() {
             passes: playerStatsMap[p.id]?.passes || 0,
             turns: playerStatsMap[p.id]?.turns || 0,
             pointsPlayed: playerStatsMap[p.id]?.pointsPlayed || 0,
-            matchesPlayed: playerStatsMap[p.id]?.matchIds.size || 0
+            matchesPlayed: playerStatsMap[p.id]?.matchIds.size || 0,
+            efficiency: calculateEfficiency(p.id)
         }));
 
     // Top 3 Sayı (Goals) Liderleri
@@ -394,6 +434,7 @@ export default function TournamentDetail() {
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gol</th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Asist</th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Blok</th>
+                                            <th className="px-6 py-3 text-center text-xs font-bold text-[#5B4DBC] uppercase tracking-wider bg-purple-50 dark:bg-purple-900/10">Verimlilik</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white dark:bg-[#1E1E1E] divide-y divide-gray-200 dark:divide-gray-800">
@@ -417,11 +458,12 @@ export default function TournamentDetail() {
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#00C896]">{player.goals || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#5B4DBC]">{player.assists || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.blocks || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-black text-[#5B4DBC] bg-purple-50/50 dark:bg-purple-900/5">{player.efficiency}</td>
                                             </tr>
                                         ))}
                                         {computedPlayers.length === 0 && (
                                             <tr>
-                                                <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                                <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                                     Henüz istatistik verisi bulunamadı.
                                                 </td>
                                             </tr>
@@ -465,6 +507,46 @@ export default function TournamentDetail() {
                             <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
                                 <span className="material-icons-outlined text-4xl mb-2 opacity-50">sports_score</span>
                                 <p>Bu turnuvada henüz maç oynanmadı.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {/* İÇERİK - KADRO TABI */}
+                {activeTab === 'roster' && (
+                    <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <span className="material-icons-outlined text-[#5B4DBC]">groups</span>
+                                Turnuva Kadrosu
+                            </h3>
+                            <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-[#5B4DBC] rounded-lg text-sm font-medium">
+                                {tournament?.rosterPlayerIds?.length || 0} Oyuncu
+                            </span>
+                        </div>
+
+                        {tournament?.rosterPlayerIds && tournament.rosterPlayerIds.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {players
+                                    .filter(p => tournament.rosterPlayerIds.includes(p.id))
+                                    .map(player => (
+                                        <div key={player.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 dark:border-gray-800 hover:shadow-md transition-shadow bg-gray-50 dark:bg-gray-800/30">
+                                            <div className="flex-shrink-0 h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-[#5B4DBC] font-bold text-lg">
+                                                {player.name ? player.name.substring(0, 2).toUpperCase() : '??'}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-gray-900 dark:text-white">{player.name}</div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                    #{player.jerseyNumber || '?'} • {player.position || 'Oyuncu'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-16 text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                                <span className="material-icons-outlined text-5xl mb-3 opacity-30">group_off</span>
+                                <p className="font-medium text-lg text-gray-600 dark:text-gray-300">Kadro Boş</p>
+                                <p className="mt-1">Bu turnuva için henüz takım kadrosu (roster) oluşturulmamış.</p>
                             </div>
                         )}
                     </div>

@@ -21,11 +21,19 @@ export interface UserProfile {
     email: string | null;
 }
 
+export interface EfficiencyCriterion {
+    id: string;
+    name: string;
+    statType: string;
+    points: number;
+}
+
 export interface TeamProfile {
     teamId: string;
     teamName: string;
     members: { [uid: string]: string };
     logoPath: string | null;
+    efficiencyCriteria?: EfficiencyCriterion[];
 }
 
 export interface Player {
