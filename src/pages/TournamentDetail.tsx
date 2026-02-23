@@ -77,19 +77,76 @@ export default function TournamentDetail() {
         return () => unsubscribeTeams();
     }, [user, tournamentId, loadingAuth]);
 
-    // --- İSTATİSTİK HESAPLAMALARI ---
+    // --- İSTATİSTİK HESAPLAMALARI (Uygulama Mantığına Göre Güncellendi) ---
     const wins = matches.filter(m => (m.scoreUs || 0) > (m.scoreThem || 0)).length;
     const losses = matches.filter(m => (m.scoreUs || 0) < (m.scoreThem || 0)).length;
     const pointsScored = matches.reduce((acc, m) => acc + (m.scoreUs || 0), 0);
     const pointsConceded = matches.reduce((acc, m) => acc + (m.scoreThem || 0), 0);
     const pointDiff = pointsScored - pointsConceded;
 
-    // Liderleri Bul
-    const sortedByGoals = [...players].sort((a, b) => (b.goals || 0) - (a.goals || 0));
-    const topScorer = sortedByGoals.length > 0 ? sortedByGoals[0] : null;
+    // Turnuva genelindeki verimlilik istatistikleri
+    let tGoals = 0, tTurns = 0, tDrops = 0;
+    let oPoints = 0, oHolds = 0;
+    let dPoints = 0, dBreaks = 0;
 
-    const sortedByAssists = [...players].sort((a, b) => (b.assists || 0) - (a.assists || 0));
-    const topAssister = sortedByAssists.length > 0 ? sortedByAssists[0] : null;
+    // Oyuncu bazlı istatistikleri maçların içinden canlı hesaplıyoruz
+    const playerStatsMap: Record<string, { goals: number, assists: number, blocks: number }> = {};
+    players.forEach(p => {
+        playerStatsMap[p.id] = { goals: 0, assists: 0, blocks: 0 };
+    });
+
+    matches.forEach(match => {
+        match.pointsArchive?.forEach(point => {
+            let pointHasOurGoal = false;
+
+            point.stats?.forEach(stat => {
+                // Takım geneli için
+                tGoals += stat.goal || 0;
+                tTurns += stat.throwaway || 0;
+                tDrops += stat.drop || 0;
+
+                if (stat.goal && stat.goal > 0) pointHasOurGoal = true;
+
+                // Oyuncu geneli için
+                if (!playerStatsMap[stat.playerId]) {
+                    playerStatsMap[stat.playerId] = { goals: 0, assists: 0, blocks: 0 };
+                }
+                playerStatsMap[stat.playerId].goals += stat.goal || 0;
+                playerStatsMap[stat.playerId].assists += stat.assist || 0;
+                playerStatsMap[stat.playerId].blocks += stat.block || 0;
+            });
+
+            // Hold / Break hesabı
+            if (point.startMode === 'OFFENSE') {
+                oPoints++;
+                if (pointHasOurGoal) oHolds++;
+            } else if (point.startMode === 'DEFENSE') {
+                dPoints++;
+                if (pointHasOurGoal) dBreaks++;
+            }
+        });
+    });
+
+    const totalPossessions = tGoals + tTurns + tDrops;
+    const conversionRate = totalPossessions > 0 ? ((tGoals / totalPossessions) * 100).toFixed(1) : "0.0";
+    const holdRate = oPoints > 0 ? ((oHolds / oPoints) * 100).toFixed(1) : "0.0";
+    const breakRate = dPoints > 0 ? ((dBreaks / dPoints) * 100).toFixed(1) : "0.0";
+
+    // Tablo ve Top 3 listesi için oyuncuları güncel verilerle eşleştiriyoruz
+    const computedPlayers = players.map(p => ({
+        ...p,
+        goals: playerStatsMap[p.id]?.goals || 0,
+        assists: playerStatsMap[p.id]?.assists || 0,
+        blocks: playerStatsMap[p.id]?.blocks || 0
+    }));
+
+    // Top 3 Sayı (Goals) Liderleri
+    const sortedByGoals = [...computedPlayers].sort((a, b) => b.goals - a.goals);
+    const topScorers = sortedByGoals.filter(p => p.goals > 0).slice(0, 3);
+
+    // Top 3 Asist Liderleri
+    const sortedByAssists = [...computedPlayers].sort((a, b) => b.assists - a.assists);
+    const topAssisters = sortedByAssists.filter(p => p.assists > 0).slice(0, 3);
 
     // YÜKLENİYOR EKRANI
     if (loadingAuth || loadingData) return (
@@ -174,7 +231,7 @@ export default function TournamentDetail() {
                         {/* ÖZET KARTLAR */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                             {/* Galibiyet */}
-                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center">
                                 <div className="h-12 w-12 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center mb-3">
                                     <span className="material-icons-outlined text-[#00C896] text-2xl">emoji_events</span>
                                 </div>
@@ -186,7 +243,7 @@ export default function TournamentDetail() {
                             </div>
                             
                             {/* Mağlubiyet */}
-                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center">
                                 <div className="h-12 w-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-3">
                                     <span className="material-icons-outlined text-[#FF6B6B] text-2xl">thumb_down</span>
                                 </div>
@@ -198,7 +255,7 @@ export default function TournamentDetail() {
                             </div>
 
                             {/* Sayı Farkı */}
-                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center">
                                 <div className="h-12 w-12 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-3">
                                     <span className="material-icons-outlined text-blue-500 text-2xl">compare_arrows</span>
                                 </div>
@@ -211,58 +268,90 @@ export default function TournamentDetail() {
                                 </div>
                             </div>
 
-                            {/* Spirit */}
-                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center hover:shadow-lg transition-shadow">
-                                <div className="h-12 w-12 rounded-full bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center mb-3">
-                                    <span className="material-icons-outlined text-yellow-600 text-2xl">stars</span>
+                            {/* Spirit Yerine: Sayı Dönüşümü (Conversion Rate) */}
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center text-center">
+                                <div className="h-12 w-12 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center mb-3">
+                                    <span className="material-icons-outlined text-[#5B4DBC] text-2xl">insights</span>
                                 </div>
-                                <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">Spirit Puanı</h3>
-                                <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">11.4</p>
-                                <div className="mt-2 text-xs font-medium text-yellow-700 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-lg">
-                                    Ortalama Üstü
+                                <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">Sayı Dönüşümü</h3>
+                                <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">%{conversionRate}</p>
+                                <div className="mt-2 text-xs font-medium text-[#5B4DBC] bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded-lg">
+                                    {tGoals} / {totalPossessions} Pozisyon
                                 </div>
                             </div>
                         </div>
 
-                        {/* LİDERLER KARTLARI */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Sayı Lideri */}
-                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <span className="material-icons-outlined text-8xl text-[#5B4DBC]">sports_handball</span>
+                        {/* VERİMLİLİK BARLARI */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                                <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide mb-4">Hold % (Hücum)</h3>
+                                <div className="flex items-end justify-between mb-2">
+                                    <span className="text-3xl font-bold text-gray-900 dark:text-white">%{holdRate}</span>
+                                    <span className="text-sm text-gray-400 dark:text-gray-500">{oHolds} / {oPoints}</span>
                                 </div>
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-[#5B4DBC] uppercase tracking-wider mb-1">Sayı Lideri</h3>
-                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{topScorer ? topScorer.name : 'Yok'}</h2>
-                                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                                            #{topScorer?.jerseyNumber || '?'}
-                                        </p>
-                                    </div>
-                                    <div className="bg-[#5B4DBC] text-white h-14 w-14 rounded-2xl flex flex-col items-center justify-center shadow-lg shadow-[#5B4DBC]/30">
-                                        <span className="text-xl font-bold">{topScorer?.goals || 0}</span>
-                                        <span className="text-[10px] uppercase font-medium">Sayı</span>
-                                    </div>
+                                <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3">
+                                    <div className="bg-[#00C4B4] h-3 rounded-full" style={{ width: `${holdRate}%` }}></div>
+                                </div>
+                            </div>
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                                <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide mb-4">Break % (Defans)</h3>
+                                <div className="flex items-end justify-between mb-2">
+                                    <span className="text-3xl font-bold text-gray-900 dark:text-white">%{breakRate}</span>
+                                    <span className="text-sm text-gray-400 dark:text-gray-500">{dBreaks} / {dPoints}</span>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3">
+                                    <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${breakRate}%` }}></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* LİDERLER KARTLARI (Top 3) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Sayı Liderleri */}
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                                <h3 className="text-sm font-semibold text-[#5B4DBC] uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <span className="material-icons-outlined">sports_handball</span>
+                                    En Çok Sayı Alanlar
+                                </h3>
+                                <div className="space-y-3">
+                                    {topScorers.length > 0 ? topScorers.map((player, index) => (
+                                        <div key={player.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-[#5B4DBC] text-white flex items-center justify-center font-bold text-sm">
+                                                    {index + 1}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-gray-900 dark:text-white">{player.name}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">#{player.jerseyNumber || '?'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-xl font-black text-[#5B4DBC]">{player.goals}</div>
+                                        </div>
+                                    )) : <p className="text-sm text-gray-500 py-2">Veri yok</p>}
                                 </div>
                             </div>
 
-                            {/* Asist Lideri */}
-                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 dark:border-gray-800 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <span className="material-icons-outlined text-8xl text-[#00C896]">handshake</span>
-                                </div>
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-[#00C896] uppercase tracking-wider mb-1">Asist Lideri</h3>
-                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{topAssister ? topAssister.name : 'Yok'}</h2>
-                                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                                            #{topAssister?.jerseyNumber || '?'}
-                                        </p>
-                                    </div>
-                                    <div className="bg-[#00C896] text-white h-14 w-14 rounded-2xl flex flex-col items-center justify-center shadow-lg shadow-[#00C896]/30">
-                                        <span className="text-xl font-bold">{topAssister?.assists || 0}</span>
-                                        <span className="text-[10px] uppercase font-medium">Asist</span>
-                                    </div>
+                            {/* Asist Liderleri */}
+                            <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+                                <h3 className="text-sm font-semibold text-[#00C896] uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <span className="material-icons-outlined">handshake</span>
+                                    En Çok Asist Yapanlar
+                                </h3>
+                                <div className="space-y-3">
+                                    {topAssisters.length > 0 ? topAssisters.map((player, index) => (
+                                        <div key={player.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/30 rounded-xl">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-[#00C896] text-white flex items-center justify-center font-bold text-sm">
+                                                    {index + 1}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-gray-900 dark:text-white">{player.name}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">#{player.jerseyNumber || '?'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-xl font-black text-[#00C896]">{player.assists}</div>
+                                        </div>
+                                    )) : <p className="text-sm text-gray-500 py-2">Veri yok</p>}
                                 </div>
                             </div>
                         </div>
