@@ -3,8 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth'; // Auth Listener eklendi
-import { getUserTeams, getTournamentMatches, getTournamentPlayers } from '../services/repository';
-import type { Match, TournamentPlayer, TeamProfile } from '../types';
+import { getUserTeams, getTournamentMatches, getPlayers } from '../services/repository';
+import type { Match, Player, TeamProfile } from '../types';
 
 export default function TournamentDetail() {
     const { id: tournamentId } = useParams();
@@ -14,7 +14,7 @@ export default function TournamentDetail() {
     // Veriler
     const [teams, setTeams] = useState<TeamProfile[]>([]);
     const [matches, setMatches] = useState<Match[]>([]);
-    const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+    const [players, setPlayers] = useState<Player[]>([]);
     
     // Yüklenme Durumları
     const [loadingAuth, setLoadingAuth] = useState(true); // Auth kontrolü
@@ -52,11 +52,10 @@ export default function TournamentDetail() {
                     setMatches(data as Match[]);
                 });
 
-                // B. Oyuncuları Dinle
-                const unsubPlayers = getTournamentPlayers(currentTeamId, tournamentId, (data) => {
+                // B. Oyuncuları Dinle (Takımın genel oyuncu listesini çekiyoruz)
+                const unsubPlayers = getPlayers(currentTeamId, (data) => {
                     setPlayers(data);
                     // Oyuncu verisi geldiğinde loading'i kapatıyoruz
-                    // (Maç verisi boş da olabilir, o yüzden oyuncu verisini baz aldık)
                     setLoadingData(false); 
                 });
 
@@ -90,10 +89,15 @@ export default function TournamentDetail() {
     let dPoints = 0, dBreaks = 0;
 
     // Oyuncu bazlı istatistikleri maçların içinden canlı hesaplıyoruz
-    const playerStatsMap: Record<string, { goals: number, assists: number, blocks: number }> = {};
-    players.forEach(p => {
-        playerStatsMap[p.id] = { goals: 0, assists: 0, blocks: 0 };
-    });
+    const playerStatsMap: Record<string, { 
+        goals: number, 
+        assists: number, 
+        blocks: number, 
+        passes: number, 
+        turns: number, 
+        pointsPlayed: number, 
+        matchIds: Set<string> 
+    }> = {};
 
     matches.forEach(match => {
         match.pointsArchive?.forEach(point => {
@@ -109,11 +113,21 @@ export default function TournamentDetail() {
 
                 // Oyuncu geneli için
                 if (!playerStatsMap[stat.playerId]) {
-                    playerStatsMap[stat.playerId] = { goals: 0, assists: 0, blocks: 0 };
+                    playerStatsMap[stat.playerId] = { 
+                        goals: 0, assists: 0, blocks: 0, 
+                        passes: 0, turns: 0, pointsPlayed: 0, 
+                        matchIds: new Set() 
+                    };
                 }
                 playerStatsMap[stat.playerId].goals += stat.goal || 0;
                 playerStatsMap[stat.playerId].assists += stat.assist || 0;
                 playerStatsMap[stat.playerId].blocks += stat.block || 0;
+                playerStatsMap[stat.playerId].passes += stat.successfulPass || 0;
+                playerStatsMap[stat.playerId].turns += (stat.throwaway || 0) + (stat.drop || 0);
+                playerStatsMap[stat.playerId].pointsPlayed += 1; // Oyuncu bu point (sayı) içinde stat oluşturduysa oynamıştır
+                
+                // Oyuncunun maça çıktığını belirlemek için maçı Set'e ekliyoruz
+                playerStatsMap[stat.playerId].matchIds.add(match.id);
             });
 
             // Hold / Break hesabı
@@ -132,13 +146,19 @@ export default function TournamentDetail() {
     const holdRate = oPoints > 0 ? ((oHolds / oPoints) * 100).toFixed(1) : "0.0";
     const breakRate = dPoints > 0 ? ((dBreaks / dPoints) * 100).toFixed(1) : "0.0";
 
-    // Tablo ve Top 3 listesi için oyuncuları güncel verilerle eşleştiriyoruz
-    const computedPlayers = players.map(p => ({
-        ...p,
-        goals: playerStatsMap[p.id]?.goals || 0,
-        assists: playerStatsMap[p.id]?.assists || 0,
-        blocks: playerStatsMap[p.id]?.blocks || 0
-    }));
+    // Tablo ve Top 3 listesi için sadece bu turnuvada (maçlarda) oynamış oyuncuları filtreleyip eşleştiriyoruz
+    const computedPlayers = players
+        .filter(p => playerStatsMap[p.id]) // Sadece turnuvada istatistiği olan oyuncuları göster
+        .map(p => ({
+            ...p,
+            goals: playerStatsMap[p.id]?.goals || 0,
+            assists: playerStatsMap[p.id]?.assists || 0,
+            blocks: playerStatsMap[p.id]?.blocks || 0,
+            passes: playerStatsMap[p.id]?.passes || 0,
+            turns: playerStatsMap[p.id]?.turns || 0,
+            pointsPlayed: playerStatsMap[p.id]?.pointsPlayed || 0,
+            matchesPlayed: playerStatsMap[p.id]?.matchIds.size || 0
+        }));
 
     // Top 3 Sayı (Goals) Liderleri
     const sortedByGoals = [...computedPlayers].sort((a, b) => b.goals - a.goals);
@@ -368,18 +388,20 @@ export default function TournamentDetail() {
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Oyuncu</th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Maç</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sayı</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Girdiği Sayı</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pas</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Turn</th>
+                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gol</th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Asist</th>
                                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Blok</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Toplam</th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white dark:bg-[#1E1E1E] divide-y divide-gray-200 dark:divide-gray-800">
-                                        {players.map((player) => (
+                                        {computedPlayers.map((player: any) => (
                                             <tr key={player.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center">
-                                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center text-[#5B4DBC] font-bold text-xs">
+                                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-[#5B4DBC] font-bold text-xs">
                                                             {player.name ? player.name.substring(0, 2).toUpperCase() : '??'}
                                                         </div>
                                                         <div className="ml-4">
@@ -389,15 +411,15 @@ export default function TournamentDetail() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.matchesPlayed || 0}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.goals || 0}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.assists || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.pointsPlayed || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.passes || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#FF6B6B]">{player.turns || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#00C896]">{player.goals || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#5B4DBC]">{player.assists || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.blocks || 0}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-[#5B4DBC]">
-                                                    {(player.goals || 0) + (player.assists || 0)}
-                                                </td>
                                             </tr>
                                         ))}
-                                        {players.length === 0 && (
+                                        {computedPlayers.length === 0 && (
                                             <tr>
                                                 <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                                     Henüz istatistik verisi bulunamadı.
