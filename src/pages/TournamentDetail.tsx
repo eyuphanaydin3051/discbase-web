@@ -103,6 +103,7 @@ export default function TournamentDetail() {
         turns: number, 
         throwaways: number,
         drops: number,
+        callahans: number,
         pointsPlayed: number, 
         matchIds: Set<string> 
     }> = {};
@@ -123,7 +124,7 @@ export default function TournamentDetail() {
                 if (!playerStatsMap[stat.playerId]) {
                     playerStatsMap[stat.playerId] = { 
                         goals: 0, assists: 0, blocks: 0, 
-                        passes: 0, turns: 0, throwaways: 0, drops: 0, pointsPlayed: 0, 
+                        passes: 0, turns: 0, throwaways: 0, drops: 0, callahans: 0, pointsPlayed: 0, 
                         matchIds: new Set() 
                     };
                 }
@@ -133,6 +134,7 @@ export default function TournamentDetail() {
                 playerStatsMap[stat.playerId].passes += stat.successfulPass || 0;
                 playerStatsMap[stat.playerId].throwaways += stat.throwaway || 0;
                 playerStatsMap[stat.playerId].drops += stat.drop || 0;
+                playerStatsMap[stat.playerId].callahans += stat.callahan || 0;
                 playerStatsMap[stat.playerId].turns += (stat.throwaway || 0) + (stat.drop || 0);
                 playerStatsMap[stat.playerId].pointsPlayed += 1; 
                 
@@ -159,7 +161,7 @@ export default function TournamentDetail() {
     // --- ÖZEL VERİMLİLİK (EFFICIENCY) HESAPLAMA ---
     const calculateEfficiency = (playerId: string) => {
         const stats = playerStatsMap[playerId];
-        if (!stats) return "0.00"; // Veri yoksa da 2 ondalıklı sıfır dönsün
+        if (!stats) return "0.00"; 
         
         const criteria = currentTeam?.efficiencyCriteria;
         if (criteria && criteria.length > 0) {
@@ -167,21 +169,29 @@ export default function TournamentDetail() {
             criteria.forEach(c => {
                 let val = 0;
                 switch (c.statType) {
-                    case 'GOAL': val = stats.goals; break;
+                    case 'GOAL': val = stats.goals - stats.callahans; break;
                     case 'ASSIST': val = stats.assists; break;
-                    case 'BLOCK': val = stats.blocks; break;
+                    case 'BLOCK': val = stats.blocks - stats.callahans; break;
                     case 'THROWAWAY': val = stats.throwaways; break;
                     case 'DROP': val = stats.drops; break;
+                    case 'CALLAHAN': val = stats.callahans; break;
                     case 'PASS_COUNT': val = stats.passes; break;
-                    case 'PLUS_MINUS': val = (stats.goals + stats.assists + stats.blocks) - (stats.throwaways + stats.drops); break;
+                    case 'POINTS_PLAYED': val = stats.pointsPlayed; break;
                 }
                 score += val * c.points;
             });
-            return score.toFixed(2); // Daima 2 ondalıklı dön
+            return score.toFixed(2);
         } else {
-            // Default Plus/Minus (Artı/Eksi)
-            const score = (stats.goals + stats.assists + stats.blocks) - (stats.throwaways + stats.drops);
-            return score.toFixed(2); // Daima 2 ondalıklı dön
+            // Default Formül (Android Utils.kt ile birebir aynı)
+            const score = 
+                ((stats.goals - stats.callahans) * 1.0) +
+                (stats.assists * 1.0) +
+                ((stats.blocks - stats.callahans) * 1.5) +
+                (stats.callahans * 3.5) -
+                ((stats.throwaways + stats.drops) * 1.0) +
+                (stats.passes * 0.05);
+                
+            return score.toFixed(2); 
         }
     };
 
