@@ -1,33 +1,45 @@
+// src/pages/TournamentList.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../services/firebase';
-import { getUserTeams, getTournaments } from '../services/repository';
+import { getTournaments } from '../services/repository';
 import type { Tournament } from '../types';
 
 export default function TournamentList() {
     const navigate = useNavigate();
-    const [user] = useState(auth.currentUser);
+    // Aktif takımı state'te tutuyoruz
+    const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // 1. Dashboard'da olduğu gibi aktif takımı LocalStorage'dan al
     useEffect(() => {
-        if (!user) return;
+        const teamId = localStorage.getItem('selectedTeamId');
+        if (teamId) {
+            setSelectedTeamId(teamId);
+        } else {
+            // Takım seçilmemişse TeamSelect sayfasına yönlendir
+            navigate('/teams');
+        }
+    }, [navigate]);
 
-        const unsubscribeTeams = getUserTeams(user.uid, (teams) => {
-            if (teams.length > 0) {
-                const firstTeamId = teams[0].teamId;
-                const unsubscribeTournaments = getTournaments(firstTeamId, (data) => {
-                    setTournaments(data);
-                    setLoading(false);
-                });
-                return () => unsubscribeTournaments();
-            } else {
-                setLoading(false);
-            }
+    // 2. Sadece Seçili Takımın Turnuvalarını Çek
+    useEffect(() => {
+        if (!selectedTeamId) return;
+
+        const unsubscribeTournaments = getTournaments(selectedTeamId, (data) => {
+            // Turnuvaları tarihe göre sırala (En yeni tarihli olan en üstte görünsün)
+            const sortedData = data.sort((a, b) => {
+                const dateA = a.date ? new Date(a.date).getTime() : 0;
+                const dateB = b.date ? new Date(b.date).getTime() : 0;
+                return dateB - dateA;
+            });
+            
+            setTournaments(sortedData);
+            setLoading(false);
         });
 
-        return () => unsubscribeTeams();
-    }, [user]);
+        return () => unsubscribeTournaments();
+    }, [selectedTeamId]);
 
     if (loading) return (
         <div className="min-h-full flex items-center justify-center pt-20">
