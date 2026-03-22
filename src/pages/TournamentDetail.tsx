@@ -23,6 +23,12 @@ export default function TournamentDetail() {
     const [loadingData, setLoadingData] = useState(true); // Veri çekme
     
     const [activeTab, setActiveTab] = useState<'matches' | 'stats' | 'roster'>('stats');
+    
+    // Tablo Sıralama State'i (Default: Girdiği Sayı, Azalan)
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ 
+        key: 'pointsPlayed', 
+        direction: 'desc' 
+    });
 
     // 1. ADIM: Kullanıcı Oturumunu Dinle (Sayfa yenilenince user null gelmesini önler)
     useEffect(() => {
@@ -201,19 +207,69 @@ export default function TournamentDetail() {
     };
 
     // Tablo ve Top 3 listesi için sadece bu turnuvada (maçlarda) oynamış oyuncuları filtreleyip eşleştiriyoruz
+    // Tablo ve Top 3 listesi için sadece bu turnuvada (maçlarda) oynamış oyuncuları filtreleyip eşleştiriyoruz
     const computedPlayers = players
         .filter(p => playerStatsMap[p.id]) 
-        .map(p => ({
-            ...p,
-            goals: playerStatsMap[p.id]?.goals || 0,
-            assists: playerStatsMap[p.id]?.assists || 0,
-            blocks: playerStatsMap[p.id]?.blocks || 0,
-            passes: playerStatsMap[p.id]?.passes || 0,
-            turns: playerStatsMap[p.id]?.turns || 0,
-            pointsPlayed: playerStatsMap[p.id]?.pointsPlayed || 0,
-            matchesPlayed: playerStatsMap[p.id]?.matchIds.size || 0,
-            efficiency: calculateEfficiency(p.id)
-        }));
+        .map(p => {
+            const stats = playerStatsMap[p.id];
+            
+            // Pas Yüzdesi Hesabı: Başarılı Pas / (Başarılı Pas + Throwaway)
+            const totalPassAttempts = stats.passes + stats.throwaways;
+            const passPercentage = totalPassAttempts > 0 
+                ? parseFloat(((stats.passes / totalPassAttempts) * 100).toFixed(1)) 
+                : 0;
+
+            // Catch Yüzdesi Hesabı: Tutulan Disk / (Tutulan Disk + Düşürülen Disk)
+            // Tutulan Disk (Catches) = Pas Denemeleri + Goller
+            const catches = totalPassAttempts + stats.goals;
+            const totalCatchOpportunities = catches + stats.drops;
+            const catchPercentage = totalCatchOpportunities > 0 
+                ? parseFloat(((catches / totalCatchOpportunities) * 100).toFixed(1)) 
+                : 0;
+
+            return {
+                ...p,
+                goals: stats.goals,
+                assists: stats.assists,
+                blocks: stats.blocks,
+                passes: stats.passes,
+                turns: stats.turns,
+                pointsPlayed: stats.pointsPlayed,
+                matchesPlayed: stats.matchIds.size,
+                passPercentage: passPercentage,
+                catchPercentage: catchPercentage,
+                efficiency: calculateEfficiency(p.id)
+            };
+        });
+        // Sıralama İsteği Fonksiyonu (Tıklanınca yönü değiştirir)
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'desc'; // İlk tıklamada her zaman 'azalan' (desc) yapar
+        if (sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'asc'; // Aynı başlığa 2. kez tıklanırsa 'artan' (asc) yapar
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // Tabloya yansıtılacak "Sıralanmış" liste
+    const sortedComputedPlayers = [...computedPlayers].sort((a: any, b: any) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        // Verimlilik "0.00" gibi string formatında döndüğü için matematiksel sıralama adına sayıya çeviriyoruz
+        if (sortConfig.key === 'efficiency') {
+            aValue = parseFloat(aValue as string);
+            bValue = parseFloat(bValue as string);
+        }
+
+        if (aValue < bValue) {
+            return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+            return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+    });
+        
 
     // Top 3 Sayı (Goals) Liderleri
     const sortedByGoals = [...computedPlayers].sort((a, b) => b.goals - a.goals);
@@ -441,19 +497,46 @@ export default function TournamentDetail() {
                                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
                                     <thead className="bg-gray-50 dark:bg-gray-800/50">
                                         <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Oyuncu</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Maç</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Girdiği Sayı</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pas</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Turn</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gol</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Asist</th>
-                                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Blok</th>
-                                            <th className="px-6 py-3 text-center text-xs font-bold text-[#5B4DBC] uppercase tracking-wider bg-purple-50 dark:bg-purple-900/10">Verimlilik</th>
+                                            <th onClick={() => requestSort('name')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center gap-1">Oyuncu {sortConfig.key === 'name' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('matchesPlayed')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Maç {sortConfig.key === 'matchesPlayed' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('pointsPlayed')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Girdiği Sayı {sortConfig.key === 'pointsPlayed' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('passes')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Pas {sortConfig.key === 'passes' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            {/* YENİ EKLENEN 2 BAŞLIK */}
+                                            <th onClick={() => requestSort('passPercentage')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Pas % {sortConfig.key === 'passPercentage' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('catchPercentage')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Catch % {sortConfig.key === 'catchPercentage' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            {/* YENİ EKLENEN 2 BAŞLIK BİTİŞ */}
+                                            <th onClick={() => requestSort('turns')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Turn {sortConfig.key === 'turns' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('goals')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Gol {sortConfig.key === 'goals' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('assists')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Asist {sortConfig.key === 'assists' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('blocks')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Blok {sortConfig.key === 'blocks' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('efficiency')} className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors px-6 py-3 text-center text-xs font-bold text-[#5B4DBC] uppercase tracking-wider bg-purple-50 dark:bg-purple-900/10">
+                                                <div className="flex items-center justify-center gap-1">Verimlilik {sortConfig.key === 'efficiency' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white dark:bg-[#1E1E1E] divide-y divide-gray-200 dark:divide-gray-800">
-                                        {computedPlayers.map((player: any) => (
+                                        {/* BURASI ÖNEMLİ: Artık computedPlayers yerine sortedComputedPlayers map ediliyor */}
+                                        {sortedComputedPlayers.map((player: any) => (
                                             <tr key={player.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center">
@@ -469,6 +552,8 @@ export default function TournamentDetail() {
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.matchesPlayed || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.pointsPlayed || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.passes || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-500 dark:text-blue-400">%{player.passPercentage}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-orange-500 dark:text-orange-400">%{player.catchPercentage}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#FF6B6B]">{player.turns || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#00C896]">{player.goals || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#5B4DBC]">{player.assists || 0}</td>
@@ -476,9 +561,9 @@ export default function TournamentDetail() {
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-black text-[#5B4DBC] bg-purple-50/50 dark:bg-purple-900/5">{player.efficiency}</td>
                                             </tr>
                                         ))}
-                                        {computedPlayers.length === 0 && (
+                                        {sortedComputedPlayers.length === 0 && (
                                             <tr>
-                                                <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                                <td colSpan={11} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                                     Henüz istatistik verisi bulunamadı.
                                                 </td>
                                             </tr>
