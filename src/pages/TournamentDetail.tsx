@@ -37,50 +37,55 @@ export default function TournamentDetail() {
     }, [navigate]);
 
     // 2. ADIM: Kullanıcı varsa Takımları ve Verileri Çek
+    // 2. ADIM: Seçili Takıma Göre Verileri Çek (DÜZELTİLDİ)
     useEffect(() => {
         if (loadingAuth || !user || !tournamentId) return;
 
-        // Takımları bul
+        // LocalStorage'dan uygulamada aktif olan takımın ID'sini alıyoruz
+        const activeTeamId = localStorage.getItem('selectedTeamId');
+        
+        if (!activeTeamId) {
+            navigate('/teams');
+            return;
+        }
+
+        // A. Takım bilgilerini çek (Verimlilik kriteri -efficiencyCriteria- hesaplaması için gerekli)
         const unsubscribeTeams = getUserTeams(user.uid, (fetchedTeams) => {
             setTeams(fetchedTeams);
-            
-            if (fetchedTeams.length > 0) {
-                const team = fetchedTeams[0];
+            const team = fetchedTeams.find(t => t.teamId === activeTeamId);
+            if (team) {
                 setCurrentTeam(team);
-                const currentTeamId = team.teamId;
-
-                // A. Turnuvayı (Kadroyu almak için) Dinle
-                const unsubTournaments = getTournaments(currentTeamId, (tours) => {
-                    const activeTour = tours.find(t => t.id === tournamentId);
-                    setTournament(activeTour || null);
-                });
-
-                // B. Maçları Dinle
-                const unsubMatches = getTournamentMatches(currentTeamId, tournamentId, (data) => {
-                    setMatches(data as Match[]);
-                });
-
-                // C. Oyuncuları Dinle (Takımın genel oyuncu listesini çekiyoruz)
-                const unsubPlayers = getPlayers(currentTeamId, (data) => {
-                    setPlayers(data);
-                    setLoadingData(false); 
-                });
-
-                const safetyTimer = setTimeout(() => setLoadingData(false), 2000);
-
-                return () => {
-                    unsubTournaments();
-                    unsubMatches();
-                    unsubPlayers();
-                    clearTimeout(safetyTimer);
-                };
-            } else {
-                setLoadingData(false); 
             }
         });
 
-        return () => unsubscribeTeams();
-    }, [user, tournamentId, loadingAuth]);
+        // B. Turnuva ana bilgisini dinle
+        const unsubTournaments = getTournaments(activeTeamId, (tours) => {
+            const activeTour = tours.find(t => t.id === tournamentId);
+            setTournament(activeTour || null);
+        });
+
+        // C. MAÇLARI DİNLE (İstatistiklerin 0 gelme sorunu buradaki takım eşleşmezliğiydi)
+        const unsubMatches = getTournamentMatches(activeTeamId, tournamentId, (data) => {
+            setMatches(data as Match[]);
+        });
+
+        // D. Oyuncuları dinle (İstatistiklerle isimleri eşleştirmek için)
+        const unsubPlayers = getPlayers(activeTeamId, (data) => {
+            setPlayers(data);
+            setLoadingData(false); 
+        });
+
+        const safetyTimer = setTimeout(() => setLoadingData(false), 2000);
+
+        // Temizlik (Unsubscribe) işlemleri - Sızıntı olmaması için dışarı alındı
+        return () => {
+            unsubscribeTeams();
+            unsubTournaments();
+            unsubMatches();
+            unsubPlayers();
+            clearTimeout(safetyTimer);
+        };
+    }, [user, tournamentId, loadingAuth, navigate]);
 
     // --- İSTATİSTİK HESAPLAMALARI (Uygulama Mantığına Göre Güncellendi) ---
     const wins = matches.filter(m => (m.scoreUs || 0) > (m.scoreThem || 0)).length;
