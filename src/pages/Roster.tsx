@@ -4,21 +4,40 @@ import { getUserTeams, getPlayers } from '../services/repository';
 import type { Player, TeamProfile } from '../types';
 import PlayerDetailModal from '../components/PlayerDetailModal';
 import { useNavigate } from 'react-router-dom';
+
 export default function Roster() {
     const navigate = useNavigate();
     const [user] = useState(auth.currentUser);
     const [teams, setTeams] = useState<TeamProfile[]>([]);
-    const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+    
+    // 1. DEĞİŞİKLİK: İlk açılışta localStorage'daki aktif takımı kontrol et
+    const [selectedTeamId, setSelectedTeamId] = useState<string | null>(localStorage.getItem('activeTeamId') || null);
+    
     const [players, setPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+
     useEffect(() => {
         if (!user) return;
         const unsubscribe = getUserTeams(user.uid, (fetchedTeams) => {
             setTeams(fetchedTeams);
-            if (fetchedTeams.length > 0) setSelectedTeamId(fetchedTeams[0].teamId);
-            else setLoading(false);
+            
+            if (fetchedTeams.length > 0) {
+                // 2. DEĞİŞİKLİK: Hafızadaki takım hala kullanıcının takımları arasında var mı?
+                const savedTeamId = localStorage.getItem('activeTeamId');
+                const isSavedTeamValid = fetchedTeams.some(t => t.teamId === savedTeamId);
+                
+                if (isSavedTeamValid && savedTeamId) {
+                    setSelectedTeamId(savedTeamId);
+                } else {
+                    // Yoksa veya ilk kez giriyorsa ilk takımı seç ve kaydet
+                    setSelectedTeamId(fetchedTeams[0].teamId);
+                    localStorage.setItem('activeTeamId', fetchedTeams[0].teamId);
+                }
+            } else {
+                setLoading(false);
+            }
         });
         return () => unsubscribe();
     }, [user]);
@@ -34,6 +53,13 @@ export default function Roster() {
         return () => unsubscribe();
     }, [selectedTeamId]);
 
+    // 3. DEĞİŞİKLİK: Takım değiştirme fonksiyonu
+    const handleTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newTeamId = e.target.value;
+        setSelectedTeamId(newTeamId);
+        localStorage.setItem('activeTeamId', newTeamId); // Yeni seçimi hafızaya al
+    };
+
     const filteredPlayers = players.filter(player => (player.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
     const getInitials = (name: string) => {
@@ -46,13 +72,26 @@ export default function Roster() {
             {/* Üst Başlık ve Arama */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                    <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                         Kadro
-                        {teams.length > 1 && (
+                        {/* 4. DEĞİŞİKLİK: Sadece metin yerine Dropdown (Select) eklendi */}
+                        {teams.length > 1 ? (
+                            <select 
+                                className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg border-none outline-none cursor-pointer hover:bg-gray-200 transition-colors focus:ring-2 focus:ring-[#5B4DBC]"
+                                value={selectedTeamId || ''}
+                                onChange={handleTeamChange}
+                            >
+                                {teams.map(t => (
+                                    <option key={t.teamId} value={t.teamId}>
+                                        {t.teamName}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : teams.length === 1 ? (
                             <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                                {teams.find(t => t.teamId === selectedTeamId)?.teamName}
+                                {teams[0].teamName}
                             </span>
-                        )}
+                        ) : null}
                     </h1>
                     <p className="text-gray-500 mt-1">Takım oyuncularını yönet ve istatistiklerini gör.</p>
                 </div>
@@ -140,13 +179,13 @@ export default function Roster() {
                 </div>
             )}
             {/* Modalı Render Et */}
-    {selectedPlayer && selectedTeamId && (
-        <PlayerDetailModal 
-            player={selectedPlayer} 
-            teamId={selectedTeamId} 
-            onClose={() => setSelectedPlayer(null)} 
-        />
-    )}
+            {selectedPlayer && selectedTeamId && (
+                <PlayerDetailModal 
+                    player={selectedPlayer} 
+                    teamId={selectedTeamId} 
+                    onClose={() => setSelectedPlayer(null)} 
+                />
+            )}
         </div>
     );
 }
