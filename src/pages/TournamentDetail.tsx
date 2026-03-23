@@ -205,7 +205,11 @@ export default function TournamentDetail() {
             return score.toFixed(2); 
         }
     };
-
+    // --- İSİM KISALTMA FONKSİYONU ---
+    const getInitials = (name: string) => {
+        if (!name) return '??';
+        return name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2);
+    };
     // Tablo ve Top 3 listesi için sadece bu turnuvada (maçlarda) oynamış oyuncuları filtreleyip eşleştiriyoruz
     // Tablo ve Top 3 listesi için sadece bu turnuvada (maçlarda) oynamış oyuncuları filtreleyip eşleştiriyoruz
     const computedPlayers = players
@@ -540,8 +544,14 @@ export default function TournamentDetail() {
                                             <tr key={player.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center">
-                                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-[#5B4DBC] font-bold text-xs">
-                                                            {player.name ? player.name.substring(0, 2).toUpperCase() : '??'}
+                                                        <div className="flex-shrink-0 h-8 w-8 rounded-full border border-gray-200 dark:border-gray-700 bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-[#5B4DBC] font-bold text-xs overflow-hidden">
+                                                            {player.photoUrl ? (
+                                                                <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
+                                                            ) : (player.jerseyNumber !== undefined && player.jerseyNumber !== null && player.jerseyNumber !== '') ? (
+                                                                <span>{player.jerseyNumber}</span>
+                                                            ) : (
+                                                                <span>{getInitials(player.name)}</span>
+                                                            )}
                                                         </div>
                                                         <div className="ml-4">
                                                             <div className="text-sm font-medium text-gray-900 dark:text-white">{player.name}</div>
@@ -630,8 +640,14 @@ export default function TournamentDetail() {
                                     .filter(p => tournament.rosterPlayerIds.includes(p.id))
                                     .map(player => (
                                         <div key={player.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 dark:border-gray-800 hover:shadow-md transition-shadow bg-gray-50 dark:bg-gray-800/30">
-                                            <div className="flex-shrink-0 h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-[#5B4DBC] font-bold text-lg">
-                                                {player.name ? player.name.substring(0, 2).toUpperCase() : '??'}
+                                            <div className="flex-shrink-0 h-12 w-12 rounded-full border-2 border-gray-200 dark:border-gray-700 bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-[#5B4DBC] font-bold text-lg overflow-hidden">
+                                                {player.photoUrl ? (
+                                                    <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
+                                                ) : (player.jerseyNumber !== undefined && player.jerseyNumber !== null && player.jerseyNumber !== '') ? (
+                                                    <span>{player.jerseyNumber}</span>
+                                                ) : (
+                                                    <span>{getInitials(player.name)}</span>
+                                                )}
                                             </div>
                                             <div>
                                                 <div className="font-bold text-gray-900 dark:text-white">{player.name}</div>
