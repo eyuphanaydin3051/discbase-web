@@ -25,6 +25,7 @@ function App() {
           {/* Detay sayfasında da sidebar görünmesi kullanıcı deneyimi için iyidir */}
           <Route path="/tournament/:id" element={<TournamentDetail />} />
           <Route path="/player/:teamId/:playerId" element={<PlayerDetail />} />
+          <Route path="/tournament/:tournamentId/match/:matchId" element={<MatchDetail />} />
         </Route>
       </Routes>
     </Router>

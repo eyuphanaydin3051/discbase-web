@@ -8,13 +8,6 @@ export type LineType = 'FULL' | 'HANDLER_SET' | 'CUTTER_SET';
 export type StoppageType = 'TIMEOUT' | 'INJURY' | 'CALL' | 'OTHER';
 export type CalculationMode = 'TOTAL' | 'PER_MATCH' | 'PER_POINT';
 
-// --- Yeni Eklenen Tipler (Hataları Çözen Kısım) ---
-export interface MatchEvent {
-    playerId: string;
-    type: 'goal' | 'assist' | 'block' | 'turnover';
-    timestamp?: number;
-}
-
 // --- Ana Veri Yapıları ---
 export interface UserProfile {
     displayName: string | null;
@@ -103,19 +96,69 @@ export interface PointData {
     proEvents: ProEventData[];
 }
 
+// --- MAÇ VE OLAY YÖNETİMİ (CANLI VE GEÇMİŞ MAÇLAR BİRLEŞTİRİLDİ) ---
+export interface MatchEventPlayer {
+    id: string;
+    name: string;
+    jerseyNumber?: number;
+}
+
+export interface MatchEvent {
+    id: string;
+    matchId: string;
+    teamId: string;
+    playerId?: string | null;
+    secondaryPlayerId?: string | null;
+    eventType: 'Goal' | 'Assist' | 'D-Up' | 'Callahan' | 'Completion' | 'Drop' | 'Throwaway' | 'Start' | 'Half' | 'End' | 'Timeout' | 'Interception' | 'Stall' | string;
+    timestamp: number;
+    currentScore: number[];
+    period: number;
+    description?: string;
+    player?: MatchEventPlayer | null;
+    secondaryPlayer?: MatchEventPlayer | null;
+}
+
+export interface ComputedMatchPlayerStats {
+    playerId: string;
+    name: string;
+    jerseyNumber?: number;
+    goals: number;
+    assists: number;
+    blocks: number;
+    callahans: number;
+    completions: number;
+    drops: number;
+    throwaways: number;
+}
+
 export interface Match {
     id: string;
-    opponentName: string;
-    ourTeamName: string;
-    scoreUs: number;
-    scoreThem: number;
-    pointsArchive: PointData[];
-    matchDurationSeconds: number;
-    isProMode: boolean;
+    
+    // --- Geçmiş/Turnuva Maçları (TournamentDetail) İçin Gerekli Alanlar ---
+    opponentName?: string;
+    ourTeamName?: string;
+    scoreUs?: number;
+    scoreThem?: number;
+    pointsArchive?: PointData[];
+    matchDurationSeconds?: number;
+    isProMode?: boolean;
     date?: string;
-    // Hata veren eksik alanlar eklendi:
     events?: MatchEvent[];
     playerStats?: Record<string, any>;
+    
+    // --- Canlı Maçlar (MatchDetail) İçin Gerekli Alanlar ---
+    tournamentId?: string;
+    teamIds?: string[];
+    teamNames: string[]; // MatchDetail ekranında hata vermemesi için zorunlu (required)
+    score: number[];     // MatchDetail ekranında hata vermemesi için zorunlu (required)
+    period?: number;
+    timer?: number;
+    timerRunning?: boolean;
+    genderType?: string;
+    creatorUid?: string;
+    startTime?: number;
+    endTime?: number;
+    finished?: boolean;
 }
 
 export interface PresetLine {
@@ -156,56 +199,4 @@ export interface TournamentPlayer {
     turnovers?: number;
     matchesPlayed?: number;
     gender?: string;
-}
-// --- src/types.ts dosyasına eklenecek kısım ---
-
-export interface Match {
-    id: string;
-    tournamentId: string;
-    teamIds: string[]; // [evSahibiTeamId, rakipTeamId]
-    teamNames: string[]; // [evSahibiAdı, rakipAdı]
-    score: number[]; // [evSahibiSkor, rakipSkor]
-    period: number;
-    timer: number;
-    timerRunning: boolean;
-    genderType: string;
-    creatorUid: string;
-    startTime?: number;
-    endTime?: number;
-    finished: boolean;
-}
-
-export interface MatchEventPlayer {
-    id: string;
-    name: string;
-    jerseyNumber?: number;
-}
-
-export interface MatchEvent {
-    id: string;
-    matchId: string;
-    teamId: string;
-    playerId?: string | null;
-    secondaryPlayerId?: string | null;
-    eventType: 'Goal' | 'Assist' | 'D-Up' | 'Callahan' | 'Completion' | 'Drop' | 'Throwaway' | 'Start' | 'Half' | 'End' | 'Timeout' | 'Interception' | 'Stall';
-    timestamp: number;
-    currentScore: number[];
-    period: number;
-    description?: string;
-    // UI için yardımcı alanlar, repository'de ekleniyor
-    player?: MatchEventPlayer | null;
-    secondaryPlayer?: MatchEventPlayer | null;
-}
-
-export interface ComputedMatchPlayerStats {
-    playerId: string;
-    name: string;
-    jerseyNumber?: number;
-    goals: number;
-    assists: number;
-    blocks: number;
-    callahans: number;
-    completions: number;
-    drops: number;
-    throwaways: number;
 }
