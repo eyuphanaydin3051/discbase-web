@@ -9,10 +9,10 @@ export default function Roster() {
     const navigate = useNavigate();
     const [user] = useState(auth.currentUser);
     const [teams, setTeams] = useState<TeamProfile[]>([]);
-    
-    // 1. DEĞİŞİKLİK: İlk açılışta localStorage'daki aktif takımı kontrol et
-    const [selectedTeamId, setSelectedTeamId] = useState<string | null>(localStorage.getItem('activeTeamId') || null);
-    
+
+    // Sadece localStorage'dan aktif takımı okuyoruz, sayfada değiştirmiyoruz
+    const activeTeamId = localStorage.getItem('activeTeamId');
+
     const [players, setPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -20,45 +20,31 @@ export default function Roster() {
 
     useEffect(() => {
         if (!user) return;
+
+        // Eğer aktif takım seçilmemişse doğrudan takımlar sayfasına yönlendir
+        if (!activeTeamId) {
+            navigate('/teams');
+            return;
+        }
+
+        // Takım adını ekranda göstermek için kullanıcının takımlarını çekiyoruz
         const unsubscribe = getUserTeams(user.uid, (fetchedTeams) => {
             setTeams(fetchedTeams);
-            
-            if (fetchedTeams.length > 0) {
-                // 2. DEĞİŞİKLİK: Hafızadaki takım hala kullanıcının takımları arasında var mı?
-                const savedTeamId = localStorage.getItem('activeTeamId');
-                const isSavedTeamValid = fetchedTeams.some(t => t.teamId === savedTeamId);
-                
-                if (isSavedTeamValid && savedTeamId) {
-                    setSelectedTeamId(savedTeamId);
-                } else {
-                    // Yoksa veya ilk kez giriyorsa ilk takımı seç ve kaydet
-                    setSelectedTeamId(fetchedTeams[0].teamId);
-                    localStorage.setItem('activeTeamId', fetchedTeams[0].teamId);
-                }
-            } else {
-                setLoading(false);
-            }
         });
         return () => unsubscribe();
-    }, [user]);
+    }, [user, activeTeamId, navigate]);
 
     useEffect(() => {
-        if (!selectedTeamId) return;
+        if (!activeTeamId) return;
         setLoading(true);
-        const unsubscribe = getPlayers(selectedTeamId, (fetchedPlayers) => {
+        // Sadece aktif takımın oyuncularını getir
+        const unsubscribe = getPlayers(activeTeamId, (fetchedPlayers) => {
             const sortedPlayers = fetchedPlayers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             setPlayers(sortedPlayers);
             setLoading(false);
         });
         return () => unsubscribe();
-    }, [selectedTeamId]);
-
-    // 3. DEĞİŞİKLİK: Takım değiştirme fonksiyonu
-    const handleTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newTeamId = e.target.value;
-        setSelectedTeamId(newTeamId);
-        localStorage.setItem('activeTeamId', newTeamId); // Yeni seçimi hafızaya al
-    };
+    }, [activeTeamId]);
 
     const filteredPlayers = players.filter(player => (player.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -67,6 +53,9 @@ export default function Roster() {
         return name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2);
     };
 
+    // Ekranda adını göstermek için aktif takımı buluyoruz
+    const activeTeam = teams.find(t => t.teamId === activeTeamId);
+
     return (
         <div className="p-4 md:p-8 pb-24 lg:pb-8 w-full">
             {/* Üst Başlık ve Arama */}
@@ -74,24 +63,11 @@ export default function Roster() {
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                         Kadro
-                        {/* 4. DEĞİŞİKLİK: Sadece metin yerine Dropdown (Select) eklendi */}
-                        {teams.length > 1 ? (
-                            <select 
-                                className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg border-none outline-none cursor-pointer hover:bg-gray-200 transition-colors focus:ring-2 focus:ring-[#5B4DBC]"
-                                value={selectedTeamId || ''}
-                                onChange={handleTeamChange}
-                            >
-                                {teams.map(t => (
-                                    <option key={t.teamId} value={t.teamId}>
-                                        {t.teamName}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : teams.length === 1 ? (
-                            <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                                {teams[0].teamName}
+                        {activeTeam && (
+                            <span className="text-sm font-normal text-[#5B4DBC] bg-[#5B4DBC]/10 px-3 py-1 rounded-lg">
+                                {activeTeam.teamName}
                             </span>
-                        ) : null}
+                        )}
                     </h1>
                     <p className="text-gray-500 mt-1">Takım oyuncularını yönet ve istatistiklerini gör.</p>
                 </div>
@@ -135,9 +111,9 @@ export default function Roster() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredPlayers.map((player) => (
-                        <div key={player.id} 
-                        onClick={() => navigate(`/player/${selectedTeamId}/${player.id}`)}
-                        className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 border border-transparent flex flex-col items-center text-center cursor-pointer">
+                        <div key={player.id}
+                            onClick={() => navigate(`/player/${activeTeamId}/${player.id}`)}
+                            className="group bg-white rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 border border-transparent flex flex-col items-center text-center cursor-pointer">
                             <div className="relative mb-4">
                                 <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-2xl font-bold overflow-hidden shadow-inner
                                     ${!player.position ? 'border-gray-300 bg-gray-100 text-gray-600' : 'border-[#00c4b4] bg-teal-50 text-teal-700'}`}>
@@ -157,18 +133,17 @@ export default function Roster() {
                                     {player.position || 'Oyuncu'}
                                 </span>
                                 {player.gender && (
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                        player.gender.toLowerCase() === 'kadın' || player.gender.toLowerCase() === 'kadin' || player.gender.toLowerCase() === 'female' 
-                                            ? 'bg-pink-100 text-pink-700' 
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${player.gender.toLowerCase() === 'kadın' || player.gender.toLowerCase() === 'kadin' || player.gender.toLowerCase() === 'female'
+                                            ? 'bg-pink-100 text-pink-700'
                                             : 'bg-blue-100 text-blue-700'
-                                    }`}>
+                                        }`}>
                                         {player.gender}
                                     </span>
                                 )}
                             </div>
                         </div>
                     ))}
-                    
+
                     {/* Yeni Ekle Kartı */}
                     <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center cursor-pointer min-h-[260px] group hover:border-[#5B4DBC] transition-all">
                         <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-[#5B4DBC]/10 transition-colors">
@@ -178,12 +153,13 @@ export default function Roster() {
                     </div>
                 </div>
             )}
+
             {/* Modalı Render Et */}
-            {selectedPlayer && selectedTeamId && (
-                <PlayerDetailModal 
-                    player={selectedPlayer} 
-                    teamId={selectedTeamId} 
-                    onClose={() => setSelectedPlayer(null)} 
+            {selectedPlayer && activeTeamId && (
+                <PlayerDetailModal
+                    player={selectedPlayer}
+                    teamId={activeTeamId}
+                    onClose={() => setSelectedPlayer(null)}
                 />
             )}
         </div>
