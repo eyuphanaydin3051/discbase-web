@@ -260,13 +260,12 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
         return null;
     }
 };
-export const getMatch = async (matchId: string): Promise<Match | null> => {
-    // Burası önemli: Android'de maçlar takımların altındadır: teams/{teamId}/matches/{matchId}
-    // Web'de aktif takımın id'sini localStorage'dan alıyoruz (daha önceki analiz)
+export const getMatch = async (tournamentId: string, matchId: string): Promise<Match | null> => {
     const activeTeamId = localStorage.getItem('activeTeamId');
     if (!activeTeamId) return null;
 
-    const matchDocRef = doc(db, 'teams', activeTeamId, 'matches', matchId);
+    // HATA DÜZELTİLDİ: Maçlar turnuvaların altında tutuluyor (DOĞRU YOL)
+    const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
     const matchSnap = await getDoc(matchDocRef);
 
     if (matchSnap.exists()) {
@@ -276,27 +275,24 @@ export const getMatch = async (matchId: string): Promise<Match | null> => {
 };
 
 // Maçın olaylarını (Log) gerçek zamanlı dinlemek için (Android'deki startMatchStream mantığı)
-export const getMatchEvents = (matchId: string, callback: (events: MatchEvent[]) => void) => {
+export const getMatchEvents = (tournamentId: string, matchId: string, callback: (events: MatchEvent[]) => void) => {
     const activeTeamId = localStorage.getItem('activeTeamId');
     if (!activeTeamId) {
         callback([]);
         return () => {};
     }
 
-    // YOL: teams/{activeTeamId}/matches/{matchId}/events
-    const eventsCollectionRef = collection(db, 'teams', activeTeamId, 'matches', matchId, 'events');
+    // HATA DÜZELTİLDİ: Olaylar ilgili maçın altındaki 'events' koleksiyonunda tutuluyor
+    const eventsCollectionRef = collection(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId, 'events');
 
-    // Snapshot listener'ı kuralım. Her değişiklikte burası tetiklenir.
     const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot) => {
-        // HATA ÇÖZÜMÜ: .documents yerine .docs kullanıyoruz
         const events = querySnapshot.docs.map(docSnap => ({
             id: docSnap.id,
             ...docSnap.data(),
         } as MatchEvent));
         
-        // HATA ÇÖZÜMÜ: timestamp undefined olma ihtimaline karşı fallback (?? 0) eklendi
         callback(events.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
     });
 
-    return unsubscribe; // Component unmount olduğunda dinlemeyi bırakmak için
+    return unsubscribe;
 };
