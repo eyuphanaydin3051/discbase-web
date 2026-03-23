@@ -16,7 +16,7 @@ const eventIcons: { [key: string]: { icon: string, color: string } } = {
 };
 
 export default function MatchDetail() {
-    const { tournamentId, matchId } = useParams<{ tournamentId: string, matchId: string }>();
+    const { matchId } = useParams<{ tournamentId: string, matchId: string }>();
     const navigate = useNavigate();
     const activeTeamId = localStorage.getItem('activeTeamId');
 
@@ -50,9 +50,14 @@ export default function MatchDetail() {
         const unsubscribeEvents = getMatchEvents(matchId, (fetchedEvents) => {
             // Olayları oyuncu bilgileriyle zenginleştirelim
             const enrichedEvents = fetchedEvents.map(event => {
-                const player = rosterPlayers.find(p => p.id === event.playerId);
-                const secondaryPlayer = rosterPlayers.find(p => p.id === event.secondaryPlayerId);
-                return { ...event, player, secondaryPlayer };
+                const p = rosterPlayers.find(p => p.id === event.playerId);
+                const sp = rosterPlayers.find(p => p.id === event.secondaryPlayerId);
+                
+                // Tip uyuşmazlığını (null vs undefined) çözmek için jerseyNumber'ı undefined'a çeviriyoruz
+                const player = p ? { ...p, jerseyNumber: p.jerseyNumber ?? undefined } : undefined;
+                const secondaryPlayer = sp ? { ...sp, jerseyNumber: sp.jerseyNumber ?? undefined } : undefined;
+                
+                return { ...event, player, secondaryPlayer } as MatchEvent;
             });
             setEvents(enrichedEvents);
             setLoading(false);
@@ -73,7 +78,7 @@ export default function MatchDetail() {
             statsMap[player.id] = {
                 playerId: player.id,
                 name: player.name,
-                jerseyNumber: player.jerseyNumber,
+                jerseyNumber: player.jerseyNumber ?? undefined, // null yerine undefined atıyoruz
                 goals: 0, assists: 0, blocks: 0, callahans: 0, completions: 0, drops: 0, throwaways: 0
             };
         });
@@ -165,7 +170,7 @@ export default function MatchDetail() {
                                                 </>
                                             )}
                                         </div>
-                                        <div className="text-xs text-gray-500">{getTimeString(event.timestamp)} • Devre: {event.period}</div>
+                                        <div className="text-xs text-gray-500">{getTimeString(event.timestamp ?? Date.now())} • Devre: {event.period}</div>
                                     </div>
                                 </div>
                                 <div className="text-right flex items-center gap-2">
