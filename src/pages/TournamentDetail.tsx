@@ -643,7 +643,7 @@ export default function TournamentDetail() {
                                             <div className="flex-shrink-0 h-12 w-12 rounded-full border-2 border-gray-200 dark:border-gray-700 bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-[#5B4DBC] font-bold text-lg overflow-hidden">
                                                 {player.photoUrl ? (
                                                     <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
-                                                ) : (player.jerseyNumber !== undefined && player.jerseyNumber !== null && player.jerseyNumber !== '') ? (
+                                                ) : (player.jerseyNumber !== undefined && player.jerseyNumber !== null) ? (
                                                     <span>{player.jerseyNumber}</span>
                                                 ) : (
                                                     <span>{getInitials(player.name)}</span>

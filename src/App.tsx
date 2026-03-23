@@ -9,6 +9,7 @@ import TournamentList from './pages/TournamentList';
 import TournamentDetail from './pages/TournamentDetail';
 import Roster from './pages/Roster'; // Yeni sayfayı import et
 import PlayerDetail from './pages/PlayerDetail';
+import MatchDetail from './pages/MatchDetail';
 function App() {
   return (
     <Router>

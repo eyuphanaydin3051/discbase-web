@@ -91,7 +91,6 @@ export default function Dashboard() {
         );
     }
 
-    const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
 
     // Firebase'den Gelen Gerçek Performans ve Analiz Verileri
     const holdPercentage = teamStats?.holdPercentage || 0;
