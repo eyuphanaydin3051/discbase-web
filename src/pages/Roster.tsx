@@ -104,8 +104,10 @@ export default function Roster() {
                                     ${!player.position ? 'border-gray-300 bg-gray-100 text-gray-600' : 'border-[#00c4b4] bg-teal-50 text-teal-700'}`}>
                                     {player.photoUrl ? (
                                         <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
+                                    ) : (player.jerseyNumber !== undefined && player.jerseyNumber !== null && player.jerseyNumber !== '') ? (
+                                        <span className="text-3xl font-black">{player.jerseyNumber}</span>
                                     ) : (
-                                        getInitials(player.name)
+                                        <span className="text-2xl font-bold">{getInitials(player.name)}</span>
                                     )}
                                 </div>
                                 <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></div>
