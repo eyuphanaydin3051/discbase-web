@@ -26,10 +26,15 @@ export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) =>
 export const getPlayers = (teamId: string, callback: (players: Player[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/players`));
     return onSnapshot(q, (snapshot) => {
-        const playersData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as Player));
+        const playersData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                // Hem 'photoUrl' hem de 'photoURL' ihtimallerini kontrol edip atıyoruz
+                photoUrl: data.photoUrl || data.photoURL || null
+            } as Player;
+        });
         callback(playersData);
     });
 };

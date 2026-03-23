@@ -113,10 +113,19 @@ export default function Roster() {
                                 <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-white rounded-full"></div>
                             </div>
                             <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-[#5B4DBC] transition-colors">{player.name}</h3>
-                            <div className="mt-2">
+                            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                     {player.position || 'Oyuncu'}
                                 </span>
+                                {player.gender && (
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                        player.gender.toLowerCase() === 'kadın' || player.gender.toLowerCase() === 'kadin' || player.gender.toLowerCase() === 'female' 
+                                            ? 'bg-pink-100 text-pink-700' 
+                                            : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                        {player.gender}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     ))}
