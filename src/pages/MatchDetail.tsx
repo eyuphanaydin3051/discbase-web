@@ -74,24 +74,8 @@ export default function MatchDetail() {
             };
         });
 
-        if (enrichedEvents.length > 0) {
-            enrichedEvents.forEach(event => {
-                if (!event.playerId) return;
-                const stats = statsMap[event.playerId];
-                if (!stats) return;
-
-                switch (event.eventType) {
-                    case 'Goal': stats.goals += 1; break;
-                    case 'Assist': stats.assists += 1; break;
-                    case 'D-Up': stats.blocks += 1; break;
-                    case 'Callahan': stats.callahans += 1; break;
-                    case 'Completion': stats.completions += 1; break;
-                    case 'Drop': stats.drops += 1; break;
-                    case 'Throwaway': stats.throwaways += 1; break;
-                }
-            });
-        } 
-        else if (match?.pointsArchive) {
+        // A. Önce Arşivdeki İstatistikleri Topla (Geçmiş ve tamamlanmış sayılar)
+        if (match?.pointsArchive) {
             match.pointsArchive.forEach(point => {
                 point.stats?.forEach(stat => {
                     const playerStats = statsMap[stat.playerId];
@@ -108,31 +92,78 @@ export default function MatchDetail() {
             });
         }
 
+        // B. Canlı olayları (Henüz arşive girmemiş mevcut sayıyı) üzerine ekle
+        if (enrichedEvents && enrichedEvents.length > 0) {
+            enrichedEvents.forEach(event => {
+                if (!event.playerId) return;
+                const stats = statsMap[event.playerId];
+                if (!stats) return;
+
+                switch (event.eventType) {
+                    case 'Goal': stats.goals += 1; break;
+                    case 'Assist': stats.assists += 1; break;
+                    case 'D-Up': stats.blocks += 1; break;
+                    case 'Callahan': stats.callahans += 1; break;
+                    case 'Completion': stats.completions += 1; break;
+                    case 'Drop': stats.drops += 1; break;
+                    case 'Throwaway': stats.throwaways += 1; break;
+                }
+            });
+        }
+
         return Object.values(statsMap).sort((a, b) => b.goals + b.assists - (a.goals + a.assists));
     };
 
-    // --- Takım Dinamik İstatistikleri (Düzeltildi) ---
+    // --- Takım Dinamik İstatistikleri (Mobil App ile Birebir Mantık) ---
     const computeTeamStats = () => {
-        let goals = 0, assists = 0, throwaways = 0, drops = 0;
+        let holdAttempts = 0, holds = 0;
+        let breakAttempts = 0, breaks = 0;
+        let passAttempts = 0, successfulPasses = 0, goals = 0;
         
-        enrichedEvents.forEach(e => {
-            if(e.eventType === 'Goal') goals++;
-            if(e.eventType === 'Assist' || e.eventType === 'Completion') assists++;
-            if(e.eventType === 'Throwaway') throwaways++;
-            if(e.eventType === 'Drop') drops++;
-        });
+        // A. Arşivdeki (Bitmiş) Sayıları İşle
+        if (match?.pointsArchive && match.pointsArchive.length > 0) {
+            match.pointsArchive.forEach(point => {
+                const isOurPoint = point.whoScored === 'OURS';
+                
+                if (point.startMode === 'OFFENSE') {
+                    holdAttempts++;
+                    if (isOurPoint) holds++;
+                } else if (point.startMode === 'DEFENSE') {
+                    breakAttempts++;
+                    if (isOurPoint) breaks++;
+                }
 
-        // Dummy veriler yerine dinamik hesap (Eğer hiç veri yoksa sıfıra düşmesin diye basit bir kontrol var)
-        const totalPassAttempts = assists + throwaways + drops;
-        const passSuccess = totalPassAttempts > 0 ? Math.round((assists / totalPassAttempts) * 100) : 0;
-        const totalPossessions = goals + throwaways + drops;
+                point.stats?.forEach(stat => {
+                    goals += stat.goal || 0;
+                    successfulPasses += stat.successfulPass || 0;
+                    passAttempts += (stat.successfulPass || 0) + (stat.throwaway || 0) + (stat.drop || 0);
+                });
+            });
+        }
+
+        // B. Canlı Olayları (Devam eden sayı) Ekle
+        if (enrichedEvents.length > 0) {
+            enrichedEvents.forEach(e => {
+                if(e.eventType === 'Goal') goals++;
+                if(e.eventType === 'Assist' || e.eventType === 'Completion') {
+                    successfulPasses++;
+                    passAttempts++;
+                }
+                if(e.eventType === 'Throwaway' || e.eventType === 'Drop') {
+                    passAttempts++;
+                }
+            });
+        }
+
+        const holdPercent = holdAttempts > 0 ? Math.round((holds / holdAttempts) * 100) : 0;
+        const breakPercent = breakAttempts > 0 ? Math.round((breaks / breakAttempts) * 100) : 0;
+        const passSuccess = passAttempts > 0 ? Math.round((successfulPasses / passAttempts) * 100) : 0;
+        
+        // Possession (Topa Sahip Olma): Ultimate'te bir hücum Goal, Drop veya Throwaway ile biter.
+        const totalPossessions = goals + (passAttempts - successfulPasses); 
         const conversionRate = totalPossessions > 0 ? Math.round((goals / totalPossessions) * 100) : 0;
 
-        return {
-            passSuccess,
-            conversionRate,
-            goals
-        };
+        return { holdPercent, breakPercent, passSuccess, conversionRate, goals };
     };
 
     const teamStats = computeTeamStats();
@@ -194,19 +225,19 @@ export default function MatchDetail() {
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm font-semibold">
                                 <span className="text-slate-600 dark:text-slate-400">Hold %</span>
-                                <span className="text-violet-600">--%</span> {/* API'de net bir Hold datası loglarda yoksa dummy bırakıldı */}
+                                <span className="text-violet-600">{teamStats.holdPercent}%</span>
                             </div>
                             <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-violet-500 rounded-full" style={{ width: '0%' }}></div>
+                                <div className="h-full bg-violet-500 rounded-full" style={{ width: `${teamStats.holdPercent}%` }}></div>
                             </div>
                         </div>
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm font-semibold">
                                 <span className="text-slate-600 dark:text-slate-400">Break %</span>
-                                <span className="text-violet-600">--%</span>
+                                <span className="text-violet-600">{teamStats.breakPercent}%</span>
                             </div>
                             <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500 rounded-full" style={{ width: '0%' }}></div>
+                                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${teamStats.breakPercent}%` }}></div>
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -250,7 +281,7 @@ export default function MatchDetail() {
                     </div>
                 </div>
 
-                {/* Alt Sol: Sayı Özeti (Eski Olay Günlüğü) */}
+                {/* Alt Sol: Sayı Özeti */}
                 <div className="col-span-12 lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[500px]">
                     <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
                         <h3 className="text-lg font-bold flex items-center gap-2">
@@ -259,42 +290,53 @@ export default function MatchDetail() {
                         </h3>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                        {enrichedEvents.length > 0 ? [...enrichedEvents].reverse().map((event, index) => (
-                            <div key={event.id} className="group p-4 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-violet-200 dark:hover:border-violet-800 hover:bg-violet-50/30 dark:hover:bg-slate-800 transition-all">
-                                <div className="flex items-center justify-between mb-3">
-                                    <span className="text-xs font-black text-slate-400 dark:text-slate-500">OLAY #{enrichedEvents.length - index}</span>
-                                    <div className="flex gap-2">
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                                            event.eventType === 'Goal' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                                            event.eventType === 'Drop' || event.eventType === 'Throwaway' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                                            'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                        }`}>
-                                            {event.eventType}
-                                        </span>
+                        {match?.pointsArchive && match.pointsArchive.length > 0 ? [...match.pointsArchive].reverse().map((point, index) => {
+                            const isOurPoint = point.whoScored === 'OURS';
+                            const pointNumber = match.pointsArchive!.length - index;
+
+                            return (
+                                <div key={`point-${index}`} className="group p-4 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-violet-200 dark:hover:border-violet-800 hover:bg-violet-50/30 dark:hover:bg-slate-800 transition-all">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-xs font-black text-slate-400 dark:text-slate-500">SAYI #{pointNumber}</span>
+                                        <div className="flex gap-2">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                                                point.startMode === 'OFFENSE' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                            }`}>
+                                                {point.startMode || 'UNKNOWN'}
+                                            </span>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                                                isOurPoint ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 
+                                                'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                            }`}>
+                                                {isOurPoint ? 'OUR POINT' : 'THEIR POINT'}
+                                            </span>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        {event.player && (
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
                                             <div className="flex -space-x-2">
-                                                <div className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-violet-700 dark:text-violet-400 text-xs font-bold z-10 overflow-hidden">
-                                                    {event.player.photoUrl ? <img src={event.player.photoUrl} alt="" className="w-full h-full object-cover"/> : getInitials(event.player.name)}
-                                                </div>
-                                                {event.secondaryPlayer && (
-                                                    <div className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-400 text-xs font-bold overflow-hidden">
-                                                        {event.secondaryPlayer.photoUrl ? <img src={event.secondaryPlayer.photoUrl} alt="" className="w-full h-full object-cover"/> : getInitials(event.secondaryPlayer.name)}
+                                                {/* Sayıda süre alan veya istatistik yapan oyuncuların avatarlarını göster */}
+                                                {point.stats?.filter(s => s.pointsPlayed > 0 || s.goal > 0 || s.assist > 0 || s.secondsPlayed > 0).slice(0, 7).map(stat => {
+                                                    const playerInfo = rosterPlayers.find(rp => rp.id === stat.playerId);
+                                                    return (
+                                                        <div key={stat.playerId} title={playerInfo?.name || stat.name} className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-[10px] z-10 overflow-hidden">
+                                                            {playerInfo?.photoUrl ? <img src={playerInfo.photoUrl} alt="" className="w-full h-full object-cover"/> : getInitials(playerInfo?.name || stat.name)}
+                                                        </div>
+                                                    );
+                                                })}
+                                                {(point.stats?.filter(s => s.pointsPlayed > 0 || s.goal > 0 || s.assist > 0 || s.secondsPlayed > 0).length || 0) > 7 && (
+                                                    <div className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 font-bold text-[10px] z-10">
+                                                        +{(point.stats?.filter(s => s.pointsPlayed > 0 || s.goal > 0 || s.assist > 0 || s.secondsPlayed > 0).length || 0) - 7}
                                                     </div>
                                                 )}
                                             </div>
-                                        )}
-                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-2">
-                                            {event.currentScore?.[0] || 0} - {event.currentScore?.[1] || 0}
-                                        </span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )) : (
-                            <div className="text-center py-12 text-slate-400 font-medium">Bu maç için henüz olay kaydedilmedi.</div>
+                            );
+                        }) : (
+                            <div className="text-center py-12 text-slate-400 font-medium">Bu maç için henüz sayı (point) kaydedilmedi.</div>
                         )}
                     </div>
                 </div>

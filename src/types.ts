@@ -101,6 +101,7 @@ export interface MatchEventPlayer {
     id: string;
     name: string;
     jerseyNumber?: number;
+    photoUrl?: string | null;
 }
 
 export interface MatchEvent {
