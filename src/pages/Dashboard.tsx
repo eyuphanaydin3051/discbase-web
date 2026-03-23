@@ -168,7 +168,7 @@ export default function Dashboard() {
                                 const resultText = isWin ? 'KAZANDIK' : isDraw ? 'BERABERE' : 'KAYBETTİK';
 
                                 return (
-                                    <div key={match.id} className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${resultColor.split(' ')[0]} hover:shadow-md transition-shadow cursor-pointer`}>
+                                    <div key={match.id}onClick={() => navigate(`/tournament/${match.tournamentId}/match/${match.id}`)} className={`bg-white rounded-xl p-5 shadow-sm border-l-4 ${resultColor.split(' ')[0]} hover:shadow-md transition-shadow cursor-pointer`}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex flex-col">
                                                 <h3 className="font-bold text-lg text-gray-800">vs {match.opponentName}</h3>

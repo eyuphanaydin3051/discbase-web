@@ -591,7 +591,7 @@ export default function TournamentDetail() {
                         {matches.map((match) => {
                             const isWin = (match.scoreUs || 0) > (match.scoreThem || 0);
                             return (
-                                <div key={match.id} className={`bg-white dark:bg-[#1E1E1E] rounded-xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border-l-4 ${isWin ? 'border-[#00C896]' : 'border-[#FF6B6B]'} hover:shadow-lg transition-all duration-200 group cursor-pointer relative overflow-hidden`}>
+                                <div key={match.id}onClick={() => navigate(`/tournament/${tournamentId}/match/${match.id}`)} className={`bg-white dark:bg-[#1E1E1E] rounded-xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border-l-4 ${isWin ? 'border-[#00C896]' : 'border-[#FF6B6B]'} hover:shadow-lg transition-all duration-200 group cursor-pointer relative overflow-hidden`}>
                                     <div className="flex items-center justify-between">
                                         <div className="flex flex-col">
                                             <h3 className="font-bold text-lg text-gray-900 dark:text-white">vs {match.opponentName}</h3>
