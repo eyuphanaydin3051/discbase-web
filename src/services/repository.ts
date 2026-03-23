@@ -11,7 +11,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match } from '../types';
-
+import { doc, collection, onSnapshot, getDoc } from 'firebase/firestore';
+import { Match, MatchEvent } from '../types';
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
     const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
     return onSnapshot(q, (snapshot) => {
@@ -259,4 +260,43 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
         console.error("İstatistikler çekilirken hata oluştu:", error);
         return null;
     }
+};
+export const getMatch = async (matchId: string): Promise<Match | null> => {
+    // Burası önemli: Android'de maçlar takımların altındadır: teams/{teamId}/matches/{matchId}
+    // Web'de aktif takımın id'sini localStorage'dan alıyoruz (daha önceki analiz)
+    const activeTeamId = localStorage.getItem('activeTeamId');
+    if (!activeTeamId) return null;
+
+    const matchDocRef = doc(db, 'teams', activeTeamId, 'matches', matchId);
+    const matchSnap = await getDoc(matchDocRef);
+
+    if (matchSnap.exists()) {
+        return { id: matchSnap.id, ...matchSnap.data() } as Match;
+    }
+    return null;
+};
+
+// Maçın olaylarını (Log) gerçek zamanlı dinlemek için (Android'deki startMatchStream mantığı)
+export const getMatchEvents = (matchId: string, callback: (events: MatchEvent[]) => void) => {
+    const activeTeamId = localStorage.getItem('activeTeamId');
+    if (!activeTeamId) {
+        callback([]);
+        return () => {};
+    }
+
+    // YOL: teams/{activeTeamId}/matches/{matchId}/events
+    const eventsCollectionRef = collection(db, 'teams', activeTeamId, 'matches', matchId, 'events');
+
+    // Snapshot listener'ı kuralım. Her değişiklikte burası tetiklenir.
+    const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot) => {
+        const events = querySnapshot.documents.map(docSnap => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+        } as MatchEvent));
+        
+        // Olayları kronolojik sıraya dizelim (timestamp'e göre)
+        callback(events.sort((a, b) => a.timestamp - b.timestamp));
+    });
+
+    return unsubscribe; // Component unmount olduğunda dinlemeyi bırakmak için
 };
