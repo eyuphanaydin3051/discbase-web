@@ -7,12 +7,11 @@ import {
     onSnapshot,
     doc,
     updateDoc,
-    getDocs
+    getDocs,
+    getDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { TeamProfile, Player, Tournament, TournamentPlayer, Match } from '../types';
-import { doc, collection, onSnapshot, getDoc } from 'firebase/firestore';
-import { Match, MatchEvent } from '../types';
+import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
     const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
     return onSnapshot(q, (snapshot) => {
@@ -289,13 +288,14 @@ export const getMatchEvents = (matchId: string, callback: (events: MatchEvent[])
 
     // Snapshot listener'ı kuralım. Her değişiklikte burası tetiklenir.
     const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot) => {
-        const events = querySnapshot.documents.map(docSnap => ({
+        // HATA ÇÖZÜMÜ: .documents yerine .docs kullanıyoruz
+        const events = querySnapshot.docs.map(docSnap => ({
             id: docSnap.id,
             ...docSnap.data(),
         } as MatchEvent));
         
-        // Olayları kronolojik sıraya dizelim (timestamp'e göre)
-        callback(events.sort((a, b) => a.timestamp - b.timestamp));
+        // HATA ÇÖZÜMÜ: timestamp undefined olma ihtimaline karşı fallback (?? 0) eklendi
+        callback(events.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
     });
 
     return unsubscribe; // Component unmount olduğunda dinlemeyi bırakmak için
