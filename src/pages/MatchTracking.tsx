@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMatch, addMatchEvent, archivePoint, undoLastEvent, getPlayers } from '../services/repository';
-import type { Match, Player, MatchEvent } from '../types';
+import { getMatch, archivePoint, getPlayers } from '../services/repository';
+import type { Match, Player, PlayerStats, GameMode } from '../types';
 
 const getTeamName = (match: Match | null) => match?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
 const getOpponentName = (match: Match | null) => match?.opponentName || match?.teamNames?.[1] || 'RAKİP';
@@ -10,23 +10,22 @@ export default function MatchTracking() {
     const { tournamentId, matchId } = useParams();
     const navigate = useNavigate();
     
-    // Veriler
     const [match, setMatch] = useState<Match | null>(null);
     const [roster, setRoster] = useState<Player[]>([]);
-    
-    // Uygulama (Screens_MatchEntry.kt) Akış State'leri
-    // roster -> start_mode -> tracking -> assist_selection
-    const [trackingStep, setTrackingStep] = useState<'roster' | 'start_mode' | 'tracking' | 'assist_selection'>('roster');
     const [selectedLineup, setSelectedLineup] = useState<string[]>([]);
-    const [startMode, setStartMode] = useState<'OFFENSE' | 'DEFENSE' | null>(null);
     
-    // Gol atıldığında asisti yapacak kişiyi seçmek için geçici state
-    const [goalScorerId, setGoalScorerId] = useState<string | null>(null);
+    // --- Gelişmiş Mod State Yönetimi ---
+    const [gameMode, setGameMode] = useState<GameMode>('MODE_SELECTION');
+    const [currentPointStats, setCurrentPointStats] = useState<PlayerStats[]>([]);
+    const [activePasserId, setActivePasserId] = useState<string | null>(null);
+    const [historyStack, setHistoryStack] = useState<any[]>([]);
+    
+    // --- Zamanlayıcı (Timer) ---
+    const [pointTimer, setPointTimer] = useState(0);
+    const [isTimerRunning, setIsTimerRunning] = useState(false);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const [lastAction, setLastAction] = useState<string | null>(null);
-    const [timer, setTimer] = useState(0);
-
-    // 1. Verileri Çek
+    // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
         if (matchId && tournamentId) {
             getMatch(tournamentId, matchId).then(setMatch);
@@ -34,6 +33,15 @@ export default function MatchTracking() {
             if (teamId) getPlayers(teamId, setRoster);
         }
     }, [matchId, tournamentId]);
+
+    useEffect(() => {
+        if (isTimerRunning) {
+            timerRef.current = setInterval(() => setPointTimer(p => p + 1), 1000);
+        } else if (timerRef.current) {
+            clearInterval(timerRef.current);
+        }
+        return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    }, [isTimerRunning]);
     
     // 2. Timer (NodeJS hatası çözüldü)
     useEffect(() => {
