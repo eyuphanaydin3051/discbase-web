@@ -26,25 +26,36 @@ export default function MatchTracking() {
         }
     }, [teamId, tournamentId, matchId]);
 
+    // src/pages/MatchTracking.tsx dosyasındaki handleAction ve savePoint fonksiyonlarını şu şekilde revize et:
+
     const handleAction = (playerId: string, action: 'CATCH' | 'GOAL' | 'DROP' | 'THROWAWAY') => {
         const stats = { ...currentPointStats };
         if (!stats[playerId]) {
-            stats[playerId] = { playerId, name: players.find(p => p.id === playerId)?.name || '', successfulPass: 0, assist: 0, throwaway: 0, catchStat: 0, drop: 0, goal: 0, pullAttempts: 0, successfulPulls: 0, block: 0, callahan: 0, secondsPlayed: 0, totalTempoSeconds: 0, pointsPlayed: 1, totalPullTimeSeconds: 0, passDistribution: {} };
+            stats[playerId] = { 
+                playerId, 
+                name: players.find(p => p.id === playerId)?.name || '', 
+                successfulPass: 0, assist: 0, throwaway: 0, catchStat: 0, drop: 0, goal: 0, 
+                pullAttempts: 0, successfulPulls: 0, block: 0, callahan: 0, 
+                secondsPlayed: 0, totalTempoSeconds: 0, pointsPlayed: 1, 
+                totalPullTimeSeconds: 0, passDistribution: {} 
+            };
         }
 
         if (action === 'CATCH') {
             stats[playerId].catchStat += 1;
             if (activePasserId && stats[activePasserId]) stats[activePasserId].successfulPass += 1;
             setActivePasserId(playerId);
+            setCurrentPointStats(stats); // Sadece pas trafiğinde state'i güncelle
         } else if (action === 'GOAL') {
             stats[playerId].goal = 1;
             if (activePasserId && stats[activePasserId]) stats[activePasserId].assist = 1;
             savePoint(stats, 'US');
+            // savePoint state'i sıfırladığı için burada setCurrentPointStats çağırmıyoruz
         } else if (action === 'THROWAWAY') {
             stats[playerId].throwaway += 1;
             savePoint(stats, 'THEM');
+            // savePoint state'i sıfırladığı için burada setCurrentPointStats çağırmıyoruz
         }
-        setCurrentPointStats(stats);
     };
 
     const savePoint = async (pointStatsMap: Record<string, PlayerStats>, whoScored: 'US' | 'THEM') => {
@@ -61,19 +72,29 @@ export default function MatchTracking() {
             proEvents: []
         };
 
-        const updatedMatch = {
+        // TypeScript hatalarını (?? 0) ile gideriyoruz ve 'score' array'ini güncelliyoruz
+        const currentScoreUs = match.scoreUs ?? 0;
+        const currentScoreThem = match.scoreThem ?? 0;
+
+        const newScoreUs = whoScored === 'US' ? currentScoreUs + 1 : currentScoreUs;
+        const newScoreThem = whoScored === 'THEM' ? currentScoreThem + 1 : currentScoreThem;
+
+        const updatedMatch: Match = {
             ...match,
-            scoreUs: whoScored === 'US' ? match.scoreUs + 1 : match.scoreUs,
-            scoreThem: whoScored === 'THEM' ? match.scoreThem + 1 : match.scoreThem,
+            scoreUs: newScoreUs,
+            scoreThem: newScoreThem,
+            score: [newScoreUs, newScoreThem], // Android/MatchDetail uyumluluğu için zorunlu
             pointsArchive: [...(match.pointsArchive || []), pointData]
         };
 
         await updateMatchData(teamId, tournamentId, updatedMatch);
         setMatch(updatedMatch);
-        setCurrentPointStats({});
-        setActivePasserId(null);
+        setCurrentPointStats({}); // State'i temizle
+        setActivePasserId(null);  // Pasörü temizle
         alert(whoScored === 'US' ? "Sayı Aldık!" : "Sayı Yedik!");
     };
+
+    
 
     if (gameMode === 'IDLE') {
         return (
