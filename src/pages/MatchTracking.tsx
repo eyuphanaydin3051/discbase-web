@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMatch, archivePoint, getPlayers, addMatchEvent, undoLastEvent } from '../services/repository';
-import type { Match, Player, PlayerStats, GameMode, MatchEvent } from '../types';
+import { 
+    getMatch, archivePoint, getPlayers, addMatchEvent, 
+    undoLastEvent, getTournaments, updateMatchData 
+} from '../services/repository';
+import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
 
 const getTeamName = (match: Match | null) => match?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
 const getOpponentName = (match: Match | null) => match?.opponentName || match?.teamNames?.[1] || 'RAKİP';
@@ -10,8 +13,9 @@ export default function MatchTracking() {
     const { tournamentId, matchId } = useParams();
     const navigate = useNavigate();
     
-    // Temel Veriler
+    // --- Temel Veriler ---
     const [match, setMatch] = useState<Match | null>(null);
+    const [tournament, setTournament] = useState<Tournament | null>(null);
     const [roster, setRoster] = useState<Player[]>([]);
     
     // --- UI ve Akış Kontrol State'leri ---
@@ -19,6 +23,10 @@ export default function MatchTracking() {
     const [startMode, setStartMode] = useState<'OFFENSE' | 'DEFENSE' | null>(null);
     const [selectedLineup, setSelectedLineup] = useState<string[]>([]);
     const [lastAction, setLastAction] = useState<string | null>(null);
+
+    // Filtre State'leri (Adım 1 & 5)
+    const [filterGender, setFilterGender] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+    const [filterPosition, setFilterPosition] = useState<'ALL' | 'HANDLER' | 'CUTTER'>('ALL');
     
     // --- Gelişmiş Mod State Yönetimi ---
     const [gameMode, setGameMode] = useState<GameMode>('MODE_SELECTION');
@@ -29,15 +37,26 @@ export default function MatchTracking() {
     // --- Zamanlayıcı (Timer) ---
     const [pointTimer, setPointTimer] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-    // NodeJS tip hatası düzeltildi -> Browser API tipi kullanıldı
     const timerRef = useRef<number | null>(null);
 
     // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
-        if (matchId && tournamentId) {
+        const teamId = localStorage.getItem('selectedTeamId');
+        if (matchId && tournamentId && teamId) {
+            // Maçı çek
             getMatch(tournamentId, matchId).then(setMatch);
-            const teamId = localStorage.getItem('selectedTeamId');
-            if (teamId) getPlayers(teamId, setRoster);
+            // Oyuncuları çek
+            const unsubPlayers = getPlayers(teamId, setRoster);
+            // Turnuva verisini çek (Kadro kısıtlaması için)
+            const unsubTournaments = getTournaments(teamId, (tours) => {
+                const currentTour = tours.find(t => t.id === tournamentId);
+                setTournament(currentTour || null);
+            });
+
+            return () => {
+                unsubPlayers();
+                unsubTournaments();
+            };
         }
     }, [matchId, tournamentId]);
 
@@ -54,7 +73,7 @@ export default function MatchTracking() {
     const saveStateToHistory = () => {
         setHistoryStack(prev => [...prev, {
             gameMode,
-            currentPointStats: JSON.parse(JSON.stringify(currentPointStats)), // Immutable Deep Copy
+            currentPointStats: JSON.parse(JSON.stringify(currentPointStats)),
             activePasserId,
             pointTimer
         }]);
@@ -62,11 +81,7 @@ export default function MatchTracking() {
 
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
-        
-        // Backend'den (Firebase) son event'i sil
-        await undoLastEvent(tournamentId, matchId);
-
-        // Frontend Gelişmiş Mod state'ini bir adım geriye sar
+        await undoLastEvent(tournamentId, matchId); // Backend'den geri al
         if (historyStack.length > 0) {
             const prevState = historyStack[historyStack.length - 1];
             setGameMode(prevState.gameMode);
@@ -77,7 +92,7 @@ export default function MatchTracking() {
         }
     };
 
-    // 3. Aksiyon Mantığı ve Hesaplamalar
+    // 3. Kadro Seçimi ve Filtreler
     const togglePlayer = (id: string) => {
         if (selectedLineup.includes(id)) {
             setSelectedLineup(prev => prev.filter(p => p !== id));
@@ -86,10 +101,26 @@ export default function MatchTracking() {
         }
     };
 
+    // Preset Line: Son Oynayan 7'liyi Yükle (Adım 2)
+    const loadLastLine = () => {
+        if (match && match.pointsArchive && match.pointsArchive.length > 0) {
+            const lastPoint = match.pointsArchive[match.pointsArchive.length - 1];
+            // Types.ts'deki yapıya göre kadroyu lineup veya stats dizisinden çıkartıyoruz
+            const lastLineup = lastPoint.lineup || lastPoint.stats?.map(s => s.playerId) || [];
+            
+            if (lastLineup.length === 7) {
+                setSelectedLineup(lastLineup);
+            } else {
+                alert("Son sayının kadro verisi 7 kişi değil veya okunamadı.");
+            }
+        } else {
+            alert("Bu maçta henüz oynanmış bir sayı (point) bulunmuyor.");
+        }
+    };
+
+    // 4. Mod Seçimi ve Sayı Başlatma
     const handleStartModeSelect = (mode: 'OFFENSE' | 'DEFENSE') => {
         setStartMode(mode);
-        
-        // Point başlangıç istatistiklerini oluştur
         const initialStats: PlayerStats[] = selectedLineup.map(id => {
             const player = roster.find(r => r.id === id);
             return {
@@ -115,13 +146,9 @@ export default function MatchTracking() {
         setCurrentPointStats(prev => prev.map(p => p.playerId === playerId ? { ...p, ...updates } : p));
     };
 
-    // Firebase Canlı Akışa (Timeline) Event Atma
     const fireEvent = async (type: MatchEvent['eventType'], playerId?: string) => {
         if (!matchId || !tournamentId) return;
-        
-        // Aksiyon alındığında UI'da parlaması için (lastAction kullanımı düzeltildi)
         setLastAction(`${playerId}_${type}`);
-        
         const event = {
             id: Date.now().toString(),
             eventType: type,
@@ -132,25 +159,21 @@ export default function MatchTracking() {
             currentScore: [match?.scoreUs ?? match?.score?.[0] ?? 0, match?.scoreThem ?? match?.score?.[1] ?? 0],
             period: match?.period || 1
         } as MatchEvent;
-
         await addMatchEvent(tournamentId, matchId, event);
-        setTimeout(() => setLastAction(null), 300); // 300ms sonra parlamayı kaldır
+        setTimeout(() => setLastAction(null), 300);
     };
 
     // --- HÜCUM AKSİYONLARI ---
     const handleCatch = async (receiverId: string) => {
         if (!activePasserId) return;
         saveStateToHistory();
-        
         setCurrentPointStats(prev => prev.map(p => {
             if (p.playerId === activePasserId) {
                 const newDist = { ...p.passDistribution };
-                newDist[receiverId] = (newDist[receiverId] || 0) + 1; // Pass Distribution Haritası
+                newDist[receiverId] = (newDist[receiverId] || 0) + 1; 
                 return { ...p, successfulPass: p.successfulPass + 1, passDistribution: newDist };
             }
-            if (p.playerId === receiverId) {
-                return { ...p, catchStat: p.catchStat + 1 }; // Alıcıya catchStat yazılır
-            }
+            if (p.playerId === receiverId) return { ...p, catchStat: p.catchStat + 1 };
             return p;
         }));
         setActivePasserId(receiverId);
@@ -160,13 +183,12 @@ export default function MatchTracking() {
     const handleDrop = async (receiverId: string) => {
         if (!activePasserId) return;
         saveStateToHistory();
-        
         setCurrentPointStats(prev => prev.map(p => {
-            if (p.playerId === activePasserId) return { ...p, successfulPass: p.successfulPass + 1 }; // Pas başarılı sayılır
-            if (p.playerId === receiverId) return { ...p, drop: p.drop + 1 }; // Alıcı düşürdü
+            if (p.playerId === activePasserId) return { ...p, successfulPass: p.successfulPass + 1 }; 
+            if (p.playerId === receiverId) return { ...p, drop: p.drop + 1 }; 
             return p;
         }));
-        setGameMode('DEFENSE'); // Turnover -> Defans'a geç
+        setGameMode('DEFENSE');
         setActivePasserId(null);
         await fireEvent('Drop', receiverId);
     };
@@ -175,8 +197,7 @@ export default function MatchTracking() {
         if (!activePasserId) return;
         saveStateToHistory();
         updatePlayerStat(activePasserId, { throwaway: currentPointStats.find(p=>p.playerId===activePasserId)!.throwaway + 1 });
-        setGameMode('DEFENSE'); // Turnover -> Defans'a geç
-        
+        setGameMode('DEFENSE');
         const passerCache = activePasserId;
         setActivePasserId(null);
         await fireEvent('Throwaway', passerCache);
@@ -185,21 +206,20 @@ export default function MatchTracking() {
     const handleGoal = async (receiverId: string) => {
         if (!activePasserId) return;
         saveStateToHistory();
-        
         const updatedStats = currentPointStats.map(p => {
             if (p.playerId === activePasserId) {
                 const newDist = { ...p.passDistribution };
                 newDist[receiverId] = (newDist[receiverId] || 0) + 1;
-                return { ...p, assist: p.assist + 1, passDistribution: newDist }; // Atıcıya Asist
+                return { ...p, assist: p.assist + 1, passDistribution: newDist }; 
             }
-            if (p.playerId === receiverId) return { ...p, goal: p.goal + 1, catchStat: p.catchStat + 1 }; // Alıcıya Gol
+            if (p.playerId === receiverId) return { ...p, goal: p.goal + 1, catchStat: p.catchStat + 1 }; 
             return p;
         });
         setCurrentPointStats(updatedStats);
 
         await fireEvent('Goal', receiverId);
         await fireEvent('Assist', activePasserId);
-        await finishPoint('US'); // Sayı Biter
+        await finishPoint('US'); 
     };
 
     // --- SAVUNMA AKSİYONLARI ---
@@ -215,7 +235,7 @@ export default function MatchTracking() {
     const handleBlock = async (playerId: string) => {
         saveStateToHistory();
         updatePlayerStat(playerId, { block: currentPointStats.find(p=>p.playerId===playerId)!.block + 1 });
-        setGameMode('OFFENSE'); // Top kazanıldı -> Ofans'a geç
+        setGameMode('OFFENSE');
         await fireEvent('D-Up', playerId);
     };
 
@@ -226,34 +246,59 @@ export default function MatchTracking() {
             return p;
         });
         setCurrentPointStats(updatedStats);
-        
         await fireEvent('Callahan', playerId);
-        await finishPoint('US'); // Sayı Biter
+        await finishPoint('US'); 
+    };
+
+    // Adım 4: Rakip Turnover
+    const handleOpponentTurnover = async () => {
+        saveStateToHistory();
+        setGameMode('OFFENSE'); // Top bize geçer, pasör bekleriz
+        await fireEvent('OpponentTurnover');
     };
 
     const handleOpponentScore = async () => {
         saveStateToHistory();
         await fireEvent('OpponentScore');
-        await finishPoint('THEM'); // Sayı Biter
+        await finishPoint('THEM'); 
     };
 
-    // --- SAYI BİTİRME (POINT END) ---
+    // --- SAYI BİTİRME (POINT END) - Optimistic UI Eklendi ---
     const finishPoint = async (whoScored: 'US' | 'THEM') => {
         if (!matchId || !tournamentId) return;
         setIsTimerRunning(false);
 
-        // Kullanılmayan statsToSave silindi, çünkü repository.ts içindeki
-        // archivePoint() firebase'den dönen eventlere göre veriyi kendisi parse ediyor.
+        // Optimistic UI: Sayfa yenilenmesini beklemeden skoru anında güncelle
+        setMatch(prev => prev ? {
+            ...prev,
+            scoreUs: (prev.scoreUs || 0) + (whoScored === 'US' ? 1 : 0),
+            scoreThem: (prev.scoreThem || 0) + (whoScored === 'THEM' ? 1 : 0),
+            score: [
+                (prev.score?.[0] || 0) + (whoScored === 'US' ? 1 : 0),
+                (prev.score?.[1] || 0) + (whoScored === 'THEM' ? 1 : 0)
+            ]
+        } : prev);
+
         await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored);
         
-        // Puan bitiminde sayfayı sıfırla ve maç bilgisini güncelle
+        // Yeni sayıya geçiş hazırlığı
         setTrackingStep('roster');
         setStartMode(null);
         setSelectedLineup([]);
         setCurrentPointStats([]);
         setActivePasserId(null);
         setPointTimer(0);
-        getMatch(tournamentId, matchId).then(setMatch);
+        getMatch(tournamentId, matchId).then(setMatch); // Arkaplanda garantilemek için son güncel halini tekrar çek
+    };
+
+    // Adım 6: Maçı Bitir Fonksiyonu
+    const handleFinishMatch = async () => {
+        if (!match || !tournamentId) return;
+        const teamId = localStorage.getItem('selectedTeamId');
+        if (window.confirm("Maçı bitirmek ve istatistikleri sonlandırmak istediğinize emin misiniz?")) {
+            await updateMatchData(teamId!, tournamentId, { ...match, finished: true });
+            navigate(`/tournament/${tournamentId}/match/${matchId}`);
+        }
     };
 
     // --- ORTAK ÜST BAR ---
@@ -263,8 +308,12 @@ export default function MatchTracking() {
                 <button onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}`)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-all">
                     <span className="material-icons-outlined">arrow_back</span>
                 </button>
-                <span className="text-xl font-black uppercase text-slate-100">
-                    {getTeamName(match)} <span className="text-violet-500 px-2">{match?.scoreUs ?? match?.score?.[0] ?? 0} - {match?.scoreThem ?? match?.score?.[1] ?? 0}</span> {getOpponentName(match)}
+                <span className="text-xl font-black uppercase text-slate-100 flex items-center gap-3">
+                    {getTeamName(match)} 
+                    <span className="text-violet-500 bg-violet-900/30 px-3 py-1 rounded-lg">
+                        {match?.scoreUs ?? match?.score?.[0] ?? 0} - {match?.scoreThem ?? match?.score?.[1] ?? 0}
+                    </span> 
+                    {getOpponentName(match)}
                 </span>
                 {trackingStep === 'tracking' && (
                     <span className={`px-3 py-1 text-xs font-bold rounded-full ${startMode === 'OFFENSE' ? 'bg-blue-900 text-blue-200' : 'bg-red-900 text-red-200'}`}>
@@ -272,29 +321,53 @@ export default function MatchTracking() {
                     </span>
                 )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
                 {trackingStep === 'tracking' && (
                     <span className="font-mono text-2xl font-bold bg-slate-800 px-4 py-1.5 rounded-lg tabular-nums">
                         {Math.floor(pointTimer / 60).toString().padStart(2, '0')}:{ (pointTimer % 60).toString().padStart(2, '0')}
                     </span>
                 )}
-                <span className="px-3 py-1 bg-violet-900/40 text-violet-400 rounded-full font-bold text-xs uppercase tracking-wider">Gelişmiş Mod</span>
+                {/* MAÇI BİTİR BUTONU */}
+                <button onClick={handleFinishMatch} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 rounded-lg text-sm font-bold flex items-center gap-1 transition-colors">
+                    <span className="material-icons-outlined text-[18px]">stop_circle</span> Maçı Bitir
+                </button>
             </div>
         </div>
     );
 
     // ==========================================
-    // 1. AŞAMA: KADRO SEÇİMİ
+    // 1. AŞAMA: KADRO SEÇİMİ (Turnuva Özel Kadro + Filtreler)
     // ==========================================
     if (trackingStep === 'roster') {
-        const sortedRoster = [...roster].sort((a, b) => (Number(a.jerseyNumber) || 0) - (Number(b.jerseyNumber) || 0));
+        // Sadece Turnuvaya kayıtlı oyuncuları filtrele (Adım 1)
+        let activeRoster = roster.filter(p => tournament?.rosterPlayerIds?.includes(p.id));
+        
+        // Kullanıcı filtrelemeleri (Cinsiyet ve Pozisyon)
+        activeRoster = activeRoster.filter(p => {
+            let matchG = true;
+            let matchP = true;
+            
+            // Cinsiyet Filtresi (Verilerde 'Erkek', 'Male', 'Kadın', 'Female' vb formatlarda olabilir)
+            if (filterGender === 'MALE') matchG = p.gender?.toLowerCase() === 'erkek' || p.gender?.toLowerCase() === 'male';
+            if (filterGender === 'FEMALE') matchG = p.gender?.toLowerCase() === 'kadın' || p.gender?.toLowerCase() === 'female';
+            
+            // Pozisyon Filtresi
+            if (filterPosition === 'HANDLER') matchP = p.position?.toLowerCase().includes('handler') || false;
+            if (filterPosition === 'CUTTER') matchP = p.position?.toLowerCase().includes('cutter') || false;
+            
+            return matchG && matchP;
+        });
+
+        // Forma numarasına göre sırala
+        const sortedRoster = activeRoster.sort((a, b) => (Number(a.jerseyNumber) || 0) - (Number(b.jerseyNumber) || 0));
         
         return (
             <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 font-sans">
                 <TopBar />
                 <div className="flex-1 p-6 lg:p-10 overflow-y-auto">
-                    <div className="max-w-5xl mx-auto">
-                        <div className="flex justify-between items-center mb-8 border-b border-slate-200 dark:border-slate-800 pb-5">
+                    <div className="max-w-6xl mx-auto">
+                        
+                        <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-5">
                             <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-3">
                                 <span className="material-icons-outlined text-violet-600">groups</span> Sayı İçin 7 Kişi Seç
                             </h2>
@@ -311,6 +384,33 @@ export default function MatchTracking() {
                                 </button>
                             </div>
                         </div>
+
+                        {/* FİLTRELER VE HIZLI SEÇİM (Preset Lines) */}
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div className="flex items-center gap-4">
+                                <div className="flex border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                                    <button onClick={() => setFilterGender('ALL')} className={`px-4 py-2 text-sm font-bold ${filterGender === 'ALL' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Tümü</button>
+                                    <button onClick={() => setFilterGender('MALE')} className={`px-4 py-2 text-sm font-bold ${filterGender === 'MALE' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Erkek</button>
+                                    <button onClick={() => setFilterGender('FEMALE')} className={`px-4 py-2 text-sm font-bold ${filterGender === 'FEMALE' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Kadın</button>
+                                </div>
+                                <div className="flex border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                                    <button onClick={() => setFilterPosition('ALL')} className={`px-4 py-2 text-sm font-bold ${filterPosition === 'ALL' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Tümü</button>
+                                    <button onClick={() => setFilterPosition('HANDLER')} className={`px-4 py-2 text-sm font-bold ${filterPosition === 'HANDLER' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Handler</button>
+                                    <button onClick={() => setFilterPosition('CUTTER')} className={`px-4 py-2 text-sm font-bold ${filterPosition === 'CUTTER' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Cutter</button>
+                                </div>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                                <button onClick={() => setSelectedLineup([])} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-bold transition-all">
+                                    Temizle
+                                </button>
+                                <button onClick={loadLastLine} className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
+                                    <span className="material-icons-outlined text-[16px]">history</span> Son Yediliyi Seç
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* OYUNCU LİSTESİ */}
                         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
                             {sortedRoster.map(p => (
                                 <button 
@@ -321,8 +421,12 @@ export default function MatchTracking() {
                                         {p.jerseyNumber || '??'}
                                     </div>
                                     <span className={`text-xs font-bold text-center leading-tight ${selectedLineup.includes(p.id) ? 'text-violet-900 dark:text-violet-100' : 'text-slate-700 dark:text-slate-300'}`}>{p.name}</span>
+                                    <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{p.position}</span>
                                 </button>
                             ))}
+                            {sortedRoster.length === 0 && (
+                                <div className="col-span-full text-center py-10 text-slate-500 font-medium">Bu filtrelere uygun oyuncu bulunamadı.</div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -350,7 +454,7 @@ export default function MatchTracking() {
                                 <span className="text-xl font-bold uppercase">DEFANS</span>
                             </button>
                         </div>
-                        <button onClick={() => setTrackingStep('roster')} className="mt-8 text-sm font-bold text-slate-500 hover:text-slate-700">← Geri Dön</button>
+                        <button onClick={() => setTrackingStep('roster')} className="mt-8 text-sm font-bold text-slate-500 hover:text-slate-700">← Kadroya Geri Dön</button>
                     </div>
                 </div>
             </div>
@@ -365,15 +469,24 @@ export default function MatchTracking() {
             <TopBar />
             
             <div className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto">
-                {/* Üst Aksiyonlar: Undo ve Rakip Sayı */}
-                <div className="flex justify-between items-center mb-6">
-                    <button onClick={handleUndo} disabled={historyStack.length === 0} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all border border-slate-700 disabled:opacity-50">
-                        <span className="material-icons-outlined">undo</span> Son İşlemi Geri Al
+                {/* Üst Aksiyonlar: Undo ve Rakip Aksiyonları */}
+                <div className="flex justify-between items-center mb-6 bg-slate-900 p-3 rounded-2xl border border-slate-800">
+                    <button onClick={handleUndo} disabled={historyStack.length === 0} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50">
+                        <span className="material-icons-outlined">undo</span> Geri Al
                     </button>
+                    
                     {gameMode.includes('DEFENSE') && (
-                        <button onClick={handleOpponentScore} className="px-8 py-3 bg-rose-900/40 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-800 rounded-xl font-black transition-all shadow-lg">
-                            RAKİP SAYI ATTI
-                        </button>
+                        <div className="flex gap-3">
+                            {/* RAKİP TURNOVER BUTONU (Adım 4) */}
+                            <button onClick={handleOpponentTurnover} className="px-6 py-3 bg-orange-900/40 hover:bg-orange-600 text-orange-300 hover:text-white border border-orange-800/50 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
+                                <span className="material-icons-outlined">swap_horiz</span> RAKİP TOP KAYBI (BİZE GEÇTİ)
+                            </button>
+                            
+                            {/* RAKİP SAYI ATTI BUTONU */}
+                            <button onClick={handleOpponentScore} className="px-6 py-3 bg-rose-900/40 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-800 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
+                                <span className="material-icons-outlined">close</span> RAKİP SAYI ATTI
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -382,7 +495,6 @@ export default function MatchTracking() {
                     {selectedLineup.map(pid => {
                         const player = roster.find(r => r.id === pid);
                         const isDiskHolder = activePasserId === pid;
-                        // UI'da görsel bildirim (lastAction kullanımı)
                         const isJustActed = lastAction?.startsWith(pid);
 
                         return (
@@ -391,47 +503,47 @@ export default function MatchTracking() {
                                     <div className={`h-10 w-10 rounded-full flex items-center justify-center font-black text-lg shadow-inner ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-600'}`}>
                                         {player?.jerseyNumber || '??'}
                                     </div>
-                                    <p className="font-bold text-slate-100 text-lg flex-1">{player?.name}</p>
-                                    {isDiskHolder && <span className="bg-blue-600 px-2 py-1 rounded text-[10px] font-black uppercase">Disk Onda</span>}
+                                    <div className="flex-1">
+                                        <p className="font-bold text-slate-100 text-lg leading-tight">{player?.name}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">{player?.position || 'Oyuncu'}</p>
+                                    </div>
+                                    {isDiskHolder && <span className="bg-blue-600 px-2 py-1 rounded text-[10px] font-black uppercase flex items-center gap-1"><span className="material-icons-outlined text-[12px]">adjust</span> Disk Onda</span>}
                                 </div>
                                 
                                 {/* State Machine (GameMode) Bazlı Dinamik Butonlar */}
                                 <div className="p-3 grid grid-cols-2 gap-2">
                                     {gameMode === 'DEFENSE_PULL' ? (
-                                        <button onClick={() => handlePull(pid, true)} className="col-span-2 py-3 bg-yellow-600/20 hover:bg-yellow-600 text-yellow-500 hover:text-white border border-yellow-600/50 rounded-xl font-bold transition-all">
+                                        <button onClick={() => handlePull(pid, true)} className="col-span-2 py-4 bg-yellow-600/20 hover:bg-yellow-600 text-yellow-500 hover:text-white border border-yellow-600/50 rounded-xl font-bold transition-all uppercase tracking-wider">
                                             Pull Atışı (Saha İçi)
                                         </button>
                                     ) : gameMode === 'OFFENSE' ? (
                                         isDiskHolder ? (
-                                            // 1. Durum: Diski tutan kişi sadece hatalı pas atabilir
-                                            <button onClick={handleThrowaway} className="col-span-2 py-3 bg-rose-900/40 hover:bg-rose-600 border border-rose-800/50 text-rose-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors">
+                                            <button onClick={handleThrowaway} className="col-span-2 py-4 bg-rose-900/40 hover:bg-rose-600 border border-rose-800/50 text-rose-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
                                                 Hatalı Pas (Throwaway)
                                             </button>
                                         ) : activePasserId ? (
-                                            // 2. Durum: Disk başkasında, bu oyuncu diski yakalayabilir
                                             <>
-                                                <button onClick={() => handleCatch(pid)} className="col-span-2 py-3 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors">
+                                                <button onClick={() => handleCatch(pid)} className="col-span-2 py-3 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
                                                     Pas Aldı (Yakaladı)
                                                 </button>
-                                                <button onClick={() => handleDrop(pid)} className="py-2.5 bg-slate-800 hover:bg-rose-700 text-slate-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-colors">
+                                                <button onClick={() => handleDrop(pid)} className="py-3 bg-slate-800 hover:bg-rose-700 text-slate-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-colors">
                                                     Düşürdü (Drop)
                                                 </button>
-                                                <button onClick={() => handleGoal(pid)} className="py-2.5 bg-emerald-900/40 hover:bg-emerald-600 border border-emerald-800/50 text-emerald-400 hover:text-white rounded-xl text-xs font-black uppercase transition-colors shadow">
+                                                <button onClick={() => handleGoal(pid)} className="py-3 bg-emerald-900/40 hover:bg-emerald-600 border border-emerald-800/50 text-emerald-400 hover:text-white rounded-xl text-xs font-black uppercase transition-colors shadow">
                                                     GOL!
                                                 </button>
                                             </>
                                         ) : (
-                                            // 3. Durum: Disk kimsede değil (Turnover sonrası yeni hücum başlangıcı)
-                                            <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="col-span-2 py-3 bg-blue-900/40 hover:bg-blue-600 border border-blue-800/50 text-blue-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors">
-                                                Diski Aldı (Başla)
+                                            <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="col-span-2 py-4 bg-blue-900/40 hover:bg-blue-600 border border-blue-800/50 text-blue-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider flex items-center justify-center gap-2">
+                                                <span className="material-icons-outlined text-[18px]">sports_handball</span> Diski Aldı (Başla)
                                             </button>
                                         )
-                                    ) : ( // DEFENSE MODU
+                                    ) : ( 
                                         <>
-                                            <button onClick={() => handleBlock(pid)} className="col-span-2 py-4 bg-slate-800 hover:bg-orange-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors">
-                                                BLOK (D-UP)
+                                            <button onClick={() => handleBlock(pid)} className="col-span-2 py-4 bg-slate-800 hover:bg-orange-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider flex items-center justify-center gap-2">
+                                                <span className="material-icons-outlined text-[18px]">pan_tool</span> BLOK (D-UP)
                                             </button>
-                                            <button onClick={() => handleCallahan(pid)} className="col-span-2 py-3 mt-1 bg-purple-900/40 hover:bg-purple-600 border border-purple-800/50 text-purple-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors">
+                                            <button onClick={() => handleCallahan(pid)} className="col-span-2 py-3 mt-1 bg-purple-900/40 hover:bg-purple-600 border border-purple-800/50 text-purple-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
                                                 CALLAHAN GOLÜ
                                             </button>
                                         </>
