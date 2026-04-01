@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
+import { arrayUnion, arrayRemove } from 'firebase/firestore';
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
     const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
     return onSnapshot(q, (snapshot) => {
@@ -368,30 +369,40 @@ export const updateMatchData = async (teamId: string, tournamentId: string, matc
 };
 // --- MATCH TRACKING (CANLI İSTATİSTİK) FONKSİYONLARI ---
 
-import { arrayUnion, arrayRemove } from 'firebase/firestore';
+
+
+
+
+
+
+// --- MATCH TRACKING (CANLI İSTATİSTİK) FONKSİYONLARI ---
 
 export const addMatchEvent = async (tournamentId: string, matchId: string, event: MatchEvent) => {
-    const matchRef = doc(db, 'tournaments', tournamentId, 'matches', matchId);
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
+    // HATA DÜZELTİLDİ: Doğru Firebase yolu eklendi
+    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
     await updateDoc(matchRef, {
         events: arrayUnion(event)
     });
 };
 
 export const archivePoint = async (tournamentId: string, matchId: string, lineup: string[], startMode: 'OFFENSE' | 'DEFENSE', whoScored: 'US' | 'THEM') => {
-    const matchRef = doc(db, 'tournaments', tournamentId, 'matches', matchId);
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
+    // HATA DÜZELTİLDİ: Doğru Firebase yolu eklendi
+    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
     const matchSnap = await getDoc(matchRef);
     if (!matchSnap.exists()) return;
 
     const matchData = matchSnap.data();
     const currentEvents = matchData.events || [];
 
-    // Mevcut sahadaki 7 oyuncu için istatistik objesini sıfırdan oluştur
     const statsMap: Record<string, any> = {};
     lineup.forEach(id => {
         statsMap[id] = { playerId: id, goal: 0, assist: 0, block: 0, successfulPass: 0, throwaway: 0, drop: 0, callahan: 0, pointsPlayed: 1 };
     });
 
-    // Event'leri sayılara dönüştür
     currentEvents.forEach((e: any) => {
         if (!e.playerId || !statsMap[e.playerId]) return;
         switch (e.eventType) {
@@ -420,33 +431,32 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
     if (whoScored === 'US') newScoreUs += 1;
     else if (whoScored === 'THEM') newScoreThem += 1;
 
-    // Firebase'e arşivi pushla ve sahayı temizle
     await updateDoc(matchRef, {
         pointsArchive: arrayUnion(newPoint),
         events: [],
         scoreUs: newScoreUs,
         scoreThem: newScoreThem,
-        score: [newScoreUs, newScoreThem] // Eski verilerle uyumluluk için
+        score: [newScoreUs, newScoreThem] 
     });
 };
 
 export const undoLastEvent = async (tournamentId: string, matchId: string) => {
-    const matchRef = doc(db, 'tournaments', tournamentId, 'matches', matchId);
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
+    // HATA DÜZELTİLDİ: Doğru Firebase yolu eklendi
+    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
     const matchSnap = await getDoc(matchRef);
     if (!matchSnap.exists()) return;
 
     const matchData = matchSnap.data();
     const events = matchData.events || [];
 
-    // Eğer o an devam eden sayıda (events) aksiyon varsa son aksiyonu sil
     if (events.length > 0) {
         const lastEvent = events[events.length - 1];
         await updateDoc(matchRef, {
             events: arrayRemove(lastEvent)
         });
-    } 
-    // Eğer saha boşsa ve yanlışlıkla sayı verildiyse son sayıyı (pointsArchive) iptal et
-    else {
+    } else {
         const pointsArchive = matchData.pointsArchive || [];
         if (pointsArchive.length > 0) {
             const lastPoint = pointsArchive[pointsArchive.length - 1];

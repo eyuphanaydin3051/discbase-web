@@ -24,9 +24,8 @@ export default function MatchTracking() {
     const [selectedLineup, setSelectedLineup] = useState<string[]>([]);
     const [lastAction, setLastAction] = useState<string | null>(null);
 
-    // Filtre State'leri (Adım 1 & 5)
-    const [filterGender, setFilterGender] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
-    const [filterPosition, setFilterPosition] = useState<'ALL' | 'HANDLER' | 'CUTTER'>('ALL');
+    // Yeni Gruplandırma State'i (Gizleme yerine kategorize etme)
+    const [groupingMode, setGroupingMode] = useState<'NONE' | 'GENDER' | 'POSITION'>('NONE');
     
     // --- Gelişmiş Mod State Yönetimi ---
     const [gameMode, setGameMode] = useState<GameMode>('MODE_SELECTION');
@@ -43,11 +42,8 @@ export default function MatchTracking() {
     useEffect(() => {
         const teamId = localStorage.getItem('selectedTeamId');
         if (matchId && tournamentId && teamId) {
-            // Maçı çek
             getMatch(tournamentId, matchId).then(setMatch);
-            // Oyuncuları çek
             const unsubPlayers = getPlayers(teamId, setRoster);
-            // Turnuva verisini çek (Kadro kısıtlaması için)
             const unsubTournaments = getTournaments(teamId, (tours) => {
                 const currentTour = tours.find(t => t.id === tournamentId);
                 setTournament(currentTour || null);
@@ -81,7 +77,7 @@ export default function MatchTracking() {
 
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
-        await undoLastEvent(tournamentId, matchId); // Backend'den geri al
+        await undoLastEvent(tournamentId, matchId); 
         if (historyStack.length > 0) {
             const prevState = historyStack[historyStack.length - 1];
             setGameMode(prevState.gameMode);
@@ -101,17 +97,16 @@ export default function MatchTracking() {
         }
     };
 
-    // Preset Line: Son Oynayan 7'liyi Yükle (Adım 2)
+    // TS HATASI DÜZELTİLDİ: lineup yerine stats.map kullanıldı
     const loadLastLine = () => {
         if (match && match.pointsArchive && match.pointsArchive.length > 0) {
             const lastPoint = match.pointsArchive[match.pointsArchive.length - 1];
-            // Types.ts'deki yapıya göre kadroyu lineup veya stats dizisinden çıkartıyoruz
-            const lastLineup = lastPoint.lineup || lastPoint.stats?.map(s => s.playerId) || [];
+            const lastLineup = lastPoint.stats?.map(s => s.playerId) || [];
             
             if (lastLineup.length === 7) {
                 setSelectedLineup(lastLineup);
             } else {
-                alert("Son sayının kadro verisi 7 kişi değil veya okunamadı.");
+                alert("Son sayının verisi tam 7 kişi içermiyor veya eksik kaydedilmiş.");
             }
         } else {
             alert("Bu maçta henüz oynanmış bir sayı (point) bulunmuyor.");
@@ -250,10 +245,9 @@ export default function MatchTracking() {
         await finishPoint('US'); 
     };
 
-    // Adım 4: Rakip Turnover
     const handleOpponentTurnover = async () => {
         saveStateToHistory();
-        setGameMode('OFFENSE'); // Top bize geçer, pasör bekleriz
+        setGameMode('OFFENSE'); 
         await fireEvent('OpponentTurnover');
     };
 
@@ -263,12 +257,11 @@ export default function MatchTracking() {
         await finishPoint('THEM'); 
     };
 
-    // --- SAYI BİTİRME (POINT END) - Optimistic UI Eklendi ---
+    // --- SAYI BİTİRME (POINT END) ---
     const finishPoint = async (whoScored: 'US' | 'THEM') => {
         if (!matchId || !tournamentId) return;
         setIsTimerRunning(false);
 
-        // Optimistic UI: Sayfa yenilenmesini beklemeden skoru anında güncelle
         setMatch(prev => prev ? {
             ...prev,
             scoreUs: (prev.scoreUs || 0) + (whoScored === 'US' ? 1 : 0),
@@ -281,17 +274,15 @@ export default function MatchTracking() {
 
         await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored);
         
-        // Yeni sayıya geçiş hazırlığı
         setTrackingStep('roster');
         setStartMode(null);
         setSelectedLineup([]);
         setCurrentPointStats([]);
         setActivePasserId(null);
         setPointTimer(0);
-        getMatch(tournamentId, matchId).then(setMatch); // Arkaplanda garantilemek için son güncel halini tekrar çek
+        getMatch(tournamentId, matchId).then(setMatch); 
     };
 
-    // Adım 6: Maçı Bitir Fonksiyonu
     const handleFinishMatch = async () => {
         if (!match || !tournamentId) return;
         const teamId = localStorage.getItem('selectedTeamId');
@@ -327,7 +318,6 @@ export default function MatchTracking() {
                         {Math.floor(pointTimer / 60).toString().padStart(2, '0')}:{ (pointTimer % 60).toString().padStart(2, '0')}
                     </span>
                 )}
-                {/* MAÇI BİTİR BUTONU */}
                 <button onClick={handleFinishMatch} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 rounded-lg text-sm font-bold flex items-center gap-1 transition-colors">
                     <span className="material-icons-outlined text-[18px]">stop_circle</span> Maçı Bitir
                 </button>
@@ -336,30 +326,30 @@ export default function MatchTracking() {
     );
 
     // ==========================================
-    // 1. AŞAMA: KADRO SEÇİMİ (Turnuva Özel Kadro + Filtreler)
+    // 1. AŞAMA: KADRO SEÇİMİ VE GRUPLANDIRMA EKRANI
     // ==========================================
     if (trackingStep === 'roster') {
-        // Sadece Turnuvaya kayıtlı oyuncuları filtrele (Adım 1)
-        let activeRoster = roster.filter(p => tournament?.rosterPlayerIds?.includes(p.id));
-        
-        // Kullanıcı filtrelemeleri (Cinsiyet ve Pozisyon)
-        activeRoster = activeRoster.filter(p => {
-            let matchG = true;
-            let matchP = true;
-            
-            // Cinsiyet Filtresi (Verilerde 'Erkek', 'Male', 'Kadın', 'Female' vb formatlarda olabilir)
-            if (filterGender === 'MALE') matchG = p.gender?.toLowerCase() === 'erkek' || p.gender?.toLowerCase() === 'male';
-            if (filterGender === 'FEMALE') matchG = p.gender?.toLowerCase() === 'kadın' || p.gender?.toLowerCase() === 'female';
-            
-            // Pozisyon Filtresi
-            if (filterPosition === 'HANDLER') matchP = p.position?.toLowerCase().includes('handler') || false;
-            if (filterPosition === 'CUTTER') matchP = p.position?.toLowerCase().includes('cutter') || false;
-            
-            return matchG && matchP;
-        });
-
-        // Forma numarasına göre sırala
+        const activeRoster = roster.filter(p => tournament?.rosterPlayerIds?.includes(p.id));
         const sortedRoster = activeRoster.sort((a, b) => (Number(a.jerseyNumber) || 0) - (Number(b.jerseyNumber) || 0));
+
+        // Yardımcı Render Fonksiyonu: Ekrana oyuncu butonlarını basar
+        const renderPlayerGrid = (players: Player[]) => (
+            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                {players.map(p => (
+                    <button 
+                        key={p.id} onClick={() => togglePlayer(p.id)}
+                        className={`p-4 rounded-2xl border-4 transition-all flex flex-col items-center gap-3 relative hover:border-violet-300 dark:hover:border-violet-700 group ${selectedLineup.includes(p.id) ? 'border-violet-600 bg-violet-50 dark:bg-violet-900/20' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'}`}
+                    >
+                        <div className={`h-12 w-12 rounded-full border-2 transition-all flex items-center justify-center font-bold text-lg ${selectedLineup.includes(p.id) ? 'border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-700 dark:bg-violet-900/50 dark:text-violet-300' : 'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'}`}>
+                            {p.jerseyNumber || '??'}
+                        </div>
+                        <span className={`text-xs font-bold text-center leading-tight ${selectedLineup.includes(p.id) ? 'text-violet-900 dark:text-violet-100' : 'text-slate-700 dark:text-slate-300'}`}>{p.name}</span>
+                        <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{p.position}</span>
+                    </button>
+                ))}
+                {players.length === 0 && <div className="text-sm text-slate-500 py-4 col-span-full">Bu grupta oyuncu yok.</div>}
+            </div>
+        );
         
         return (
             <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 font-sans">
@@ -385,18 +375,14 @@ export default function MatchTracking() {
                             </div>
                         </div>
 
-                        {/* FİLTRELER VE HIZLI SEÇİM (Preset Lines) */}
+                        {/* YENİ GRUPLANDIRMA VE HIZLI SEÇİM */}
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                             <div className="flex items-center gap-4">
+                                <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Gruplandır:</span>
                                 <div className="flex border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                                    <button onClick={() => setFilterGender('ALL')} className={`px-4 py-2 text-sm font-bold ${filterGender === 'ALL' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Tümü</button>
-                                    <button onClick={() => setFilterGender('MALE')} className={`px-4 py-2 text-sm font-bold ${filterGender === 'MALE' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Erkek</button>
-                                    <button onClick={() => setFilterGender('FEMALE')} className={`px-4 py-2 text-sm font-bold ${filterGender === 'FEMALE' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Kadın</button>
-                                </div>
-                                <div className="flex border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                                    <button onClick={() => setFilterPosition('ALL')} className={`px-4 py-2 text-sm font-bold ${filterPosition === 'ALL' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Tümü</button>
-                                    <button onClick={() => setFilterPosition('HANDLER')} className={`px-4 py-2 text-sm font-bold ${filterPosition === 'HANDLER' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Handler</button>
-                                    <button onClick={() => setFilterPosition('CUTTER')} className={`px-4 py-2 text-sm font-bold ${filterPosition === 'CUTTER' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Cutter</button>
+                                    <button onClick={() => setGroupingMode('NONE')} className={`px-4 py-2 text-sm font-bold ${groupingMode === 'NONE' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Hiçbiri</button>
+                                    <button onClick={() => setGroupingMode('GENDER')} className={`px-4 py-2 text-sm font-bold ${groupingMode === 'GENDER' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Cinsiyet</button>
+                                    <button onClick={() => setGroupingMode('POSITION')} className={`px-4 py-2 text-sm font-bold ${groupingMode === 'POSITION' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Pozisyon</button>
                                 </div>
                             </div>
                             
@@ -410,24 +396,37 @@ export default function MatchTracking() {
                             </div>
                         </div>
 
-                        {/* OYUNCU LİSTESİ */}
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                            {sortedRoster.map(p => (
-                                <button 
-                                    key={p.id} onClick={() => togglePlayer(p.id)}
-                                    className={`p-4 rounded-2xl border-4 transition-all flex flex-col items-center gap-3 relative hover:border-violet-300 dark:hover:border-violet-700 group ${selectedLineup.includes(p.id) ? 'border-violet-600 bg-violet-50 dark:bg-violet-900/20' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'}`}
-                                >
-                                    <div className={`h-12 w-12 rounded-full border-2 transition-all flex items-center justify-center font-bold text-lg ${selectedLineup.includes(p.id) ? 'border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-700 dark:bg-violet-900/50 dark:text-violet-300' : 'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'}`}>
-                                        {p.jerseyNumber || '??'}
-                                    </div>
-                                    <span className={`text-xs font-bold text-center leading-tight ${selectedLineup.includes(p.id) ? 'text-violet-900 dark:text-violet-100' : 'text-slate-700 dark:text-slate-300'}`}>{p.name}</span>
-                                    <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{p.position}</span>
-                                </button>
-                            ))}
-                            {sortedRoster.length === 0 && (
-                                <div className="col-span-full text-center py-10 text-slate-500 font-medium">Bu filtrelere uygun oyuncu bulunamadı.</div>
-                            )}
-                        </div>
+                        {/* DİNAMİK GRUPLANDIRMA RENDER ALANI */}
+                        {groupingMode === 'NONE' && (
+                            renderPlayerGrid(sortedRoster)
+                        )}
+
+                        {groupingMode === 'GENDER' && (
+                            <div className="flex flex-col gap-6">
+                                <div>
+                                    <h3 className="text-xl font-bold mb-4 text-violet-600 dark:text-violet-400 flex items-center gap-2"><span className="material-icons-outlined">man</span> Erkek (Male)</h3>
+                                    {renderPlayerGrid(sortedRoster.filter(p => p.gender?.toLowerCase().includes('erkek') || p.gender?.toLowerCase().includes('male')))}
+                                </div>
+                                <div className="border-t border-slate-200 dark:border-slate-800 pt-6">
+                                    <h3 className="text-xl font-bold mb-4 text-violet-600 dark:text-violet-400 flex items-center gap-2"><span className="material-icons-outlined">woman</span> Kadın (Female)</h3>
+                                    {renderPlayerGrid(sortedRoster.filter(p => p.gender?.toLowerCase().includes('kadın') || p.gender?.toLowerCase().includes('female')))}
+                                </div>
+                            </div>
+                        )}
+
+                        {groupingMode === 'POSITION' && (
+                            <div className="flex flex-col gap-6">
+                                <div>
+                                    <h3 className="text-xl font-bold mb-4 text-emerald-600 dark:text-emerald-400 flex items-center gap-2"><span className="material-icons-outlined">sports_handball</span> Handlers</h3>
+                                    {renderPlayerGrid(sortedRoster.filter(p => p.position?.toLowerCase().includes('handler')))}
+                                </div>
+                                <div className="border-t border-slate-200 dark:border-slate-800 pt-6">
+                                    <h3 className="text-xl font-bold mb-4 text-rose-600 dark:text-rose-400 flex items-center gap-2"><span className="material-icons-outlined">directions_run</span> Cutters</h3>
+                                    {renderPlayerGrid(sortedRoster.filter(p => p.position?.toLowerCase().includes('cutter')))}
+                                </div>
+                            </div>
+                        )}
+
                     </div>
                 </div>
             </div>
@@ -469,7 +468,6 @@ export default function MatchTracking() {
             <TopBar />
             
             <div className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto">
-                {/* Üst Aksiyonlar: Undo ve Rakip Aksiyonları */}
                 <div className="flex justify-between items-center mb-6 bg-slate-900 p-3 rounded-2xl border border-slate-800">
                     <button onClick={handleUndo} disabled={historyStack.length === 0} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50">
                         <span className="material-icons-outlined">undo</span> Geri Al
@@ -477,12 +475,9 @@ export default function MatchTracking() {
                     
                     {gameMode.includes('DEFENSE') && (
                         <div className="flex gap-3">
-                            {/* RAKİP TURNOVER BUTONU (Adım 4) */}
                             <button onClick={handleOpponentTurnover} className="px-6 py-3 bg-orange-900/40 hover:bg-orange-600 text-orange-300 hover:text-white border border-orange-800/50 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
                                 <span className="material-icons-outlined">swap_horiz</span> RAKİP TOP KAYBI (BİZE GEÇTİ)
                             </button>
-                            
-                            {/* RAKİP SAYI ATTI BUTONU */}
                             <button onClick={handleOpponentScore} className="px-6 py-3 bg-rose-900/40 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-800 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
                                 <span className="material-icons-outlined">close</span> RAKİP SAYI ATTI
                             </button>
@@ -490,7 +485,6 @@ export default function MatchTracking() {
                     )}
                 </div>
 
-                {/* Sahadaki 7 Oyuncu Grid Sistemi */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {selectedLineup.map(pid => {
                         const player = roster.find(r => r.id === pid);
@@ -510,7 +504,6 @@ export default function MatchTracking() {
                                     {isDiskHolder && <span className="bg-blue-600 px-2 py-1 rounded text-[10px] font-black uppercase flex items-center gap-1"><span className="material-icons-outlined text-[12px]">adjust</span> Disk Onda</span>}
                                 </div>
                                 
-                                {/* State Machine (GameMode) Bazlı Dinamik Butonlar */}
                                 <div className="p-3 grid grid-cols-2 gap-2">
                                     {gameMode === 'DEFENSE_PULL' ? (
                                         <button onClick={() => handlePull(pid, true)} className="col-span-2 py-4 bg-yellow-600/20 hover:bg-yellow-600 text-yellow-500 hover:text-white border border-yellow-600/50 rounded-xl font-bold transition-all uppercase tracking-wider">
