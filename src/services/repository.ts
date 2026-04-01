@@ -306,20 +306,24 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
 // ... (diğer importlar aynı)
 
 // createMatch fonksiyonunu revize ediyoruz
+// src/services/repository.ts içindeki ilgili fonksiyonları bu şekilde revize edin
+
+// --- GÜNCELLENEN: createMatch ---
 export const createMatch = async (teamId: string, tournamentId: string, opponentName: string, ourTeamName: string) => {
     try {
-        const matchesRef = collection(db, 'teams', teamId, 'tournaments', tournamentId, 'matches');
+        const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
+        const matchesRef = collection(tournamentRef, 'matches');
         const newMatchDoc = doc(matchesRef);
         
         const newMatch: Match = {
             id: newMatchDoc.id,
             opponentName: opponentName,
-            ourTeamName: ourTeamName, // Uygulamanın görünürlük için beklediği alan
+            ourTeamName: ourTeamName, 
             scoreUs: 0,
             scoreThem: 0,
             pointsArchive: [],
             matchDurationSeconds: 0,
-            isProMode: false, // Uygulama modelinde zorunlu
+            isProMode: false, 
             date: new Date().toISOString(),
             tournamentId: tournamentId,
             teamNames: [ourTeamName, opponentName],
@@ -327,7 +331,15 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
             finished: false
         };
         
+        // 1. Maçı alt koleksiyona kaydet
         await setDoc(newMatchDoc, newMatch);
+
+        // 2. KRİTİK: Ana turnuva belgesini güncelle ki Android'deki 'getTournaments' tetiklensin
+        // Android tarafı bu alanı dinleyerek verileri yeniler.
+        await updateDoc(tournamentRef, {
+            lastUpdated: Date.now()
+        });
+        
         return newMatchDoc.id;
     } catch (error) {
         console.error("Maç oluşturulurken hata:", error);
@@ -335,8 +347,23 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
     }
 };
 
-// Maçı güncellemek için (İstatistik girerken kullanılacak)
+// --- GÜNCELLENEN: updateMatchData ---
 export const updateMatchData = async (teamId: string, tournamentId: string, match: Match) => {
-    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', match.id);
-    return await updateDoc(matchRef, { ...match });
+    try {
+        const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
+        const matchRef = doc(tournamentRef, 'matches', match.id);
+        
+        // 1. Maç verilerini güncelle
+        await updateDoc(matchRef, { ...match });
+
+        // 2. KRİTİK: Android uygulamasının anlık olarak değişikliği görmesi için tetikleyici
+        await updateDoc(tournamentRef, {
+            lastUpdated: Date.now()
+        });
+        
+        return true;
+    } catch (error) {
+        console.error("Maç güncellenirken hata:", error);
+        return false;
+    }
 };
