@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getMatch, addMatchEvent, archivePoint, undoLastEvent, getPlayers } from '../services/repository';
 import type { Match, Player, MatchEvent } from '../types';
@@ -81,9 +81,14 @@ export default function MatchTracking() {
     return (
         <div className="h-screen flex flex-col bg-slate-900 text-white">
             {/* Canlı Skor & Timer Alanı */}
-            <div className="p-4 bg-slate-800 flex justify-between items-center">
-                <span className="text-2xl font-black">{match?.scoreUs} - {match?.scoreThem}</span>
-                <button onClick={() => undoLastEvent(tournamentId!, matchId!)} className="bg-slate-700 px-4 py-2 rounded-lg">Geri Al</button>
+            <div className="p-4 bg-slate-800 flex justify-between items-center gap-4">
+                <button onClick={() => navigate(-1)} className="bg-slate-700 p-2 rounded-lg flex items-center justify-center">
+                    <span className="material-icons-outlined">arrow_back</span>
+                </button>
+                <span className="text-2xl font-black flex-1 text-center">
+                    {match?.scoreUs ?? match?.score?.[0] ?? 0} - {match?.scoreThem ?? match?.score?.[1] ?? 0}
+                </span>
+                <button onClick={() => undoLastEvent(tournamentId!, matchId!)} className="bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold">Geri Al</button>
             </div>
 
             {/* Aksiyon Butonları (App: Pro Mode) */}

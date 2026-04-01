@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getMatch, getMatchEvents, getPlayers } from '../services/repository';
-import type { Match, MatchEvent, Player, ComputedMatchPlayerStats } from '../types';
+import type { Match, MatchEvent, Player } from '../types';
 
 export default function MatchDetail() {
     const { tournamentId, matchId } = useParams<{ tournamentId: string, matchId: string }>();
@@ -284,7 +284,7 @@ export default function MatchDetail() {
                     </div>
                     <div>
                         <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase">
-                            {match.ourTeamName || 'BİZİM TAKIM'} <span className="text-violet-600 px-2">{match.scoreUs || 0} - {match.scoreThem || 0}</span> {match.opponentName || 'RAKİP'}
+                            {match.ourTeamName || match.teamNames?.[0] || 'BİZİM TAKIM'} <span className="text-violet-600 px-2">{match.scoreUs || match.score?.[0] || 0} - {match.scoreThem || match.score?.[1] || 0}</span> {match.opponentName || match.teamNames?.[1] || 'RAKİP'}
                         </h1>
                         <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
                             <span className="flex items-center gap-1">
@@ -304,7 +304,7 @@ export default function MatchDetail() {
                 </div>
 
                 {/* SAĞ TARAF: YENİ EKLENEN İSTATİSTİK BAŞLAT BUTONU */}
-                {(!match.isFinished) && (
+                {(!match.finished) && (
                     <button
                         onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
                         className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"

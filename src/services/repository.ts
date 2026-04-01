@@ -367,3 +367,102 @@ export const updateMatchData = async (teamId: string, tournamentId: string, matc
         return false;
     }
 };
+// --- MATCH TRACKING (CANLI İSTATİSTİK) FONKSİYONLARI ---
+
+import { arrayUnion, arrayRemove } from 'firebase/firestore';
+
+export const addMatchEvent = async (tournamentId: string, matchId: string, event: MatchEvent) => {
+    const matchRef = doc(db, 'tournaments', tournamentId, 'matches', matchId);
+    await updateDoc(matchRef, {
+        events: arrayUnion(event)
+    });
+};
+
+export const archivePoint = async (tournamentId: string, matchId: string, lineup: string[], startMode: 'OFFENSE' | 'DEFENSE', whoScored: 'US' | 'THEM') => {
+    const matchRef = doc(db, 'tournaments', tournamentId, 'matches', matchId);
+    const matchSnap = await getDoc(matchRef);
+    if (!matchSnap.exists()) return;
+
+    const matchData = matchSnap.data();
+    const currentEvents = matchData.events || [];
+
+    // Mevcut sahadaki 7 oyuncu için istatistik objesini sıfırdan oluştur
+    const statsMap: Record<string, any> = {};
+    lineup.forEach(id => {
+        statsMap[id] = { playerId: id, goal: 0, assist: 0, block: 0, successfulPass: 0, throwaway: 0, drop: 0, callahan: 0, pointsPlayed: 1 };
+    });
+
+    // Event'leri sayılara dönüştür
+    currentEvents.forEach((e: any) => {
+        if (!e.playerId || !statsMap[e.playerId]) return;
+        switch (e.eventType) {
+            case 'Goal': statsMap[e.playerId].goal += 1; break;
+            case 'Assist': statsMap[e.playerId].assist += 1; break;
+            case 'D-Up': statsMap[e.playerId].block += 1; break;
+            case 'Completion': statsMap[e.playerId].successfulPass += 1; break;
+            case 'Throwaway': statsMap[e.playerId].throwaway += 1; break;
+            case 'Drop': statsMap[e.playerId].drop += 1; break;
+            case 'Callahan': statsMap[e.playerId].callahan += 1; break;
+        }
+    });
+
+    const newPoint = {
+        id: Date.now().toString(),
+        startMode,
+        whoScored,
+        playerIds: lineup,
+        stats: Object.values(statsMap),
+        durationSeconds: 0 
+    };
+
+    let newScoreUs = matchData.scoreUs ?? matchData.score?.[0] ?? 0;
+    let newScoreThem = matchData.scoreThem ?? matchData.score?.[1] ?? 0;
+    
+    if (whoScored === 'US') newScoreUs += 1;
+    else if (whoScored === 'THEM') newScoreThem += 1;
+
+    // Firebase'e arşivi pushla ve sahayı temizle
+    await updateDoc(matchRef, {
+        pointsArchive: arrayUnion(newPoint),
+        events: [],
+        scoreUs: newScoreUs,
+        scoreThem: newScoreThem,
+        score: [newScoreUs, newScoreThem] // Eski verilerle uyumluluk için
+    });
+};
+
+export const undoLastEvent = async (tournamentId: string, matchId: string) => {
+    const matchRef = doc(db, 'tournaments', tournamentId, 'matches', matchId);
+    const matchSnap = await getDoc(matchRef);
+    if (!matchSnap.exists()) return;
+
+    const matchData = matchSnap.data();
+    const events = matchData.events || [];
+
+    // Eğer o an devam eden sayıda (events) aksiyon varsa son aksiyonu sil
+    if (events.length > 0) {
+        const lastEvent = events[events.length - 1];
+        await updateDoc(matchRef, {
+            events: arrayRemove(lastEvent)
+        });
+    } 
+    // Eğer saha boşsa ve yanlışlıkla sayı verildiyse son sayıyı (pointsArchive) iptal et
+    else {
+        const pointsArchive = matchData.pointsArchive || [];
+        if (pointsArchive.length > 0) {
+            const lastPoint = pointsArchive[pointsArchive.length - 1];
+            let newScoreUs = matchData.scoreUs ?? matchData.score?.[0] ?? 0;
+            let newScoreThem = matchData.scoreThem ?? matchData.score?.[1] ?? 0;
+            
+            if (lastPoint.whoScored === 'US') newScoreUs = Math.max(0, newScoreUs - 1);
+            else if (lastPoint.whoScored === 'THEM') newScoreThem = Math.max(0, newScoreThem - 1);
+
+            await updateDoc(matchRef, {
+                pointsArchive: arrayRemove(lastPoint),
+                scoreUs: newScoreUs,
+                scoreThem: newScoreThem,
+                score: [newScoreUs, newScoreThem]
+            });
+        }
+    }
+};
