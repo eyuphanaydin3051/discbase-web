@@ -13,6 +13,12 @@ export default function MatchDetail() {
     const [rosterPlayers, setRosterPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Tablo Sıralama State'i
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ 
+        key: 'pointsPlayed', 
+        direction: 'desc' 
+    });
+
     // 1. Oyuncuları çek
     useEffect(() => {
         if (!activeTeamId) return;
@@ -61,113 +67,191 @@ export default function MatchDetail() {
         });
     }, [events, rosterPlayers]);
 
-    // 4. İstatistik Hesaplama (Oyuncular için)
-    const computePlayerStats = (): ComputedMatchPlayerStats[] => {
-        const statsMap: { [key: string]: ComputedMatchPlayerStats } = {};
+    // 4. İstatistik Hesaplama (Oyuncular için - Kapsamlı Mod)
+    const computePlayerStats = () => {
+        const statsMap: { [key: string]: any } = {};
 
         rosterPlayers.forEach(player => {
             statsMap[player.id] = {
-                playerId: player.id,
+                id: player.id,
                 name: player.name,
                 jerseyNumber: player.jerseyNumber ?? undefined,
-                goals: 0, assists: 0, blocks: 0, callahans: 0, completions: 0, drops: 0, throwaways: 0
+                photoUrl: player.photoUrl ?? undefined,
+                goals: 0, assists: 0, blocks: 0, callahans: 0, 
+                passes: 0, drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0
             };
         });
 
-        // A. Önce Arşivdeki İstatistikleri Topla (Geçmiş ve tamamlanmış sayılar)
+        // A. Önce Arşivdeki İstatistikleri Topla
         if (match?.pointsArchive) {
             match.pointsArchive.forEach(point => {
                 point.stats?.forEach(stat => {
-                    const playerStats = statsMap[stat.playerId];
-                    if (playerStats) {
-                        playerStats.goals += stat.goal || 0;
-                        playerStats.assists += stat.assist || 0;
-                        playerStats.blocks += stat.block || 0;
-                        playerStats.callahans += stat.callahan || 0;
-                        playerStats.completions += stat.successfulPass || 0;
-                        playerStats.drops += stat.drop || 0;
-                        playerStats.throwaways += stat.throwaway || 0;
+                    const ps = statsMap[stat.playerId];
+                    if (ps) {
+                        ps.goals += stat.goal || 0;
+                        ps.assists += stat.assist || 0;
+                        ps.blocks += stat.block || 0;
+                        ps.callahans += stat.callahan || 0;
+                        ps.passes += stat.successfulPass || 0;
+                        ps.drops += stat.drop || 0;
+                        ps.throwaways += stat.throwaway || 0;
+                        ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
+                        ps.pointsPlayed += stat.pointsPlayed || 0;
                     }
                 });
             });
         }
 
-        // B. Canlı olayları (Henüz arşive girmemiş mevcut sayıyı) üzerine ekle
+        // B. Canlı olayları ekle
         if (enrichedEvents && enrichedEvents.length > 0) {
             enrichedEvents.forEach(event => {
                 if (!event.playerId) return;
-                const stats = statsMap[event.playerId];
-                if (!stats) return;
+                const ps = statsMap[event.playerId];
+                if (!ps) return;
 
                 switch (event.eventType) {
-                    case 'Goal': stats.goals += 1; break;
-                    case 'Assist': stats.assists += 1; break;
-                    case 'D-Up': stats.blocks += 1; break;
-                    case 'Callahan': stats.callahans += 1; break;
-                    case 'Completion': stats.completions += 1; break;
-                    case 'Drop': stats.drops += 1; break;
-                    case 'Throwaway': stats.throwaways += 1; break;
+                    case 'Goal': ps.goals += 1; break;
+                    case 'Assist': ps.assists += 1; break;
+                    case 'D-Up': ps.blocks += 1; break;
+                    case 'Callahan': ps.callahans += 1; break;
+                    case 'Completion': ps.passes += 1; break;
+                    case 'Drop': ps.drops += 1; ps.turns += 1; break;
+                    case 'Throwaway': ps.throwaways += 1; ps.turns += 1; break;
                 }
             });
         }
 
-        return Object.values(statsMap).sort((a, b) => b.goals + b.assists - (a.goals + a.assists));
+        // Hesaplamaları yap
+        return Object.values(statsMap).map((stats: any) => {
+            const totalPassAttempts = stats.passes + stats.throwaways;
+            const passPercentage = totalPassAttempts > 0 
+                ? parseFloat(((stats.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
+
+            const catches = totalPassAttempts + stats.goals;
+            const totalCatchOpportunities = catches + stats.drops;
+            const catchPercentage = totalCatchOpportunities > 0 
+                ? parseFloat(((catches / totalCatchOpportunities) * 100).toFixed(1)) : 0;
+
+            // Verimlilik formülü (App Utils.kt ile birebir)
+            const efficiencyScore = 
+                ((stats.goals - stats.callahans) * 1.0) +
+                (stats.assists * 1.0) +
+                ((stats.blocks - stats.callahans) * 1.5) +
+                (stats.callahans * 3.5) -
+                (stats.turns * 1.0) +
+                (stats.passes * 0.05);
+
+            return {
+                ...stats,
+                passPercentage,
+                catchPercentage,
+                efficiency: efficiencyScore.toFixed(2)
+            };
+        });
     };
 
     // --- Takım Dinamik İstatistikleri (Mobil App ile Birebir Mantık) ---
     const computeTeamStats = () => {
-        let holdAttempts = 0, holds = 0;
-        let breakAttempts = 0, breaks = 0;
-        let passAttempts = 0, successfulPasses = 0, goals = 0;
-        
+        let totalPointsPlayed = 0;
+        let totalGoals = 0, totalAssists = 0, totalSuccessfulPass = 0;
+        let totalThrowaways = 0, totalDrops = 0, totalBlocks = 0;
+        let totalOffensePoints = 0, offensiveHolds = 0, cleanHolds = 0;
+        let totalDefensePoints = 0, breakPointsScored = 0;
+        let totalBlockPoints = 0, blocksConvertedToGoals = 0;
+
         // A. Arşivdeki (Bitmiş) Sayıları İşle
         if (match?.pointsArchive && match.pointsArchive.length > 0) {
+            totalPointsPlayed = match.pointsArchive.length;
+            
             match.pointsArchive.forEach(point => {
-                const isOurPoint = point.whoScored === 'OURS';
+                const isOurPoint = point.whoScored === 'US' || point.whoScored === 'OURS'; // Geriye dönük uyumluluk
+                let pointTurnovers = 0;
+                let pointBlocks = 0;
                 
                 if (point.startMode === 'OFFENSE') {
-                    holdAttempts++;
-                    if (isOurPoint) holds++;
+                    totalOffensePoints++;
+                    if (isOurPoint) offensiveHolds++;
                 } else if (point.startMode === 'DEFENSE') {
-                    breakAttempts++;
-                    if (isOurPoint) breaks++;
+                    totalDefensePoints++;
+                    if (isOurPoint) breakPointsScored++;
                 }
 
                 point.stats?.forEach(stat => {
-                    goals += stat.goal || 0;
-                    successfulPasses += stat.successfulPass || 0;
-                    passAttempts += (stat.successfulPass || 0) + (stat.throwaway || 0) + (stat.drop || 0);
+                    totalGoals += stat.goal || 0;
+                    totalAssists += stat.assist || 0;
+                    totalSuccessfulPass += stat.successfulPass || 0;
+                    totalThrowaways += stat.throwaway || 0;
+                    totalDrops += stat.drop || 0;
+                    totalBlocks += stat.block || 0;
+                    
+                    pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
+                    pointBlocks += stat.block || 0;
                 });
+
+                if (point.startMode === 'OFFENSE' && isOurPoint && pointTurnovers === 0) {
+                    cleanHolds++;
+                }
+
+                if (pointBlocks > 0) {
+                    totalBlockPoints++;
+                    if (isOurPoint) blocksConvertedToGoals++;
+                }
             });
         }
 
-        // B. Canlı Olayları (Devam eden sayı) Ekle
-        if (enrichedEvents.length > 0) {
+        // B. Canlı Olayları Ekle
+        if (enrichedEvents && enrichedEvents.length > 0) {
             enrichedEvents.forEach(e => {
-                if(e.eventType === 'Goal') goals++;
-                if(e.eventType === 'Assist' || e.eventType === 'Completion') {
-                    successfulPasses++;
-                    passAttempts++;
-                }
-                if(e.eventType === 'Throwaway' || e.eventType === 'Drop') {
-                    passAttempts++;
-                }
+                if(e.eventType === 'Goal') totalGoals++;
+                if(e.eventType === 'Assist') totalAssists++;
+                if(e.eventType === 'Completion') totalSuccessfulPass++;
+                if(e.eventType === 'Throwaway') totalThrowaways++;
+                if(e.eventType === 'Drop') totalDrops++;
+                if(e.eventType === 'D-Up' || e.eventType === 'Callahan') totalBlocks++;
             });
         }
 
-        const holdPercent = holdAttempts > 0 ? Math.round((holds / holdAttempts) * 100) : 0;
-        const breakPercent = breakAttempts > 0 ? Math.round((breaks / breakAttempts) * 100) : 0;
-        const passSuccess = passAttempts > 0 ? Math.round((successfulPasses / passAttempts) * 100) : 0;
-        
-        // Possession (Topa Sahip Olma): Ultimate'te bir hücum Goal, Drop veya Throwaway ile biter.
-        const totalPossessions = goals + (passAttempts - successfulPasses); 
-        const conversionRate = totalPossessions > 0 ? Math.round((goals / totalPossessions) * 100) : 0;
+        const totalPassesCompleted = totalSuccessfulPass + totalAssists;
+        const totalPassesAttempted = totalPassesCompleted + totalThrowaways + totalDrops;
+        const totalPossessions = totalGoals + totalThrowaways + totalDrops; 
 
-        return { holdPercent, breakPercent, passSuccess, conversionRate, goals };
+        const holdPercent = totalOffensePoints > 0 ? Math.round((offensiveHolds / totalOffensePoints) * 100) : 0;
+        const cleanHoldPercent = totalOffensePoints > 0 ? Math.round((cleanHolds / totalOffensePoints) * 100) : 0;
+        const breakPercent = totalDefensePoints > 0 ? Math.round((breakPointsScored / totalDefensePoints) * 100) : 0;
+        const passSuccess = totalPassesAttempted > 0 ? Math.round((totalPassesCompleted / totalPassesAttempted) * 100) : 0;
+        const conversionRate = totalPossessions > 0 ? Math.round((totalGoals / totalPossessions) * 100) : 0;
+        const blockConversionRate = totalBlockPoints > 0 ? Math.round((blocksConvertedToGoals / totalBlockPoints) * 100) : 0;
+
+        return { 
+            totalPointsPlayed, totalGoals, totalAssists, totalBlocks, 
+            totalTurnovers: totalThrowaways + totalDrops, 
+            totalPassesCompleted, totalPassesAttempted, totalPossessions,
+            offensiveHolds, totalOffensePoints, cleanHolds, breakPointsScored, totalDefensePoints,
+            totalBlockPoints, blocksConvertedToGoals,
+            holdPercent, cleanHoldPercent, breakPercent, passSuccess, conversionRate, blockConversionRate
+        };
     };
 
     const teamStats = computeTeamStats();
     const computedStats = computePlayerStats();
+
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'desc';
+        if (sortConfig.key === key && sortConfig.direction === 'desc') { direction = 'asc'; }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedComputedStats = [...computedStats].sort((a: any, b: any) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+        if (sortConfig.key === 'efficiency') {
+            aValue = parseFloat(aValue as string);
+            bValue = parseFloat(bValue as string);
+        }
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     const getInitials = (name: string) => {
         if (!name) return '??';
@@ -197,13 +281,22 @@ export default function MatchDetail() {
                         <span className="material-icons-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>sports_score</span>
                     </div>
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                            {match.teamNames?.[0] || 'Ev Sahibi'} <span className="text-violet-600 px-2">{match.score?.[0] || 0} - {match.score?.[1] || 0}</span> {match.teamNames?.[1] || match.opponentName || 'Rakip'}
+                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase">
+                            {match.ourTeamName || 'BİZİM TAKIM'} <span className="text-violet-600 px-2">{match.scoreUs || 0} - {match.scoreThem || 0}</span> {match.opponentName || 'RAKİP'}
                         </h1>
                         <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                            <span className="flex items-center gap-1"><span className="material-icons-outlined text-sm">schedule</span> Süre: {match.timer || 0}s</span>
-                            <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-                            <span className="flex items-center gap-1"><span className="material-icons-outlined text-sm">history</span> Devre: {match.period || 1}</span>
+                            <span className="flex items-center gap-1">
+                                <span className="material-icons-outlined text-sm">schedule</span> 
+                                Süre: {Math.floor((match.matchDurationSeconds || 0) / 60)} dk {(match.matchDurationSeconds || 0) % 60} sn
+                            </span>
+                            {match.isProMode && (
+                                <>
+                                    <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
+                                    <span className="flex items-center gap-1 text-violet-600 font-bold">
+                                        <span className="material-icons-outlined text-sm">workspace_premium</span> PRO Mod
+                                    </span>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -212,69 +305,116 @@ export default function MatchDetail() {
             {/* Dashboard Grid */}
             <div className="grid grid-cols-12 gap-6">
                 
-                {/* Sol Üst: Takım Performansı */}
+                {/* Sol Üst: Takım Performansı (Detaylı App Modeli) */}
                 <div className="col-span-12 lg:col-span-7 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-bold flex items-center gap-2">
                             <span className="material-icons-outlined text-violet-600">monitoring</span>
-                            Takım Performansı
+                            Detaylı Takım İstatistikleri
                         </h3>
-                        <span className="text-xs font-bold text-violet-600 px-3 py-1 bg-violet-50 dark:bg-violet-900/30 rounded-full uppercase tracking-wider">Canlı İstatistik</span>
+                        <span className="text-xs font-bold text-violet-600 px-3 py-1 bg-violet-50 dark:bg-violet-900/30 rounded-full uppercase tracking-wider">Kapsamlı Veri</span>
                     </div>
-                    <div className="space-y-5">
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-sm font-semibold">
-                                <span className="text-slate-600 dark:text-slate-400">Hold %</span>
-                                <span className="text-violet-600">{teamStats.holdPercent}%</span>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6">
+                        {/* Hücum & Defans Hatları */}
+                        <div className="space-y-5">
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm font-semibold">
+                                    <span className="text-slate-600 dark:text-slate-400">O-Line (Hold %)</span>
+                                    <span className="text-violet-600 flex items-center gap-2"><span className="text-xs text-slate-400">{teamStats.offensiveHolds} / {teamStats.totalOffensePoints}</span>{teamStats.holdPercent}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${teamStats.holdPercent}%` }}></div>
+                                </div>
                             </div>
-                            <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-violet-500 rounded-full" style={{ width: `${teamStats.holdPercent}%` }}></div>
+                            
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm font-semibold">
+                                    <span className="text-slate-600 dark:text-slate-400">Temiz Hold %</span>
+                                    <span className="text-emerald-600 flex items-center gap-2"><span className="text-xs text-slate-400">{teamStats.cleanHolds} / {teamStats.totalOffensePoints}</span>{teamStats.cleanHoldPercent}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${teamStats.cleanHoldPercent}%` }}></div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm font-semibold">
+                                    <span className="text-slate-600 dark:text-slate-400">D-Line (Break %)</span>
+                                    <span className="text-orange-500 flex items-center gap-2"><span className="text-xs text-slate-400">{teamStats.breakPointsScored} / {teamStats.totalDefensePoints}</span>{teamStats.breakPercent}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${teamStats.breakPercent}%` }}></div>
+                                </div>
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-sm font-semibold">
-                                <span className="text-slate-600 dark:text-slate-400">Break %</span>
-                                <span className="text-violet-600">{teamStats.breakPercent}%</span>
+
+                        {/* Top Hakimiyeti & Verimlilik */}
+                        <div className="space-y-5">
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm font-semibold">
+                                    <span className="text-slate-600 dark:text-slate-400">Pas Başarısı</span>
+                                    <span className="text-blue-500 flex items-center gap-2"><span className="text-xs text-slate-400">{teamStats.totalPassesCompleted} / {teamStats.totalPassesAttempted}</span>{teamStats.passSuccess}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${teamStats.passSuccess}%` }}></div>
+                                </div>
                             </div>
-                            <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${teamStats.breakPercent}%` }}></div>
+
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm font-semibold">
+                                    <span className="text-slate-600 dark:text-slate-400">Ofans Gole Dönüşme Oranı</span>
+                                    <span className="text-indigo-500 flex items-center gap-2"><span className="text-xs text-slate-400">{teamStats.totalGoals} / {teamStats.totalPossessions}</span>{teamStats.conversionRate}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${teamStats.conversionRate}%` }}></div>
+                                </div>
                             </div>
-                        </div>
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-sm font-semibold">
-                                <span className="text-slate-600 dark:text-slate-400">Pas Başarısı</span>
-                                <span className="text-violet-600">{teamStats.passSuccess}%</span>
-                            </div>
-                            <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${teamStats.passSuccess}%` }}></div>
+
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm font-semibold">
+                                    <span className="text-slate-600 dark:text-slate-400">Blok Sonrası Gol %</span>
+                                    <span className="text-rose-500 flex items-center gap-2"><span className="text-xs text-slate-400">{teamStats.blocksConvertedToGoals} / {teamStats.totalBlockPoints}</span>{teamStats.blockConversionRate}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-rose-500 rounded-full transition-all" style={{ width: `${teamStats.blockConversionRate}%` }}></div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Sağ Üst: Verimlilik */}
+                {/* Sağ Üst: Maç İşlem Özeti Sayıları */}
                 <div className="col-span-12 lg:col-span-5 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <h3 className="text-lg font-bold flex items-center gap-2 mb-6">
                         <span className="material-icons-outlined text-emerald-600">bolt</span>
-                        Verimlilik
+                        Genel Aksiyonlar
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Gole Dönüşme Oranı</span>
-                            <span className="text-3xl font-black text-slate-900 dark:text-white">{teamStats.conversionRate}<span className="text-sm font-medium">%</span></span>
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Toplam Gol</span>
+                            <span className="text-3xl font-black text-slate-900 dark:text-white">{teamStats.totalGoals}</span>
                         </div>
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Toplam Sayı</span>
-                            <span className="text-3xl font-black text-slate-900 dark:text-white">{teamStats.goals}</span>
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Toplam Asist</span>
+                            <span className="text-3xl font-black text-slate-900 dark:text-white">{teamStats.totalAssists}</span>
+                        </div>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex flex-col items-center justify-center text-center border border-transparent hover:border-emerald-100 dark:hover:border-emerald-900/50 transition-all">
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Blok (D-Up)</span>
+                            <span className="text-3xl font-black text-emerald-600">{teamStats.totalBlocks}</span>
+                        </div>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex flex-col items-center justify-center text-center border border-transparent hover:border-rose-100 dark:hover:border-rose-900/50 transition-all">
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Turnover</span>
+                            <span className="text-3xl font-black text-rose-500">{teamStats.totalTurnovers}</span>
                         </div>
                         <div className="col-span-2 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/50 rounded-xl">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center">
-                                    <span className="material-icons-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>trending_up</span>
-                                </div>
+                            <div className="flex items-center justify-between px-2">
                                 <div>
-                                    <p className="text-sm font-bold text-emerald-800 dark:text-emerald-400">Performans Analizi</p>
-                                    <p className="text-xs text-emerald-600 dark:text-emerald-500">Pas yüzdesi ve gole dönüşme oranına göre hesaplanır.</p>
+                                    <p className="text-sm font-bold text-emerald-800 dark:text-emerald-400">Oynanan Sayı / Pozisyon</p>
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-500">Kayıtlı toplam aksiyon özeti</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-lg font-black text-emerald-800 dark:text-emerald-400">{teamStats.totalPointsPlayed} <span className="text-sm font-medium">/</span> {teamStats.totalPossessions}</p>
                                 </div>
                             </div>
                         </div>
@@ -291,7 +431,8 @@ export default function MatchDetail() {
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                         {match?.pointsArchive && match.pointsArchive.length > 0 ? [...match.pointsArchive].reverse().map((point, index) => {
-                            const isOurPoint = point.whoScored === 'OURS';
+                            // Android uygulaması sayıyı alan takımı "US" olarak atar
+                            const isOurPoint = point.whoScored === 'US';
                             const pointNumber = match.pointsArchive!.length - index;
 
                             return (
@@ -341,57 +482,87 @@ export default function MatchDetail() {
                     </div>
                 </div>
 
-                {/* Alt Sağ: Oyuncu İstatistikleri */}
-                <div className="col-span-12 lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[500px]">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <h3 className="text-lg font-bold flex items-center gap-2">
+                {/* Alt Sağ: Kapsamlı Oyuncu İstatistikleri */}
+                <div className="col-span-12 lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[500px]">
+                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                        <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-white">
                             <span className="material-icons-outlined text-violet-600">groups</span>
-                            Oyuncu İstatistikleri
+                            Genel Oyuncu İstatistikleri
                         </h3>
                     </div>
-                    <div className="overflow-x-auto flex-1 custom-scrollbar">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[11px] font-black tracking-wider sticky top-0 z-10">
+                    <div className="overflow-x-auto flex-1 custom-scrollbar relative">
+                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                                 <tr>
-                                    <th className="px-6 py-4">Oyuncu</th>
-                                    <th className="px-4 py-4 text-center">G</th>
-                                    <th className="px-4 py-4 text-center">A</th>
-                                    <th className="px-4 py-4 text-center">B</th>
-                                    <th className="px-6 py-4 text-right">+/-</th>
+                                    <th onClick={() => requestSort('name')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center gap-1">Oyuncu {sortConfig.key === 'name' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('pointsPlayed')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Sayı {sortConfig.key === 'pointsPlayed' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('passes')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Pas {sortConfig.key === 'passes' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('passPercentage')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Pas % {sortConfig.key === 'passPercentage' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('catchPercentage')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Catch % {sortConfig.key === 'catchPercentage' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('turns')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Turn {sortConfig.key === 'turns' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('goals')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Gol {sortConfig.key === 'goals' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('assists')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Asist {sortConfig.key === 'assists' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('blocks')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Blok {sortConfig.key === 'blocks' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
+                                    <th onClick={() => requestSort('efficiency')} className="cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors px-6 py-3 text-center text-xs font-bold text-violet-600 uppercase tracking-wider bg-violet-50 dark:bg-violet-900/10">
+                                        <div className="flex items-center justify-center gap-1">Verim {sortConfig.key === 'efficiency' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                {computedStats.filter(ps => ps.goals + ps.assists + ps.blocks + ps.drops + ps.throwaways > 0).map(ps => {
-                                    const plusMinus = (ps.goals + ps.assists + ps.blocks + ps.callahans) - (ps.drops + ps.throwaways);
-                                    return (
-                                        <tr key={ps.playerId} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 ring-2 ring-transparent group-hover:ring-violet-200 dark:group-hover:ring-violet-800 transition-all overflow-hidden flex items-center justify-center text-slate-500 font-bold text-sm">
-                                                        {ps.jerseyNumber || getInitials(ps.name)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-900 dark:text-white leading-tight">{ps.name}</p>
-                                                    </div>
+                            <tbody className="bg-white dark:bg-[#1E1E1E] divide-y divide-slate-100 dark:divide-slate-800">
+                                {sortedComputedStats.filter((ps: any) => ps.pointsPlayed + ps.goals + ps.assists + ps.blocks + ps.turns + ps.passes > 0).map((ps: any) => (
+                                    <tr key={ps.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 ring-2 ring-transparent group-hover:ring-violet-200 dark:group-hover:ring-violet-800 transition-all overflow-hidden flex items-center justify-center text-slate-500 font-bold text-sm">
+                                                    {ps.photoUrl ? (
+                                                        <img src={ps.photoUrl} alt={ps.name} className="w-full h-full object-cover" />
+                                                    ) : (ps.jerseyNumber !== undefined && ps.jerseyNumber !== null && ps.jerseyNumber !== '') ? (
+                                                        <span>{ps.jerseyNumber}</span>
+                                                    ) : (
+                                                        <span>{getInitials(ps.name)}</span>
+                                                    )}
                                                 </div>
-                                            </td>
-                                            <td className="px-4 py-4 text-center font-bold text-slate-700 dark:text-slate-300">{ps.goals}</td>
-                                            <td className="px-4 py-4 text-center font-bold text-slate-700 dark:text-slate-300">{ps.assists}</td>
-                                            <td className="px-4 py-4 text-center font-bold text-slate-700 dark:text-slate-300">{ps.blocks}</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <span className={`inline-flex items-center justify-center h-8 w-12 rounded-lg font-black text-sm ${
-                                                    plusMinus > 0 ? 'bg-emerald-500 text-white' : 
-                                                    plusMinus < 0 ? 'bg-rose-500 text-white' : 
-                                                    'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                                                }`}>
-                                                    {plusMinus > 0 ? `+${plusMinus}` : plusMinus}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {computedStats.filter(ps => ps.goals + ps.assists + ps.blocks + ps.drops + ps.throwaways > 0).length === 0 && (
-                                    <tr><td colSpan={5} className="text-center py-12 text-slate-400 font-medium">İstatistik verisi bulunamadı.</td></tr>
+                                                <div>
+                                                    <p className="font-bold text-slate-900 dark:text-white leading-tight">{ps.name}</p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400">#{ps.jerseyNumber || '?'}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-slate-500 dark:text-slate-400">{ps.pointsPlayed}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-slate-900 dark:text-slate-200">{ps.passes}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-500 dark:text-blue-400">%{ps.passPercentage}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-orange-500 dark:text-orange-400">%{ps.catchPercentage}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-rose-500">{ps.turns}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-emerald-500">{ps.goals}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-violet-500">{ps.assists}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-slate-900 dark:text-slate-200">{ps.blocks}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-black text-violet-600 bg-violet-50/50 dark:bg-violet-900/5">{ps.efficiency}</td>
+                                    </tr>
+                                ))}
+                                {sortedComputedStats.filter((ps: any) => ps.pointsPlayed + ps.goals + ps.assists + ps.blocks + ps.turns + ps.passes > 0).length === 0 && (
+                                    <tr>
+                                        <td colSpan={10} className="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                                            Henüz istatistik verisi bulunamadı.
+                                        </td>
+                                    </tr>
                                 )}
                             </tbody>
                         </table>
