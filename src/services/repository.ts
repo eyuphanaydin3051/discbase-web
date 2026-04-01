@@ -8,7 +8,8 @@ import {
     doc,
     updateDoc,
     getDocs,
-    getDoc
+    getDoc,
+    setDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
@@ -295,4 +296,29 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
     });
 
     return unsubscribe;
+};
+// src/services/repository.ts dosyasına eklenecek:
+
+export const createMatch = async (teamId: string, tournamentId: string, opponentName: string) => {
+    try {
+        const matchesRef = collection(db, 'teams', teamId, 'tournaments', tournamentId, 'matches');
+        const newMatchDoc = doc(matchesRef); // Rastgele ID oluştur
+        const newMatch: Match = {
+            id: newMatchDoc.id,
+            opponentName: opponentName,
+            scoreUs: 0,
+            scoreThem: 0,
+            pointsArchive: [],
+            matchDurationSeconds: 0,
+            date: new Date().toISOString(),
+            teamNames: ["Bizim Takım", opponentName], // MatchDetail gereksinimi
+            score: [0, 0],
+            finished: false
+        };
+        await setDoc(newMatchDoc, newMatch);
+        return newMatchDoc.id;
+    } catch (error) {
+        console.error("Maç oluşturulurken hata:", error);
+        return null;
+    }
 };

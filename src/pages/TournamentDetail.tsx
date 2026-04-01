@@ -5,7 +5,7 @@ import { auth } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth'; // Auth Listener eklendi
 import { getUserTeams, getTournamentMatches, getPlayers, getTournaments } from '../services/repository';
 import type { Match, Player, TeamProfile, Tournament } from '../types';
-
+import { createMatch } from '../services/repository';
 export default function TournamentDetail() {
     const { id: tournamentId } = useParams();
     const navigate = useNavigate();
@@ -29,6 +29,18 @@ export default function TournamentDetail() {
         key: 'pointsPlayed', 
         direction: 'desc' 
     });
+    const [showMatchModal, setShowMatchModal] = useState(false);
+    const [opponentName, setOpponentName] = useState("");
+
+    const handleCreateMatch = async () => {
+        const activeTeamId = localStorage.getItem('selectedTeamId');
+        if (activeTeamId && tournamentId && opponentName) {
+            const matchId = await createMatch(activeTeamId, tournamentId, opponentName);
+            if (matchId) {
+                navigate(`/tournament/${tournamentId}/match/${matchId}/track`);
+            }
+        }
+    };
 
     // 1. ADIM: Kullanıcı Oturumunu Dinle (Sayfa yenilenince user null gelmesini önler)
     useEffect(() => {
@@ -671,11 +683,34 @@ export default function TournamentDetail() {
 
             {/* FAB - Yeni Maç */}
             <div className="fixed bottom-8 right-8 z-40">
-                <button className="bg-[#5B4DBC] hover:bg-opacity-90 text-white rounded-2xl p-4 shadow-lg flex items-center gap-2 transition-transform transform hover:scale-105 active:scale-95">
-                    <span className="material-icons-outlined">add</span>
-                    <span className="font-medium pr-1">Yeni Maç</span>
-                </button>
+            <button 
+                onClick={() => setShowMatchModal(true)}
+                className="bg-[#5B4DBC] hover:bg-opacity-90 text-white rounded-2xl p-4 shadow-lg flex items-center gap-2 transition-transform transform hover:scale-105"
+            >
+                <span className="material-icons-outlined">add</span>
+                <span className="font-medium pr-1">Yeni Maç</span>
+            </button>
+        </div>
+
+        {/* Rakip İsmi Modalı */}
+        {showMatchModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+                <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-6 w-full max-w-md shadow-xl">
+                    <h3 className="text-xl font-bold mb-4">Yeni Maç Başlat</h3>
+                    <input 
+                        type="text" 
+                        placeholder="Rakip Takım Adı"
+                        className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-transparent mb-4"
+                        value={opponentName}
+                        onChange={(e) => setOpponentName(e.target.value)}
+                    />
+                    <div className="flex gap-3">
+                        <button onClick={() => setShowMatchModal(false)} className="flex-1 py-3 text-gray-500 font-medium">İptal</button>
+                        <button onClick={handleCreateMatch} className="flex-1 py-3 bg-[#5B4DBC] text-white rounded-xl font-bold">Maçı Oluştur</button>
+                    </div>
+                </div>
             </div>
+        )}
         </div>
     );
 }
