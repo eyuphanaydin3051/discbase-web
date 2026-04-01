@@ -10,6 +10,7 @@ import TournamentDetail from './pages/TournamentDetail';
 import Roster from './pages/Roster'; // Yeni sayfayı import et
 import PlayerDetail from './pages/PlayerDetail';
 import MatchDetail from './pages/MatchDetail';
+import MatchTracking from './pages/MatchTracking';
 function App() {
   return (
     <Router>
@@ -27,6 +28,7 @@ function App() {
           <Route path="/tournament/:id" element={<TournamentDetail />} />
           <Route path="/player/:teamId/:playerId" element={<PlayerDetail />} />
           <Route path="/tournament/:tournamentId/match/:matchId" element={<MatchDetail />} />
+          <Route path="/tournament/:tournamentId/match/:matchId/track" element={<MatchTracking />} />
         </Route>
       </Routes>
     </Router>

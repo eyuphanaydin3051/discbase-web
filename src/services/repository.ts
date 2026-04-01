@@ -1,5 +1,7 @@
 // src/services/repository.ts
 
+// src/services/repository.ts
+
 import {
     collection,
     query,
@@ -9,7 +11,8 @@ import {
     updateDoc,
     getDocs,
     getDoc,
-    setDoc
+    setDoc, // setDoc eklendi
+    deleteDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
@@ -299,26 +302,41 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
 };
 // src/services/repository.ts dosyasına eklenecek:
 
-export const createMatch = async (teamId: string, tournamentId: string, opponentName: string) => {
+
+// ... (diğer importlar aynı)
+
+// createMatch fonksiyonunu revize ediyoruz
+export const createMatch = async (teamId: string, tournamentId: string, opponentName: string, ourTeamName: string) => {
     try {
         const matchesRef = collection(db, 'teams', teamId, 'tournaments', tournamentId, 'matches');
-        const newMatchDoc = doc(matchesRef); // Rastgele ID oluştur
+        const newMatchDoc = doc(matchesRef);
+        
         const newMatch: Match = {
             id: newMatchDoc.id,
             opponentName: opponentName,
+            ourTeamName: ourTeamName, // Uygulamanın görünürlük için beklediği alan
             scoreUs: 0,
             scoreThem: 0,
             pointsArchive: [],
             matchDurationSeconds: 0,
+            isProMode: false, // Uygulama modelinde zorunlu
             date: new Date().toISOString(),
-            teamNames: ["Bizim Takım", opponentName], // MatchDetail gereksinimi
+            tournamentId: tournamentId,
+            teamNames: [ourTeamName, opponentName],
             score: [0, 0],
             finished: false
         };
+        
         await setDoc(newMatchDoc, newMatch);
         return newMatchDoc.id;
     } catch (error) {
         console.error("Maç oluşturulurken hata:", error);
         return null;
     }
+};
+
+// Maçı güncellemek için (İstatistik girerken kullanılacak)
+export const updateMatchData = async (teamId: string, tournamentId: string, match: Match) => {
+    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', match.id);
+    return await updateDoc(matchRef, { ...match });
 };

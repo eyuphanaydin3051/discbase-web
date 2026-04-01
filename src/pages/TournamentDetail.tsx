@@ -32,16 +32,23 @@ export default function TournamentDetail() {
     const [showMatchModal, setShowMatchModal] = useState(false);
     const [opponentName, setOpponentName] = useState("");
 
-    const handleCreateMatch = async () => {
-        const activeTeamId = localStorage.getItem('selectedTeamId');
-        if (activeTeamId && tournamentId && opponentName) {
-            const matchId = await createMatch(activeTeamId, tournamentId, opponentName);
-            if (matchId) {
-                navigate(`/tournament/${tournamentId}/match/${matchId}/track`);
-            }
-        }
-    };
+    // src/pages/TournamentDetail.tsx içinde handleCreateMatch fonksiyonunu bulun ve değiştirin:
 
+const handleCreateMatch = async () => {
+    const activeTeamId = localStorage.getItem('selectedTeamId');
+    // currentTeam üzerinden takım adını alıyoruz
+    if (activeTeamId && tournamentId && opponentName && currentTeam) {
+        const matchId = await createMatch(
+            activeTeamId, 
+            tournamentId, 
+            opponentName, 
+            currentTeam.teamName // teamName eklendi
+        );
+        if (matchId) {
+            navigate(`/tournament/${tournamentId}/match/${matchId}/track`);
+        }
+    }
+};
     // 1. ADIM: Kullanıcı Oturumunu Dinle (Sayfa yenilenince user null gelmesini önler)
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
