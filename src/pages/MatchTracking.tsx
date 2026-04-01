@@ -29,7 +29,8 @@ export default function MatchTracking() {
     // --- Zamanlayıcı (Timer) ---
     const [pointTimer, setPointTimer] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    // NodeJS tip hatası düzeltildi -> Browser API tipi kullanıldı
+    const timerRef = useRef<number | null>(null);
 
     // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
@@ -42,18 +43,18 @@ export default function MatchTracking() {
 
     useEffect(() => {
         if (isTimerRunning) {
-            timerRef.current = setInterval(() => setPointTimer(p => p + 1), 1000);
+            timerRef.current = window.setInterval(() => setPointTimer(p => p + 1), 1000);
         } else if (timerRef.current) {
-            clearInterval(timerRef.current);
+            window.clearInterval(timerRef.current);
         }
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
+        return () => { if (timerRef.current) window.clearInterval(timerRef.current); };
     }, [isTimerRunning]);
 
     // 2. Undo (Geri Al) Mekanizması
     const saveStateToHistory = () => {
         setHistoryStack(prev => [...prev, {
             gameMode,
-            currentPointStats: JSON.parse(JSON.stringify(currentPointStats)),
+            currentPointStats: JSON.parse(JSON.stringify(currentPointStats)), // Immutable Deep Copy
             activePasserId,
             pointTimer
         }]);
@@ -62,7 +63,7 @@ export default function MatchTracking() {
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
         
-        // Backend'den son event'i sil
+        // Backend'den (Firebase) son event'i sil
         await undoLastEvent(tournamentId, matchId);
 
         // Frontend Gelişmiş Mod state'ini bir adım geriye sar
@@ -117,6 +118,8 @@ export default function MatchTracking() {
     // Firebase Canlı Akışa (Timeline) Event Atma
     const fireEvent = async (type: MatchEvent['eventType'], playerId?: string) => {
         if (!matchId || !tournamentId) return;
+        
+        // Aksiyon alındığında UI'da parlaması için (lastAction kullanımı düzeltildi)
         setLastAction(`${playerId}_${type}`);
         
         const event = {
@@ -131,7 +134,7 @@ export default function MatchTracking() {
         } as MatchEvent;
 
         await addMatchEvent(tournamentId, matchId, event);
-        setTimeout(() => setLastAction(null), 300);
+        setTimeout(() => setLastAction(null), 300); // 300ms sonra parlamayı kaldır
     };
 
     // --- HÜCUM AKSİYONLARI ---
@@ -142,11 +145,11 @@ export default function MatchTracking() {
         setCurrentPointStats(prev => prev.map(p => {
             if (p.playerId === activePasserId) {
                 const newDist = { ...p.passDistribution };
-                newDist[receiverId] = (newDist[receiverId] || 0) + 1;
+                newDist[receiverId] = (newDist[receiverId] || 0) + 1; // Pass Distribution Haritası
                 return { ...p, successfulPass: p.successfulPass + 1, passDistribution: newDist };
             }
             if (p.playerId === receiverId) {
-                return { ...p, catchStat: p.catchStat + 1 };
+                return { ...p, catchStat: p.catchStat + 1 }; // Alıcıya catchStat yazılır
             }
             return p;
         }));
@@ -159,11 +162,11 @@ export default function MatchTracking() {
         saveStateToHistory();
         
         setCurrentPointStats(prev => prev.map(p => {
-            if (p.playerId === activePasserId) return { ...p, successfulPass: p.successfulPass + 1 };
-            if (p.playerId === receiverId) return { ...p, drop: p.drop + 1 };
+            if (p.playerId === activePasserId) return { ...p, successfulPass: p.successfulPass + 1 }; // Pas başarılı sayılır
+            if (p.playerId === receiverId) return { ...p, drop: p.drop + 1 }; // Alıcı düşürdü
             return p;
         }));
-        setGameMode('DEFENSE');
+        setGameMode('DEFENSE'); // Turnover -> Defans'a geç
         setActivePasserId(null);
         await fireEvent('Drop', receiverId);
     };
@@ -172,7 +175,7 @@ export default function MatchTracking() {
         if (!activePasserId) return;
         saveStateToHistory();
         updatePlayerStat(activePasserId, { throwaway: currentPointStats.find(p=>p.playerId===activePasserId)!.throwaway + 1 });
-        setGameMode('DEFENSE');
+        setGameMode('DEFENSE'); // Turnover -> Defans'a geç
         
         const passerCache = activePasserId;
         setActivePasserId(null);
@@ -187,17 +190,16 @@ export default function MatchTracking() {
             if (p.playerId === activePasserId) {
                 const newDist = { ...p.passDistribution };
                 newDist[receiverId] = (newDist[receiverId] || 0) + 1;
-                return { ...p, assist: p.assist + 1, passDistribution: newDist };
+                return { ...p, assist: p.assist + 1, passDistribution: newDist }; // Atıcıya Asist
             }
-            if (p.playerId === receiverId) return { ...p, goal: p.goal + 1, catchStat: p.catchStat + 1 };
+            if (p.playerId === receiverId) return { ...p, goal: p.goal + 1, catchStat: p.catchStat + 1 }; // Alıcıya Gol
             return p;
         });
         setCurrentPointStats(updatedStats);
 
-        // Gelişmiş modda Atan (Goal) ve Attıran (Assist) otomatik bellidir
         await fireEvent('Goal', receiverId);
         await fireEvent('Assist', activePasserId);
-        await finishPoint(updatedStats, 'US');
+        await finishPoint('US'); // Sayı Biter
     };
 
     // --- SAVUNMA AKSİYONLARI ---
@@ -213,7 +215,7 @@ export default function MatchTracking() {
     const handleBlock = async (playerId: string) => {
         saveStateToHistory();
         updatePlayerStat(playerId, { block: currentPointStats.find(p=>p.playerId===playerId)!.block + 1 });
-        setGameMode('OFFENSE');
+        setGameMode('OFFENSE'); // Top kazanıldı -> Ofans'a geç
         await fireEvent('D-Up', playerId);
     };
 
@@ -226,25 +228,22 @@ export default function MatchTracking() {
         setCurrentPointStats(updatedStats);
         
         await fireEvent('Callahan', playerId);
-        await finishPoint(updatedStats, 'US');
+        await finishPoint('US'); // Sayı Biter
     };
 
     const handleOpponentScore = async () => {
         saveStateToHistory();
         await fireEvent('OpponentScore');
-        await finishPoint(currentPointStats, 'THEM');
+        await finishPoint('THEM'); // Sayı Biter
     };
 
     // --- SAYI BİTİRME (POINT END) ---
-    const finishPoint = async (finalStats: PlayerStats[], whoScored: 'US' | 'THEM') => {
+    const finishPoint = async (whoScored: 'US' | 'THEM') => {
         if (!matchId || !tournamentId) return;
         setIsTimerRunning(false);
-        
-        const statsToSave = finalStats.map(stat => ({
-            ...stat,
-            secondsPlayed: pointTimer
-        }));
 
+        // Kullanılmayan statsToSave silindi, çünkü repository.ts içindeki
+        // archivePoint() firebase'den dönen eventlere göre veriyi kendisi parse ediyor.
         await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored);
         
         // Puan bitiminde sayfayı sıfırla ve maç bilgisini güncelle
@@ -383,9 +382,11 @@ export default function MatchTracking() {
                     {selectedLineup.map(pid => {
                         const player = roster.find(r => r.id === pid);
                         const isDiskHolder = activePasserId === pid;
+                        // UI'da görsel bildirim (lastAction kullanımı)
+                        const isJustActed = lastAction?.startsWith(pid);
 
                         return (
-                            <div key={pid} className={`flex flex-col bg-slate-900 rounded-2xl border transition-all ${isDiskHolder ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-[1.02]' : 'border-slate-800'}`}>
+                            <div key={pid} className={`flex flex-col bg-slate-900 rounded-2xl border transition-all ${isDiskHolder ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-[1.02]' : isJustActed ? 'border-violet-500' : 'border-slate-800'}`}>
                                 <div className="p-4 border-b border-slate-800 flex items-center gap-3 bg-slate-800/30 rounded-t-2xl">
                                     <div className={`h-10 w-10 rounded-full flex items-center justify-center font-black text-lg shadow-inner ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-600'}`}>
                                         {player?.jerseyNumber || '??'}
