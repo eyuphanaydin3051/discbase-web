@@ -1,146 +1,118 @@
-// src/pages/MatchTracking.tsx (Tüm içeriği bununla değiştirin)
-
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getPlayers, getMatch, updateMatchData } from '../services/repository';
-import type { Player, PlayerStats, Match, PointData } from '../types';
+import { getMatch, addMatchEvent, archivePoint, undoLastEvent, getPlayers } from '../services/repository';
+import type { Match, Player, MatchEvent } from '../types';
 
 export default function MatchTracking() {
     const { tournamentId, matchId } = useParams();
-    const navigate = useNavigate();
-    const teamId = localStorage.getItem('selectedTeamId');
-
     const [match, setMatch] = useState<Match | null>(null);
-    const [players, setPlayers] = useState<Player[]>([]);
-    const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
-    const [gameMode, setGameMode] = useState<'IDLE' | 'TRACKING'>('IDLE');
-    
-    // Anlık sayı istatistikleri
-    const [activePasserId, setActivePasserId] = useState<string | null>(null);
-    const [currentPointStats, setCurrentPointStats] = useState<Record<string, PlayerStats>>({});
+    const [roster, setRoster] = useState<Player[]>([]);
+    const [selectedLineup, setSelectedLineup] = useState<string[]>([]);
+    const [isLineupLocked, setIsLineupLocked] = useState(false);
+    const [startMode, setStartMode] = useState<'OFFENSE' | 'DEFENSE' | null>(null);
 
+    // 1. Veri Çekme (App ile aynı model)
     useEffect(() => {
-        if (teamId && tournamentId && matchId) {
-            getPlayers(teamId, setPlayers);
+        if (matchId && tournamentId) {
             getMatch(tournamentId, matchId).then(setMatch);
+            // Takım oyuncularını çek
+            const teamId = localStorage.getItem('selectedTeamId');
+            if (teamId) getPlayers(teamId, setRoster);
         }
-    }, [teamId, tournamentId, matchId]);
+    }, [matchId, tournamentId]);
 
-    // src/pages/MatchTracking.tsx dosyasındaki handleAction ve savePoint fonksiyonlarını şu şekilde revize et:
-
-    const handleAction = (playerId: string, action: 'CATCH' | 'GOAL' | 'DROP' | 'THROWAWAY') => {
-        const stats = { ...currentPointStats };
-        if (!stats[playerId]) {
-            stats[playerId] = { 
-                playerId, 
-                name: players.find(p => p.id === playerId)?.name || '', 
-                successfulPass: 0, assist: 0, throwaway: 0, catchStat: 0, drop: 0, goal: 0, 
-                pullAttempts: 0, successfulPulls: 0, block: 0, callahan: 0, 
-                secondsPlayed: 0, totalTempoSeconds: 0, pointsPlayed: 1, 
-                totalPullTimeSeconds: 0, passDistribution: {} 
-            };
-        }
-
-        if (action === 'CATCH') {
-            stats[playerId].catchStat += 1;
-            if (activePasserId && stats[activePasserId]) stats[activePasserId].successfulPass += 1;
-            setActivePasserId(playerId);
-            setCurrentPointStats(stats); // Sadece pas trafiğinde state'i güncelle
-        } else if (action === 'GOAL') {
-            stats[playerId].goal = 1;
-            if (activePasserId && stats[activePasserId]) stats[activePasserId].assist = 1;
-            savePoint(stats, 'US');
-            // savePoint state'i sıfırladığı için burada setCurrentPointStats çağırmıyoruz
-        } else if (action === 'THROWAWAY') {
-            stats[playerId].throwaway += 1;
-            savePoint(stats, 'THEM');
-            // savePoint state'i sıfırladığı için burada setCurrentPointStats çağırmıyoruz
+    // 2. Kadro Seçimi (App'teki 7 player kuralı)
+    const togglePlayer = (id: string) => {
+        if (selectedLineup.includes(id)) {
+            setSelectedLineup(prev => prev.filter(p => p !== id));
+        } else if (selectedLineup.length < 7) {
+            setSelectedLineup(prev => [...prev, id]);
         }
     };
 
-    const savePoint = async (pointStatsMap: Record<string, PlayerStats>, whoScored: 'US' | 'THEM') => {
-        if (!match || !teamId || !tournamentId) return;
-
-        const pointData: PointData = {
-            stats: Object.values(pointStatsMap),
-            whoScored,
-            startMode: 'OFFENSE',
-            captureMode: 'ADVANCED',
-            pullDurationSeconds: 0,
-            durationSeconds: 0,
-            stoppages: [],
-            proEvents: []
+    // 3. Aksiyon Kaydı (App - Advanced Mode logic)
+    const handleAction = async (type: MatchEvent['eventType'], playerId?: string) => {
+        if (!matchId || !tournamentId) return;
+        
+        const event: Partial<MatchEvent> = {
+            id: Date.now().toString(),
+            eventType: type,
+            playerId: playerId,
+            timestamp: Date.now()
         };
 
-        // TypeScript hatalarını (?? 0) ile gideriyoruz ve 'score' array'ini güncelliyoruz
-        const currentScoreUs = match.scoreUs ?? 0;
-        const currentScoreThem = match.scoreThem ?? 0;
-
-        const newScoreUs = whoScored === 'US' ? currentScoreUs + 1 : currentScoreUs;
-        const newScoreThem = whoScored === 'THEM' ? currentScoreThem + 1 : currentScoreThem;
-
-        const updatedMatch: Match = {
-            ...match,
-            scoreUs: newScoreUs,
-            scoreThem: newScoreThem,
-            score: [newScoreUs, newScoreThem], // Android/MatchDetail uyumluluğu için zorunlu
-            pointsArchive: [...(match.pointsArchive || []), pointData]
-        };
-
-        await updateMatchData(teamId, tournamentId, updatedMatch);
-        setMatch(updatedMatch);
-        setCurrentPointStats({}); // State'i temizle
-        setActivePasserId(null);  // Pasörü temizle
-        alert(whoScored === 'US' ? "Sayı Aldık!" : "Sayı Yedik!");
+        await addMatchEvent(tournamentId, matchId, event as MatchEvent);
+        
+        // Eğer sayı olduysa arşive taşı (App: finishPoint())
+        if (type === 'Goal' || type === 'OpponentScore' || type === 'Callahan') {
+            const whoScored = (type === 'Goal' || type === 'Callahan') ? 'US' : 'THEM';
+            await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored);
+            setIsLineupLocked(false);
+            setStartMode(null);
+            setSelectedLineup([]);
+        }
     };
 
-    
-
-    if (gameMode === 'IDLE') {
+    if (!isLineupLocked) {
         return (
-            <div className="max-w-4xl mx-auto p-6">
-                <h2 className="text-2xl font-bold mb-4">Kadro Seç (7 Oyuncu)</h2>
+            <div className="p-6 max-w-4xl mx-auto">
+                <h2 className="text-2xl font-bold mb-4">Sayı Başlıyor: Kadro Seç</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                    {players.map(p => (
-                        <button key={p.id} onClick={() => setSelectedPlayerIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id])}
-                                className={`p-3 rounded-xl border ${selectedPlayerIds.includes(p.id) ? 'bg-purple-600 text-white' : 'bg-white'}`}>
+                    {roster.map(p => (
+                        <button 
+                            key={p.id}
+                            onClick={() => togglePlayer(p.id)}
+                            className={`p-4 rounded-xl border-2 transition-all ${selectedLineup.includes(p.id) ? 'border-violet-600 bg-violet-50' : 'border-gray-100'}`}
+                        >
                             {p.name}
                         </button>
                     ))}
                 </div>
-                <button disabled={selectedPlayerIds.length !== 7} onClick={() => setGameMode('TRACKING')} className="w-full py-4 bg-green-600 text-white rounded-xl font-bold">Takibi Başlat</button>
+                {selectedLineup.length === 7 && (
+                    <div className="flex gap-4">
+                        <button onClick={() => { setStartMode('OFFENSE'); setIsLineupLocked(true); }} className="flex-1 bg-blue-600 text-white p-4 rounded-xl font-bold">HÜCUM BAŞLA</button>
+                        <button onClick={() => { setStartMode('DEFENSE'); setIsLineupLocked(true); }} className="flex-1 bg-red-600 text-white p-4 rounded-xl font-bold">DEFANS BAŞLA</button>
+                    </div>
+                )}
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
-            <div className="bg-white dark:bg-gray-800 p-4 shadow-md text-center">
-                <h2 className="text-xl font-bold">{match?.opponentName} maçı</h2>
-                <div className="text-3xl font-black">{match?.scoreUs} - {match?.scoreThem}</div>
+        <div className="h-screen flex flex-col bg-slate-900 text-white">
+            {/* Canlı Skor & Timer Alanı */}
+            <div className="p-4 bg-slate-800 flex justify-between items-center">
+                <span className="text-2xl font-black">{match?.scoreUs} - {match?.scoreThem}</span>
+                <button onClick={() => undoLastEvent(tournamentId!, matchId!)} className="bg-slate-700 px-4 py-2 rounded-lg">Geri Al</button>
             </div>
 
-            <div className="p-4 space-y-3 max-w-2xl mx-auto">
-                {players.filter(p => selectedPlayerIds.includes(p.id)).map(p => (
-                    <div key={p.id} className={`p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm border-2 ${activePasserId === p.id ? 'border-purple-500' : 'border-transparent'}`}>
-                        <div className="flex justify-between items-center mb-3">
-                            <span className="font-bold">{p.name}</span>
-                            {activePasserId === null && <button onClick={() => setActivePasserId(p.id)} className="text-xs bg-gray-100 p-1 px-2 rounded">Pasör Seç</button>}
-                        </div>
-                        {activePasserId && (
-                            <div className="flex gap-2">
-                                {activePasserId !== p.id && <button onClick={() => handleAction(p.id, 'CATCH')} className="flex-1 py-2 bg-blue-100 text-blue-700 rounded-lg font-bold">Catch</button>}
-                                {activePasserId !== p.id && <button onClick={() => handleAction(p.id, 'GOAL')} className="flex-1 py-2 bg-green-100 text-green-700 rounded-lg font-bold">Goal</button>}
-                                {activePasserId === p.id && <button onClick={() => handleAction(p.id, 'THROWAWAY')} className="flex-1 py-2 bg-red-100 text-red-700 rounded-lg font-bold">Turnover</button>}
+            {/* Aksiyon Butonları (App: Pro Mode) */}
+            <div className="flex-1 grid grid-cols-2 gap-4 p-4">
+                {selectedLineup.map(pid => {
+                    const player = roster.find(r => r.id === pid);
+                    return (
+                        <div key={pid} className="bg-slate-800 p-2 rounded-xl flex flex-col gap-2">
+                            <span className="font-bold text-center border-b border-slate-700 pb-1">{player?.name}</span>
+                            <div className="grid grid-cols-2 gap-1">
+                                {startMode === 'OFFENSE' ? (
+                                    <>
+                                        <button onClick={() => handleAction('Completion', pid)} className="bg-blue-600 text-xs py-2 rounded">PAS</button>
+                                        <button onClick={() => handleAction('Goal', pid)} className="bg-emerald-600 text-xs py-2 rounded">GOL</button>
+                                        <button onClick={() => handleAction('Throwaway', pid)} className="bg-rose-600 text-xs py-2 rounded col-span-2">TURNOVER</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => handleAction('D-Up', pid)} className="bg-orange-500 text-xs py-2 rounded">BLOK</button>
+                                        <button onClick={() => handleAction('Callahan', pid)} className="bg-purple-600 text-xs py-2 rounded">CALLAHAN</button>
+                                    </>
+                                )}
                             </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-            
-            <div className="fixed bottom-0 w-full p-4 bg-white border-t flex gap-3">
-                <button onClick={() => savePoint({}, 'THEM')} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold">Direkt Rakip Sayı</button>
-                <button onClick={() => navigate(-1)} className="px-6 py-3 bg-gray-200 rounded-xl">Geri</button>
+                        </div>
+                    );
+                })}
+                {startMode === 'DEFENSE' && (
+                    <button onClick={() => handleAction('OpponentScore')} className="col-span-2 bg-slate-700 py-4 rounded-xl font-bold text-rose-400">RAKİP SAYI ATTI</button>
+                )}
             </div>
         </div>
     );

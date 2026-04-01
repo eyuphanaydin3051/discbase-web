@@ -273,6 +273,8 @@ export default function MatchDetail() {
             
             {/* Üst Geri Dönüş ve Aksiyonlar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+                
+                {/* SOL TARAF: Başlık ve Skorlar */}
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate(-1)} className="p-2 rounded-xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
                         <span className="material-icons-outlined text-slate-600 dark:text-slate-400">arrow_back</span>
@@ -300,7 +302,21 @@ export default function MatchDetail() {
                         </div>
                     </div>
                 </div>
+
+                {/* SAĞ TARAF: YENİ EKLENEN İSTATİSTİK BAŞLAT BUTONU */}
+                {(!match.isFinished) && (
+                    <button
+                        onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
+                        className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
+                    >
+                        <span className="material-icons-outlined">play_circle</span>
+                        {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
+                            ? "İstatistik Takibini Başlat" 
+                            : "Takibe Devam Et"}
+                    </button>
+                )}
             </div>
+
 
             {/* Dashboard Grid */}
             <div className="grid grid-cols-12 gap-6">
