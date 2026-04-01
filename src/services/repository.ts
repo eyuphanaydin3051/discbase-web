@@ -265,10 +265,10 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
     }
 };
 export const getMatch = async (tournamentId: string, matchId: string): Promise<Match | null> => {
-    const activeTeamId = localStorage.getItem('activeTeamId');
+    // BURASI DÜZELTİLDİ: activeTeamId yerine selectedTeamId
+    const activeTeamId = localStorage.getItem('selectedTeamId');
     if (!activeTeamId) return null;
 
-    // HATA DÜZELTİLDİ: Maçlar turnuvaların altında tutuluyor (DOĞRU YOL)
     const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
     const matchSnap = await getDoc(matchDocRef);
 
@@ -278,15 +278,14 @@ export const getMatch = async (tournamentId: string, matchId: string): Promise<M
     return null;
 };
 
-// Maçın olaylarını (Log) gerçek zamanlı dinlemek için (Android'deki startMatchStream mantığı)
 export const getMatchEvents = (tournamentId: string, matchId: string, callback: (events: MatchEvent[]) => void) => {
-    const activeTeamId = localStorage.getItem('activeTeamId');
+    // BURASI DÜZELTİLDİ: activeTeamId yerine selectedTeamId
+    const activeTeamId = localStorage.getItem('selectedTeamId');
     if (!activeTeamId) {
         callback([]);
         return () => {};
     }
 
-    // HATA DÜZELTİLDİ: Olaylar ilgili maçın altındaki 'events' koleksiyonunda tutuluyor
     const eventsCollectionRef = collection(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId, 'events');
 
     const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot) => {

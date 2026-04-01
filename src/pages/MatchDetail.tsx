@@ -6,7 +6,7 @@ import type { Match, MatchEvent, Player } from '../types';
 export default function MatchDetail() {
     const { tournamentId, matchId } = useParams<{ tournamentId: string, matchId: string }>();
     const navigate = useNavigate();
-    const activeTeamId = localStorage.getItem('activeTeamId');
+    const activeTeamId = localStorage.getItem('selectedTeamId');
 
     const [match, setMatch] = useState<Match | null>(null);
     const [events, setEvents] = useState<MatchEvent[]>([]);
