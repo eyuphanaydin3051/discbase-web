@@ -147,7 +147,8 @@ export default function MatchTracking() {
         const event = {
             id: Date.now().toString(),
             eventType: type,
-            playerId: playerId,
+            // HATA DÜZELTMESİ: Firebase 'undefined' kabul etmediği için yoksa 'null' gönderiyoruz.
+            playerId: playerId || null, 
             timestamp: Date.now(),
             matchId: matchId,
             teamId: localStorage.getItem('selectedTeamId') || match?.teamIds?.[0] || '',
@@ -284,10 +285,12 @@ export default function MatchTracking() {
     };
 
     const handleFinishMatch = async () => {
-        if (!match || !tournamentId) return;
+        if (!matchId || !tournamentId) return;
         const teamId = localStorage.getItem('selectedTeamId');
         if (window.confirm("Maçı bitirmek ve istatistikleri sonlandırmak istediğinize emin misiniz?")) {
-            await updateMatchData(teamId!, tournamentId, { ...match, finished: true });
+            // HATA DÜZELTMESİ: Tüm maç datasını (lokalde eksik kalmış olabilecek state'i) göndermek yerine,
+            // sadece maçın durumunu güncelleyip veritabanındaki kayıtlı sayıların ezilmesini önlüyoruz.
+            await updateMatchData(teamId!, tournamentId, { id: matchId, finished: true });
             navigate(`/tournament/${tournamentId}/match/${matchId}`);
         }
     };

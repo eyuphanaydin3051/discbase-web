@@ -347,12 +347,11 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
 };
 
 // --- GÜNCELLENEN: updateMatchData ---
-export const updateMatchData = async (teamId: string, tournamentId: string, matchData: Match) => {
+export const updateMatchData = async (teamId: string, tournamentId: string, matchData: Partial<Match> & { id: string }) => {
     try {
         const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchData.id);
-        await updateDoc(matchRef, { 
-            ...matchData 
-        });
+        // Tüm objeyi ezmek yerine sadece gönderilen özellikleri (örn: finished) güncelliyoruz.
+        await updateDoc(matchRef, matchData);
     } catch (error) {
         console.error("Maç güncellenirken hata oluştu:", error);
     }
