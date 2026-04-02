@@ -256,6 +256,7 @@ const handleCreateMatch = async () => {
                 goals: stats.goals,
                 assists: stats.assists,
                 blocks: stats.blocks,
+                totalPasses: stats.passes + stats.throwaways,
                 passes: stats.passes,
                 turns: stats.turns,
                 pointsPlayed: stats.pointsPlayed,
@@ -530,8 +531,11 @@ const handleCreateMatch = async () => {
                                             <th onClick={() => requestSort('pointsPlayed')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 <div className="flex items-center justify-center gap-1">Girdiği Sayı {sortConfig.key === 'pointsPlayed' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
+                                            <th onClick={() => requestSort('totalPasses')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Atılan Pas {sortConfig.key === 'totalPasses' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
                                             <th onClick={() => requestSort('passes')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                <div className="flex items-center justify-center gap-1">Pas {sortConfig.key === 'passes' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                                <div className="flex items-center justify-center gap-1">Başarılı Pas {sortConfig.key === 'passes' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
                                             {/* YENİ EKLENEN 2 BAŞLIK */}
                                             <th onClick={() => requestSort('passPercentage')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -581,7 +585,8 @@ const handleCreateMatch = async () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.matchesPlayed || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.pointsPlayed || 0}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.passes || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.totalPasses || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#00C896]">{player.passes || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-500 dark:text-blue-400">%{player.passPercentage}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-orange-500 dark:text-orange-400">%{player.catchPercentage}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#FF6B6B]">{player.turns || 0}</td>

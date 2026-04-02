@@ -146,6 +146,7 @@ export default function MatchDetail() {
 
             return {
                 ...stats,
+                totalPasses: stats.passes + stats.throwaways, // Yeni eklenen alan: Toplam Atılan Pas
                 passPercentage,
                 catchPercentage,
                 efficiency: efficiencyScore.toFixed(2)
@@ -506,8 +507,11 @@ export default function MatchDetail() {
                                     <th onClick={() => requestSort('pointsPlayed')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                         <div className="flex items-center justify-center gap-1">Sayı {sortConfig.key === 'pointsPlayed' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                     </th>
+                                    <th onClick={() => requestSort('totalPasses')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Atılan {sortConfig.key === 'totalPasses' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
                                     <th onClick={() => requestSort('passes')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                        <div className="flex items-center justify-center gap-1">Pas {sortConfig.key === 'passes' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                        <div className="flex items-center justify-center gap-1">Başarılı {sortConfig.key === 'passes' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                     </th>
                                     <th onClick={() => requestSort('passPercentage')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                         <div className="flex items-center justify-center gap-1">Pas % {sortConfig.key === 'passPercentage' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
@@ -553,7 +557,8 @@ export default function MatchDetail() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-slate-500 dark:text-slate-400">{ps.pointsPlayed}</td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-slate-900 dark:text-slate-200">{ps.passes}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-slate-900 dark:text-slate-200">{ps.totalPasses}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-emerald-600 dark:text-emerald-400">{ps.passes}</td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-500 dark:text-blue-400">%{ps.passPercentage}</td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-orange-500 dark:text-orange-400">%{ps.catchPercentage}</td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-rose-500">{ps.turns}</td>
