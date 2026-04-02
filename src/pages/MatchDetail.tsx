@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getMatch, getMatchEvents, getPlayers } from '../services/repository';
 import type { Match, MatchEvent, Player } from '../types';
 
+// Takım adını güvenli şekilde çeken yardımcı fonksiyon
+const getTeamName = (match: Match | null) => match?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
+
 export default function MatchDetail() {
     const { tournamentId, matchId } = useParams<{ tournamentId: string, matchId: string }>();
     const navigate = useNavigate();
@@ -272,50 +275,38 @@ export default function MatchDetail() {
         <div className="p-6 md:p-8 pb-24 lg:pb-8 w-full font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 min-h-screen">
             
             {/* Üst Geri Dönüş ve Aksiyonlar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                
-                {/* SOL TARAF: Başlık ve Skorlar */}
-                <div className="flex items-center gap-4">
-                    <button onClick={() => navigate(-1)} className="p-2 rounded-xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
-                        <span className="material-icons-outlined text-slate-600 dark:text-slate-400">arrow_back</span>
-                    </button>
-                    <div className="h-16 w-16 bg-gradient-to-br from-violet-600 to-blue-500 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                        <span className="material-icons-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>sports_score</span>
-                    </div>
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase">
-                            {match.ourTeamName || match.teamNames?.[0] || 'BİZİM TAKIM'} <span className="text-violet-600 px-2">{match.scoreUs || match.score?.[0] || 0} - {match.scoreThem || match.score?.[1] || 0}</span> {match.opponentName || match.teamNames?.[1] || 'RAKİP'}
-                        </h1>
-                        <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                            <span className="flex items-center gap-1">
-                                <span className="material-icons-outlined text-sm">schedule</span> 
-                                Süre: {Math.floor((match.matchDurationSeconds || 0) / 60)} dk {(match.matchDurationSeconds || 0) % 60} sn
-                            </span>
-                            {match.isProMode && (
-                                <>
-                                    <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-                                    <span className="flex items-center gap-1 text-violet-600 font-bold">
-                                        <span className="material-icons-outlined text-sm">workspace_premium</span> PRO Mod
-                                    </span>
-                                </>
-                            )}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => navigate(`/tournament/${tournamentId}`)}
+                            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors"
+                        >
+                            <span className="material-icons-outlined">arrow_back</span>
+                        </button>
+                        <div>
+                            <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                {getTeamName(match)} <span className="text-violet-500 px-2">vs</span> {match.opponentName}
+                            </h1>
+                            <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
+                                <span className="material-icons-outlined text-[18px]">event</span>
+                                {match.date ? new Date(match.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tarih Belirsiz'}
+                            </p>
                         </div>
                     </div>
-                </div>
 
-                {/* SAĞ TARAF: YENİ EKLENEN İSTATİSTİK BAŞLAT BUTONU */}
-                {(!match.finished) && (
-                    <button
-                        onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
-                        className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
-                    >
-                        <span className="material-icons-outlined">play_circle</span>
-                        {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
-                            ? "İstatistik Takibini Başlat" 
-                            : "Takibe Devam Et"}
-                    </button>
-                )}
-            </div>
+                    {/* SAĞ TARAF: İSTATİSTİK BAŞLAT / DEVAM ET BUTONU */}
+                    {(!match.finished) && (
+                        <button
+                            onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
+                            className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
+                        >
+                            <span className="material-icons-outlined">play_circle</span>
+                            {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
+                                ? "İstatistik Takibini Başlat" 
+                                : "Takibe Devam Et"}
+                        </button>
+                    )}
+                </div>
 
 
             {/* Dashboard Grid */}

@@ -11,8 +11,7 @@ import {
     updateDoc,
     getDocs,
     getDoc,
-    setDoc, // setDoc eklendi
-    deleteDoc
+    setDoc // setDoc eklendi
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
@@ -348,23 +347,14 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
 };
 
 // --- GÜNCELLENEN: updateMatchData ---
-export const updateMatchData = async (teamId: string, tournamentId: string, match: Match) => {
+export const updateMatchData = async (teamId: string, tournamentId: string, matchData: Match) => {
     try {
-        const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
-        const matchRef = doc(tournamentRef, 'matches', match.id);
-        
-        // 1. Maç verilerini güncelle
-        await updateDoc(matchRef, { ...match });
-
-        // 2. KRİTİK: Android uygulamasının anlık olarak değişikliği görmesi için tetikleyici
-        await updateDoc(tournamentRef, {
-            lastUpdated: Date.now()
+        const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchData.id);
+        await updateDoc(matchRef, { 
+            ...matchData 
         });
-        
-        return true;
     } catch (error) {
-        console.error("Maç güncellenirken hata:", error);
-        return false;
+        console.error("Maç güncellenirken hata oluştu:", error);
     }
 };
 // --- MATCH TRACKING (CANLI İSTATİSTİK) FONKSİYONLARI ---

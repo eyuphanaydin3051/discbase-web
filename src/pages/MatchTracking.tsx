@@ -296,7 +296,7 @@ export default function MatchTracking() {
     const TopBar = () => (
         <div className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50 shadow-lg flex justify-between items-center text-white">
             <div className="flex items-center gap-4">
-                <button onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}`)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-all">
+                <button onClick={() => navigate(-1)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-all" title="Geri Dön">
                     <span className="material-icons-outlined">arrow_back</span>
                 </button>
                 <span className="text-xl font-black uppercase text-slate-100 flex items-center gap-3">
