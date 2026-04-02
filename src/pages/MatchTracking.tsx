@@ -5,6 +5,7 @@ import {
     undoLastEvent, getTournaments, updateMatchData 
 } from '../services/repository';
 import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
+import YouTube from 'react-youtube';
 
 const getTeamName = (match: Match | null) => match?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
 const getOpponentName = (match: Match | null) => match?.opponentName || match?.teamNames?.[1] || 'RAKİP';
@@ -37,6 +38,9 @@ export default function MatchTracking() {
     const [pointTimer, setPointTimer] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
     const timerRef = useRef<number | null>(null);
+
+    // --- VİDEO SCOUTER STATE ---
+    const [ytPlayer, setYtPlayer] = useState<any>(null);
 
     // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
@@ -141,23 +145,13 @@ export default function MatchTracking() {
         setCurrentPointStats(prev => prev.map(p => p.playerId === playerId ? { ...p, ...updates } : p));
     };
 
-    const fireEvent = async (type: MatchEvent['eventType'], playerId?: string) => {
-        if (!matchId || !tournamentId) return;
-        setLastAction(`${playerId}_${type}`);
-        const event = {
-            id: Date.now().toString(),
-            eventType: type,
-            // HATA DÜZELTMESİ: Firebase 'undefined' kabul etmediği için yoksa 'null' gönderiyoruz.
-            playerId: playerId || null, 
-            timestamp: Date.now(),
-            matchId: matchId,
-            teamId: localStorage.getItem('selectedTeamId') || match?.teamIds?.[0] || '',
-            currentScore: [match?.scoreUs ?? match?.score?.[0] ?? 0, match?.scoreThem ?? match?.score?.[1] ?? 0],
-            period: match?.period || 1
-        } as MatchEvent;
-        await addMatchEvent(tournamentId, matchId, event);
-        setTimeout(() => setLastAction(null), 300);
-    };
+    // --- Zamanlayıcı (Timer) ---
+    const [pointTimer, setPointTimer] = useState(0);
+    const [isTimerRunning, setIsTimerRunning] = useState(false);
+    const timerRef = useRef<number | null>(null);
+
+    // --- VİDEO SCOUTER STATE ---
+    const [ytPlayer, setYtPlayer] = useState<any>(null);
 
     // --- HÜCUM AKSİYONLARI ---
     const handleCatch = async (receiverId: string) => {
@@ -470,9 +464,33 @@ export default function MatchTracking() {
         <div className="h-screen flex flex-col bg-slate-950 text-white font-sans overflow-hidden">
             <TopBar />
             
-            <div className="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto">
-                <div className="flex justify-between items-center mb-6 bg-slate-900 p-3 rounded-2xl border border-slate-800">
-                    <button onClick={handleUndo} disabled={historyStack.length === 0} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50">
+            <div className={`flex-1 flex flex-col ${match?.youtubeVideoId ? 'lg:flex-row' : ''} p-4 md:p-6 overflow-hidden gap-6`}>
+                
+                {/* SOL TARAF: VİDEO OYNATICI (Sadece Maçta Video Varsa Gösterilir) */}
+                {match?.youtubeVideoId && (
+                    <div className="w-full lg:w-1/2 flex flex-col bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                        <div className="p-3 bg-slate-800 flex justify-between items-center border-b border-slate-700">
+                            <h3 className="font-bold text-red-400 flex items-center gap-2">
+                                <span className="material-icons-outlined">smart_display</span> Scout Modu
+                            </h3>
+                            <span className="text-xs text-slate-400">Tıklanan aksiyonlar anlık saniyeyle kaydedilir.</span>
+                        </div>
+                        <div className="flex-1 bg-black w-full h-full min-h-[300px]">
+                            <YouTube 
+                                videoId={match.youtubeVideoId}
+                                opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
+                                onReady={(e) => setYtPlayer(e.target)}
+                                className="w-full h-full"
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* SAĞ TARAF: OYUNCU İSTATİSTİK GRİDİ */}
+                <div className={`w-full ${match?.youtubeVideoId ? 'lg:w-1/2 overflow-y-auto custom-scrollbar pr-2' : 'flex-1 overflow-y-auto'} flex flex-col`}>
+                    
+                    <div className="flex justify-between items-center mb-6 bg-slate-900 p-3 rounded-2xl border border-slate-800 sticky top-0 z-10 shadow-lg">
+                        <button onClick={handleUndo} disabled={historyStack.length === 0} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50">
                         <span className="material-icons-outlined">undo</span> Geri Al
                     </button>
                     
@@ -488,7 +506,7 @@ export default function MatchTracking() {
                     )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className={`grid grid-cols-1 sm:grid-cols-2 ${match?.youtubeVideoId ? 'xl:grid-cols-2' : 'lg:grid-cols-4'} gap-4 pb-12`}>
                     {selectedLineup.map(pid => {
                         const player = roster.find(r => r.id === pid);
                         const isDiskHolder = activePasserId === pid;

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMatch, getMatchEvents, getPlayers, getTournaments } from '../services/repository';
+import { getMatch, getMatchEvents, getPlayers, updateMatchData } from '../services/repository';
 import type { Match, MatchEvent, Player } from '../types';
+import YouTube from 'react-youtube';
 
 // Takım adını güvenli şekilde çeken yardımcı fonksiyon
 // src/pages/MatchDetail.tsx - getTeamName güncellemesi
@@ -18,6 +19,12 @@ export default function MatchDetail() {
     const [events, setEvents] = useState<MatchEvent[]>([]);
     const [rosterPlayers, setRosterPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // VİDEO SCOUTER STATE'LERİ
+    const [videoUrl, setVideoUrl] = useState('');
+    const [ytPlayer, setYtPlayer] = useState<any>(null);
+
+    // Tablo Sıralama State'i
 
     // Tablo Sıralama State'i
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ 
@@ -279,6 +286,22 @@ export default function MatchDetail() {
         return name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2);
     };
 
+    const extractYoutubeId = (url: string) => {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+        const urlMatch = url.match(regExp);
+        return (urlMatch && urlMatch[2].length === 11) ? urlMatch[2] : null;
+    };
+
+    const handleSaveVideo = async () => {
+        const videoId = extractYoutubeId(videoUrl);
+        if (videoId && tournamentId && matchId && activeTeamId) {
+            await updateMatchData(activeTeamId, tournamentId, { id: matchId, youtubeVideoId: videoId });
+            setMatch(prev => prev ? { ...prev, youtubeVideoId: videoId } : prev);
+        } else {
+            alert("Geçerli bir YouTube URL'si giriniz.");
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-screen bg-slate-50 dark:bg-slate-900">
@@ -325,6 +348,86 @@ export default function MatchDetail() {
                     </button>
                 </div>
 
+
+            {/* VİDEO SCOUTER BÖLÜMÜ */}
+            <div className="mb-8">
+                {!match.youtubeVideoId ? (
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center gap-4">
+                        <span className="material-icons-outlined text-red-600 text-4xl">smart_display</span>
+                        <div className="flex-1">
+                            <h3 className="text-lg font-bold">Maç Videosu Ekle (Scout Modu)</h3>
+                            <p className="text-sm text-slate-500">Video destekli istatistik tutmak ve analiz yapmak için maçın YouTube linkini yapıştırın.</p>
+                        </div>
+                        <div className="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
+                            <input 
+                                type="text" 
+                                placeholder="https://youtube.com/watch?v=..." 
+                                className="flex-1 md:w-64 p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:border-violet-500"
+                                value={videoUrl}
+                                onChange={(e) => setVideoUrl(e.target.value)}
+                            />
+                            <button onClick={handleSaveVideo} className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-colors">
+                                Kaydet
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row gap-6">
+                        {/* Sol Taraf: Video */}
+                        <div className="w-full lg:w-2/3 h-[300px] md:h-[400px] lg:h-[500px] bg-black rounded-xl overflow-hidden">
+                            <YouTube 
+                                videoId={match.youtubeVideoId} 
+                                opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
+                                onReady={(e) => setYtPlayer(e.target)}
+                                className="w-full h-full"
+                            />
+                        </div>
+                        
+                        {/* Sağ Taraf: Olay Geçmişi (Play-by-play) */}
+                        <div className="w-full lg:w-1/3 flex flex-col h-[300px] md:h-[400px] lg:h-[500px]">
+                            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-t-xl">
+                                <h3 className="font-bold flex items-center gap-2">
+                                    <span className="material-icons-outlined text-red-600">history</span>
+                                    Olay Geçmişi
+                                </h3>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar bg-slate-50/50 dark:bg-slate-900/50 rounded-b-xl border border-t-0 border-slate-100 dark:border-slate-800">
+                                {enrichedEvents.length > 0 ? [...enrichedEvents].reverse().map(event => (
+                                    <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                                {event.player?.name || 'Bilinmeyen'} <span className="text-violet-600 dark:text-violet-400 text-xs uppercase ml-1 px-1.5 py-0.5 bg-violet-50 dark:bg-violet-900/30 rounded">{event.eventType}</span>
+                                            </span>
+                                            {event.videoTimestampSeconds && (
+                                                <span className="text-[10px] text-slate-400 font-mono mt-1">
+                                                    {(event.videoTimestampSeconds / 60).toFixed(0).padStart(2,'0')}:{(event.videoTimestampSeconds % 60).toString().padStart(2,'0')}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {event.videoTimestampSeconds && (
+                                            <button 
+                                                onClick={() => {
+                                                    if(ytPlayer) {
+                                                        // Olaydan 4 saniye öncesine sar ve oynat
+                                                        ytPlayer.seekTo(Math.max(0, event.videoTimestampSeconds! - 4), true);
+                                                        ytPlayer.playVideo();
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    } else {
+                                                        alert("Video henüz yüklenmedi.");
+                                                    }
+                                                }}
+                                                className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                                            >
+                                                <span className="material-icons-outlined text-[16px]">play_arrow</span> İzle
+                                            </button>
+                                        )}
+                                    </div>
+                                )) : <div className="text-center py-10 text-slate-400 text-sm">Bu maçta henüz olay kaydedilmedi.</div>}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Dashboard Grid */}
             <div className="grid grid-cols-12 gap-6">

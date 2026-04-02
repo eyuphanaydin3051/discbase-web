@@ -117,6 +117,7 @@ export interface MatchEvent {
     description?: string;
     player?: MatchEventPlayer | null;
     secondaryPlayer?: MatchEventPlayer | null;
+    videoTimestampSeconds?: number; // YENİ EKLENEN: Video içindeki saniye (Opsiyonel)
 }
 
 export interface ComputedMatchPlayerStats {
@@ -134,7 +135,7 @@ export interface ComputedMatchPlayerStats {
 
 export interface Match {
     id: string;
-    
+    youtubeVideoId?: string;
     // --- Geçmiş/Turnuva Maçları (TournamentDetail) İçin Gerekli Alanlar ---
     opponentName?: string;
     ourTeamName?: string;
