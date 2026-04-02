@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMatch, getMatchEvents, getPlayers } from '../services/repository';
+import { getMatch, getMatchEvents, getPlayers, getTournaments } from '../services/repository';
 import type { Match, MatchEvent, Player } from '../types';
 
 // Takım adını güvenli şekilde çeken yardımcı fonksiyon
-const getTeamName = (match: Match | null) => match?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
+// src/pages/MatchDetail.tsx - getTeamName güncellemesi
+const getTeamName = (match: Match | null, tournament: any | null) => 
+    match?.ourTeamName || tournament?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
 
 export default function MatchDetail() {
     const { tournamentId, matchId } = useParams<{ tournamentId: string, matchId: string }>();
@@ -12,6 +14,7 @@ export default function MatchDetail() {
     const activeTeamId = localStorage.getItem('selectedTeamId');
 
     const [match, setMatch] = useState<Match | null>(null);
+    const [tournament, setTournament] = useState<any>(null);
     const [events, setEvents] = useState<MatchEvent[]>([]);
     const [rosterPlayers, setRosterPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
@@ -50,6 +53,7 @@ export default function MatchDetail() {
             setEvents(fetchedEvents);
             setLoading(false);
         });
+        
 
         const safetyTimer = setTimeout(() => setLoading(false), 2000);
 
@@ -58,7 +62,19 @@ export default function MatchDetail() {
             clearTimeout(safetyTimer);
         };
     }, [tournamentId, matchId, activeTeamId, navigate]);
-
+    // 5. Turnuva verisini çek (Takım adı için)
+    useEffect(() => {
+    if (!activeTeamId || !tournamentId) return;
+    
+    const unsubscribeTour = getTournaments(activeTeamId, (tours) => {
+        const currentTour = tours.find(t => t.id === tournamentId);
+        if (currentTour) {
+            setTournament(currentTour);
+        }
+    });
+    
+    return () => unsubscribeTour();
+}, [activeTeamId, tournamentId]);
     // 3. Olayları Zenginleştir
     const enrichedEvents = useMemo(() => {
         return events.map(event => {
@@ -153,6 +169,7 @@ export default function MatchDetail() {
             };
         });
     };
+    
 
     // --- Takım Dinamik İstatistikleri (Mobil App ile Birebir Mantık) ---
     const computeTeamStats = () => {
@@ -286,7 +303,7 @@ export default function MatchDetail() {
                         </button>
                         <div>
                             <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                {getTeamName(match)} <span className="text-violet-500 px-2">vs</span> {match.opponentName}
+                                {getTeamName(match, tournament)} <span className="text-violet-500 px-2">vs</span> {match.opponentName}
                             </h1>
                             <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
                                 <span className="material-icons-outlined text-[18px]">event</span>
