@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-    getMatch, archivePoint, getPlayers, addMatchEvent, 
-    undoLastEvent, getTournaments, updateMatchData 
+import {
+    getMatch, archivePoint, getPlayers, addMatchEvent,
+    undoLastEvent, getTournaments, updateMatchData
 } from '../services/repository';
 import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
 import YouTube from 'react-youtube';
@@ -13,12 +13,12 @@ const getOpponentName = (match: Match | null) => match?.opponentName || match?.t
 export default function MatchTracking() {
     const { tournamentId, matchId } = useParams();
     const navigate = useNavigate();
-    
+
     // --- Temel Veriler ---
     const [match, setMatch] = useState<Match | null>(null);
     const [tournament, setTournament] = useState<Tournament | null>(null);
     const [roster, setRoster] = useState<Player[]>([]);
-    
+
     // --- UI ve Akış Kontrol State'leri ---
     const [trackingStep, setTrackingStep] = useState<'roster' | 'start_mode' | 'tracking'>('roster');
     const [startMode, setStartMode] = useState<'OFFENSE' | 'DEFENSE' | null>(null);
@@ -27,13 +27,13 @@ export default function MatchTracking() {
 
     // Yeni Gruplandırma State'i (Gizleme yerine kategorize etme)
     const [groupingMode, setGroupingMode] = useState<'NONE' | 'GENDER' | 'POSITION'>('NONE');
-    
+
     // --- Gelişmiş Mod State Yönetimi ---
     const [gameMode, setGameMode] = useState<GameMode>('MODE_SELECTION');
     const [currentPointStats, setCurrentPointStats] = useState<PlayerStats[]>([]);
     const [activePasserId, setActivePasserId] = useState<string | null>(null);
     const [historyStack, setHistoryStack] = useState<any[]>([]);
-    
+
     // --- Zamanlayıcı (Timer) ---
     const [pointTimer, setPointTimer] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -81,7 +81,7 @@ export default function MatchTracking() {
 
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
-        await undoLastEvent(tournamentId, matchId); 
+        await undoLastEvent(tournamentId, matchId);
         if (historyStack.length > 0) {
             const prevState = historyStack[historyStack.length - 1];
             setGameMode(prevState.gameMode);
@@ -106,7 +106,7 @@ export default function MatchTracking() {
         if (match && match.pointsArchive && match.pointsArchive.length > 0) {
             const lastPoint = match.pointsArchive[match.pointsArchive.length - 1];
             const lastLineup = lastPoint.stats?.map(s => s.playerId) || [];
-            
+
             if (lastLineup.length === 7) {
                 setSelectedLineup(lastLineup);
             } else {
@@ -128,10 +128,10 @@ export default function MatchTracking() {
                 successfulPass: 0, assist: 0, throwaway: 0, catchStat: 0, drop: 0, goal: 0,
                 pullAttempts: 0, successfulPulls: 0, block: 0, callahan: 0,
                 secondsPlayed: 0, totalTempoSeconds: 0, pointsPlayed: 1, totalPullTimeSeconds: 0,
-                passDistribution: {} 
+                passDistribution: {}
             };
         });
-        
+
         setCurrentPointStats(initialStats);
         setGameMode(mode === 'OFFENSE' ? 'OFFENSE' : 'DEFENSE_PULL');
         setIsTimerRunning(true);
@@ -145,13 +145,34 @@ export default function MatchTracking() {
         setCurrentPointStats(prev => prev.map(p => p.playerId === playerId ? { ...p, ...updates } : p));
     };
 
-    // --- Zamanlayıcı (Timer) ---
-    const [pointTimer, setPointTimer] = useState(0);
-    const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const timerRef = useRef<number | null>(null);
+    const fireEvent = async (type: MatchEvent['eventType'], playerId?: string) => {
+        if (!matchId || !tournamentId) return;
+        setLastAction(`${playerId}_${type}`);
 
-    // --- VİDEO SCOUTER STATE ---
-    const [ytPlayer, setYtPlayer] = useState<any>(null);
+        // O ANKİ VİDEO SANİYESİNİ AL (Video varsa ve oynatılıyorsa)
+        let currentVideoTime: number | undefined = undefined;
+        if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+            const time = ytPlayer.getCurrentTime();
+            if (time > 0) {
+                currentVideoTime = Math.floor(time);
+            }
+        }
+
+        const event = {
+            id: Date.now().toString(),
+            eventType: type,
+            playerId: playerId || null, 
+            timestamp: Date.now(),
+            matchId: matchId,
+            teamId: localStorage.getItem('selectedTeamId') || match?.teamIds?.[0] || '',
+            currentScore: [match?.scoreUs ?? match?.score?.[0] ?? 0, match?.scoreThem ?? match?.score?.[1] ?? 0],
+            period: match?.period || 1,
+            videoTimestampSeconds: currentVideoTime
+        } as MatchEvent;
+        
+        await addMatchEvent(tournamentId, matchId, event);
+        setTimeout(() => setLastAction(null), 300);
+    };
 
     // --- HÜCUM AKSİYONLARI ---
     const handleCatch = async (receiverId: string) => {
@@ -160,7 +181,7 @@ export default function MatchTracking() {
         setCurrentPointStats(prev => prev.map(p => {
             if (p.playerId === activePasserId) {
                 const newDist = { ...p.passDistribution };
-                newDist[receiverId] = (newDist[receiverId] || 0) + 1; 
+                newDist[receiverId] = (newDist[receiverId] || 0) + 1;
                 return { ...p, successfulPass: p.successfulPass + 1, passDistribution: newDist };
             }
             if (p.playerId === receiverId) return { ...p, catchStat: p.catchStat + 1 };
@@ -174,8 +195,8 @@ export default function MatchTracking() {
         if (!activePasserId) return;
         saveStateToHistory();
         setCurrentPointStats(prev => prev.map(p => {
-            if (p.playerId === activePasserId) return { ...p, successfulPass: p.successfulPass + 1 }; 
-            if (p.playerId === receiverId) return { ...p, drop: p.drop + 1 }; 
+            if (p.playerId === activePasserId) return { ...p, successfulPass: p.successfulPass + 1 };
+            if (p.playerId === receiverId) return { ...p, drop: p.drop + 1 };
             return p;
         }));
         setGameMode('DEFENSE');
@@ -186,7 +207,7 @@ export default function MatchTracking() {
     const handleThrowaway = async () => {
         if (!activePasserId) return;
         saveStateToHistory();
-        updatePlayerStat(activePasserId, { throwaway: currentPointStats.find(p=>p.playerId===activePasserId)!.throwaway + 1 });
+        updatePlayerStat(activePasserId, { throwaway: currentPointStats.find(p => p.playerId === activePasserId)!.throwaway + 1 });
         setGameMode('DEFENSE');
         const passerCache = activePasserId;
         setActivePasserId(null);
@@ -200,31 +221,31 @@ export default function MatchTracking() {
             if (p.playerId === activePasserId) {
                 const newDist = { ...p.passDistribution };
                 newDist[receiverId] = (newDist[receiverId] || 0) + 1;
-                return { ...p, assist: p.assist + 1, passDistribution: newDist }; 
+                return { ...p, assist: p.assist + 1, passDistribution: newDist };
             }
-            if (p.playerId === receiverId) return { ...p, goal: p.goal + 1, catchStat: p.catchStat + 1 }; 
+            if (p.playerId === receiverId) return { ...p, goal: p.goal + 1, catchStat: p.catchStat + 1 };
             return p;
         });
         setCurrentPointStats(updatedStats);
 
         await fireEvent('Goal', receiverId);
         await fireEvent('Assist', activePasserId);
-        await finishPoint('US'); 
+        await finishPoint('US');
     };
 
     // --- SAVUNMA AKSİYONLARI ---
     const handlePull = (playerId: string, isSuccessful: boolean) => {
         saveStateToHistory();
-        updatePlayerStat(playerId, { 
-            pullAttempts: currentPointStats.find(p=>p.playerId===playerId)!.pullAttempts + 1,
-            successfulPulls: isSuccessful ? currentPointStats.find(p=>p.playerId===playerId)!.successfulPulls + 1 : currentPointStats.find(p=>p.playerId===playerId)!.successfulPulls
+        updatePlayerStat(playerId, {
+            pullAttempts: currentPointStats.find(p => p.playerId === playerId)!.pullAttempts + 1,
+            successfulPulls: isSuccessful ? currentPointStats.find(p => p.playerId === playerId)!.successfulPulls + 1 : currentPointStats.find(p => p.playerId === playerId)!.successfulPulls
         });
         setGameMode('DEFENSE');
     };
 
     const handleBlock = async (playerId: string) => {
         saveStateToHistory();
-        updatePlayerStat(playerId, { block: currentPointStats.find(p=>p.playerId===playerId)!.block + 1 });
+        updatePlayerStat(playerId, { block: currentPointStats.find(p => p.playerId === playerId)!.block + 1 });
         setGameMode('OFFENSE');
         await fireEvent('D-Up', playerId);
     };
@@ -237,19 +258,19 @@ export default function MatchTracking() {
         });
         setCurrentPointStats(updatedStats);
         await fireEvent('Callahan', playerId);
-        await finishPoint('US'); 
+        await finishPoint('US');
     };
 
     const handleOpponentTurnover = async () => {
         saveStateToHistory();
-        setGameMode('OFFENSE'); 
+        setGameMode('OFFENSE');
         await fireEvent('OpponentTurnover');
     };
 
     const handleOpponentScore = async () => {
         saveStateToHistory();
         await fireEvent('OpponentScore');
-        await finishPoint('THEM'); 
+        await finishPoint('THEM');
     };
 
     // --- SAYI BİTİRME (POINT END) ---
@@ -268,14 +289,14 @@ export default function MatchTracking() {
         } : prev);
 
         await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored);
-        
+
         setTrackingStep('roster');
         setStartMode(null);
         setSelectedLineup([]);
         setCurrentPointStats([]);
         setActivePasserId(null);
         setPointTimer(0);
-        getMatch(tournamentId, matchId).then(setMatch); 
+        getMatch(tournamentId, matchId).then(setMatch);
     };
 
     const handleFinishMatch = async () => {
@@ -297,10 +318,10 @@ export default function MatchTracking() {
                     <span className="material-icons-outlined">arrow_back</span>
                 </button>
                 <span className="text-xl font-black uppercase text-slate-100 flex items-center gap-3">
-                    {getTeamName(match)} 
+                    {getTeamName(match)}
                     <span className="text-violet-500 bg-violet-900/30 px-3 py-1 rounded-lg">
                         {match?.scoreUs ?? match?.score?.[0] ?? 0} - {match?.scoreThem ?? match?.score?.[1] ?? 0}
-                    </span> 
+                    </span>
                     {getOpponentName(match)}
                 </span>
                 {trackingStep === 'tracking' && (
@@ -312,7 +333,7 @@ export default function MatchTracking() {
             <div className="flex items-center gap-4">
                 {trackingStep === 'tracking' && (
                     <span className="font-mono text-2xl font-bold bg-slate-800 px-4 py-1.5 rounded-lg tabular-nums">
-                        {Math.floor(pointTimer / 60).toString().padStart(2, '0')}:{ (pointTimer % 60).toString().padStart(2, '0')}
+                        {Math.floor(pointTimer / 60).toString().padStart(2, '0')}:{(pointTimer % 60).toString().padStart(2, '0')}
                     </span>
                 )}
                 <button onClick={handleFinishMatch} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 rounded-lg text-sm font-bold flex items-center gap-1 transition-colors">
@@ -333,7 +354,7 @@ export default function MatchTracking() {
         const renderPlayerGrid = (players: Player[]) => (
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
                 {players.map(p => (
-                    <button 
+                    <button
                         key={p.id} onClick={() => togglePlayer(p.id)}
                         className={`p-4 rounded-2xl border-4 transition-all flex flex-col items-center gap-3 relative hover:border-violet-300 dark:hover:border-violet-700 group ${selectedLineup.includes(p.id) ? 'border-violet-600 bg-violet-50 dark:bg-violet-900/20' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'}`}
                     >
@@ -347,13 +368,13 @@ export default function MatchTracking() {
                 {players.length === 0 && <div className="text-sm text-slate-500 py-4 col-span-full">Bu grupta oyuncu yok.</div>}
             </div>
         );
-        
+
         return (
             <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 font-sans">
                 <TopBar />
                 <div className="flex-1 p-6 lg:p-10 overflow-y-auto">
                     <div className="max-w-6xl mx-auto">
-                        
+
                         <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-5">
                             <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-3">
                                 <span className="material-icons-outlined text-violet-600">groups</span> Sayı İçin 7 Kişi Seç
@@ -362,7 +383,7 @@ export default function MatchTracking() {
                                 <span className={`px-5 py-2.5 rounded-xl font-black text-sm ${selectedLineup.length === 7 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                                     Seçilen: {selectedLineup.length} / 7
                                 </span>
-                                <button 
+                                <button
                                     onClick={() => setTrackingStep('start_mode')}
                                     disabled={selectedLineup.length !== 7}
                                     className="px-8 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-violet-200 dark:shadow-none"
@@ -382,7 +403,7 @@ export default function MatchTracking() {
                                     <button onClick={() => setGroupingMode('POSITION')} className={`px-4 py-2 text-sm font-bold ${groupingMode === 'POSITION' ? 'bg-violet-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'}`}>Pozisyon</button>
                                 </div>
                             </div>
-                            
+
                             <div className="flex gap-2">
                                 <button onClick={() => setSelectedLineup([])} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-bold transition-all">
                                     Temizle
@@ -463,9 +484,9 @@ export default function MatchTracking() {
     return (
         <div className="h-screen flex flex-col bg-slate-950 text-white font-sans overflow-hidden">
             <TopBar />
-            
+
             <div className={`flex-1 flex flex-col ${match?.youtubeVideoId ? 'lg:flex-row' : ''} p-4 md:p-6 overflow-hidden gap-6`}>
-                
+
                 {/* SOL TARAF: VİDEO OYNATICI (Sadece Maçta Video Varsa Gösterilir) */}
                 {match?.youtubeVideoId && (
                     <div className="w-full lg:w-1/2 flex flex-col bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
@@ -476,7 +497,7 @@ export default function MatchTracking() {
                             <span className="text-xs text-slate-400">Tıklanan aksiyonlar anlık saniyeyle kaydedilir.</span>
                         </div>
                         <div className="flex-1 bg-black w-full h-full min-h-[300px]">
-                            <YouTube 
+                            <YouTube
                                 videoId={match.youtubeVideoId}
                                 opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
                                 onReady={(e) => setYtPlayer(e.target)}
@@ -488,86 +509,87 @@ export default function MatchTracking() {
 
                 {/* SAĞ TARAF: OYUNCU İSTATİSTİK GRİDİ */}
                 <div className={`w-full ${match?.youtubeVideoId ? 'lg:w-1/2 overflow-y-auto custom-scrollbar pr-2' : 'flex-1 overflow-y-auto'} flex flex-col`}>
-                    
+
                     <div className="flex justify-between items-center mb-6 bg-slate-900 p-3 rounded-2xl border border-slate-800 sticky top-0 z-10 shadow-lg">
                         <button onClick={handleUndo} disabled={historyStack.length === 0} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl flex items-center gap-2 transition-all disabled:opacity-50">
-                        <span className="material-icons-outlined">undo</span> Geri Al
-                    </button>
-                    
-                    {gameMode.includes('DEFENSE') && (
-                        <div className="flex gap-3">
-                            <button onClick={handleOpponentTurnover} className="px-6 py-3 bg-orange-900/40 hover:bg-orange-600 text-orange-300 hover:text-white border border-orange-800/50 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
-                                <span className="material-icons-outlined">swap_horiz</span> RAKİP TOP KAYBI (BİZE GEÇTİ)
-                            </button>
-                            <button onClick={handleOpponentScore} className="px-6 py-3 bg-rose-900/40 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-800 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
-                                <span className="material-icons-outlined">close</span> RAKİP SAYI ATTI
-                            </button>
-                        </div>
-                    )}
-                </div>
+                            <span className="material-icons-outlined">undo</span> Geri Al
+                        </button>
 
-                <div className={`grid grid-cols-1 sm:grid-cols-2 ${match?.youtubeVideoId ? 'xl:grid-cols-2' : 'lg:grid-cols-4'} gap-4 pb-12`}>
-                    {selectedLineup.map(pid => {
-                        const player = roster.find(r => r.id === pid);
-                        const isDiskHolder = activePasserId === pid;
-                        const isJustActed = lastAction?.startsWith(pid);
+                        {gameMode.includes('DEFENSE') && (
+                            <div className="flex gap-3">
+                                <button onClick={handleOpponentTurnover} className="px-6 py-3 bg-orange-900/40 hover:bg-orange-600 text-orange-300 hover:text-white border border-orange-800/50 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
+                                    <span className="material-icons-outlined">swap_horiz</span> RAKİP TOP KAYBI (BİZE GEÇTİ)
+                                </button>
+                                <button onClick={handleOpponentScore} className="px-6 py-3 bg-rose-900/40 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-800 rounded-xl font-black transition-all shadow-lg flex items-center gap-2">
+                                    <span className="material-icons-outlined">close</span> RAKİP SAYI ATTI
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
-                        return (
-                            <div key={pid} className={`flex flex-col bg-slate-900 rounded-2xl border transition-all ${isDiskHolder ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-[1.02]' : isJustActed ? 'border-violet-500' : 'border-slate-800'}`}>
-                                <div className="p-4 border-b border-slate-800 flex items-center gap-3 bg-slate-800/30 rounded-t-2xl">
-                                    <div className={`h-10 w-10 rounded-full flex items-center justify-center font-black text-lg shadow-inner ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-600'}`}>
-                                        {player?.jerseyNumber || '??'}
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${match?.youtubeVideoId ? 'xl:grid-cols-2' : 'lg:grid-cols-4'} gap-4 pb-12`}>
+                        {selectedLineup.map(pid => {
+                            const player = roster.find(r => r.id === pid);
+                            const isDiskHolder = activePasserId === pid;
+                            const isJustActed = lastAction?.startsWith(pid);
+
+                            return (
+                                <div key={pid} className={`flex flex-col bg-slate-900 rounded-2xl border transition-all ${isDiskHolder ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-[1.02]' : isJustActed ? 'border-violet-500' : 'border-slate-800'}`}>
+                                    <div className="p-4 border-b border-slate-800 flex items-center gap-3 bg-slate-800/30 rounded-t-2xl">
+                                        <div className={`h-10 w-10 rounded-full flex items-center justify-center font-black text-lg shadow-inner ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-600'}`}>
+                                            {player?.jerseyNumber || '??'}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-slate-100 text-lg leading-tight">{player?.name}</p>
+                                            <p className="text-[10px] text-slate-400 uppercase tracking-wider">{player?.position || 'Oyuncu'}</p>
+                                        </div>
+                                        {isDiskHolder && <span className="bg-blue-600 px-2 py-1 rounded text-[10px] font-black uppercase flex items-center gap-1"><span className="material-icons-outlined text-[12px]">adjust</span> Disk Onda</span>}
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="font-bold text-slate-100 text-lg leading-tight">{player?.name}</p>
-                                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">{player?.position || 'Oyuncu'}</p>
-                                    </div>
-                                    {isDiskHolder && <span className="bg-blue-600 px-2 py-1 rounded text-[10px] font-black uppercase flex items-center gap-1"><span className="material-icons-outlined text-[12px]">adjust</span> Disk Onda</span>}
-                                </div>
-                                
-                                <div className="p-3 grid grid-cols-2 gap-2">
-                                    {gameMode === 'DEFENSE_PULL' ? (
-                                        <button onClick={() => handlePull(pid, true)} className="col-span-2 py-4 bg-yellow-600/20 hover:bg-yellow-600 text-yellow-500 hover:text-white border border-yellow-600/50 rounded-xl font-bold transition-all uppercase tracking-wider">
-                                            Pull Atışı (Saha İçi)
-                                        </button>
-                                    ) : gameMode === 'OFFENSE' ? (
-                                        isDiskHolder ? (
-                                            <button onClick={handleThrowaway} className="col-span-2 py-4 bg-rose-900/40 hover:bg-rose-600 border border-rose-800/50 text-rose-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
-                                                Hatalı Pas (Throwaway)
+
+                                    <div className="p-3 grid grid-cols-2 gap-2">
+                                        {gameMode === 'DEFENSE_PULL' ? (
+                                            <button onClick={() => handlePull(pid, true)} className="col-span-2 py-4 bg-yellow-600/20 hover:bg-yellow-600 text-yellow-500 hover:text-white border border-yellow-600/50 rounded-xl font-bold transition-all uppercase tracking-wider">
+                                                Pull Atışı (Saha İçi)
                                             </button>
-                                        ) : activePasserId ? (
+                                        ) : gameMode === 'OFFENSE' ? (
+                                            isDiskHolder ? (
+                                                <button onClick={handleThrowaway} className="col-span-2 py-4 bg-rose-900/40 hover:bg-rose-600 border border-rose-800/50 text-rose-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
+                                                    Hatalı Pas (Throwaway)
+                                                </button>
+                                            ) : activePasserId ? (
+                                                <>
+                                                    <button onClick={() => handleCatch(pid)} className="col-span-2 py-3 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
+                                                        Pas Aldı (Yakaladı)
+                                                    </button>
+                                                    <button onClick={() => handleDrop(pid)} className="py-3 bg-slate-800 hover:bg-rose-700 text-slate-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-colors">
+                                                        Düşürdü (Drop)
+                                                    </button>
+                                                    <button onClick={() => handleGoal(pid)} className="py-3 bg-emerald-900/40 hover:bg-emerald-600 border border-emerald-800/50 text-emerald-400 hover:text-white rounded-xl text-xs font-black uppercase transition-colors shadow">
+                                                        GOL!
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="col-span-2 py-4 bg-blue-900/40 hover:bg-blue-600 border border-blue-800/50 text-blue-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider flex items-center justify-center gap-2">
+                                                    <span className="material-icons-outlined text-[18px]">sports_handball</span> Diski Aldı (Başla)
+                                                </button>
+                                            )
+                                        ) : (
                                             <>
-                                                <button onClick={() => handleCatch(pid)} className="col-span-2 py-3 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
-                                                    Pas Aldı (Yakaladı)
+                                                <button onClick={() => handleBlock(pid)} className="col-span-2 py-4 bg-slate-800 hover:bg-orange-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider flex items-center justify-center gap-2">
+                                                    <span className="material-icons-outlined text-[18px]">pan_tool</span> BLOK (D-UP)
                                                 </button>
-                                                <button onClick={() => handleDrop(pid)} className="py-3 bg-slate-800 hover:bg-rose-700 text-slate-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-colors">
-                                                    Düşürdü (Drop)
-                                                </button>
-                                                <button onClick={() => handleGoal(pid)} className="py-3 bg-emerald-900/40 hover:bg-emerald-600 border border-emerald-800/50 text-emerald-400 hover:text-white rounded-xl text-xs font-black uppercase transition-colors shadow">
-                                                    GOL!
+                                                <button onClick={() => handleCallahan(pid)} className="col-span-2 py-3 mt-1 bg-purple-900/40 hover:bg-purple-600 border border-purple-800/50 text-purple-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
+                                                    CALLAHAN GOLÜ
                                                 </button>
                                             </>
-                                        ) : (
-                                            <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="col-span-2 py-4 bg-blue-900/40 hover:bg-blue-600 border border-blue-800/50 text-blue-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider flex items-center justify-center gap-2">
-                                                <span className="material-icons-outlined text-[18px]">sports_handball</span> Diski Aldı (Başla)
-                                            </button>
-                                        )
-                                    ) : ( 
-                                        <>
-                                            <button onClick={() => handleBlock(pid)} className="col-span-2 py-4 bg-slate-800 hover:bg-orange-600 text-slate-300 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider flex items-center justify-center gap-2">
-                                                <span className="material-icons-outlined text-[18px]">pan_tool</span> BLOK (D-UP)
-                                            </button>
-                                            <button onClick={() => handleCallahan(pid)} className="col-span-2 py-3 mt-1 bg-purple-900/40 hover:bg-purple-600 border border-purple-800/50 text-purple-400 hover:text-white rounded-xl text-sm font-black uppercase transition-colors tracking-wider">
-                                                CALLAHAN GOLÜ
-                                            </button>
-                                        </>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+            </div>
+            );
 }

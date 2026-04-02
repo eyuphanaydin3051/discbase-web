@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMatch, getMatchEvents, getPlayers, updateMatchData } from '../services/repository';
-import type { Match, MatchEvent, Player } from '../types';
+import { getMatch, getMatchEvents, getPlayers, updateMatchData, getTournaments } from '../services/repository';
+import type { Match, MatchEvent, Player, Tournament } from '../types';
 import YouTube from 'react-youtube';
 
 // Takım adını güvenli şekilde çeken yardımcı fonksiyon
@@ -73,8 +73,8 @@ export default function MatchDetail() {
     useEffect(() => {
     if (!activeTeamId || !tournamentId) return;
     
-    const unsubscribeTour = getTournaments(activeTeamId, (tours) => {
-        const currentTour = tours.find(t => t.id === tournamentId);
+    const unsubscribeTour = getTournaments(activeTeamId, (tours: Tournament[]) => {
+        const currentTour = tours.find((t: Tournament) => t.id === tournamentId);
         if (currentTour) {
             setTournament(currentTour);
         }
