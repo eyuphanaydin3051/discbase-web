@@ -45,7 +45,8 @@ const handleCreateMatch = async () => {
             currentTeam.teamName // teamName eklendi
         );
         if (matchId) {
-            navigate(`/tournament/${tournamentId}/match/${matchId}/track`);
+            // İstenilen Düzenleme: Yeni maç oluşturulunca direkt istatistik tutmaya (track) atma, detay sayfasına yönlendir.
+            navigate(`/tournament/${tournamentId}/match/${matchId}`);
         }
     }
 };

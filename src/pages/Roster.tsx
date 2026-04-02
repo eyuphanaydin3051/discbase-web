@@ -11,7 +11,8 @@ export default function Roster() {
     const [teams, setTeams] = useState<TeamProfile[]>([]);
 
     // Sadece localStorage'dan aktif takımı okuyoruz, sayfada değiştirmiyoruz
-    const activeTeamId = localStorage.getItem('activeTeamId');
+    // Hata Düzeltmesi: 'activeTeamId' yerine 'selectedTeamId' kullanıyoruz
+    const activeTeamId = localStorage.getItem('selectedTeamId');
 
     const [players, setPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
@@ -119,7 +120,7 @@ export default function Roster() {
                                     ${!player.position ? 'border-gray-300 bg-gray-100 text-gray-600' : 'border-[#00c4b4] bg-teal-50 text-teal-700'}`}>
                                     {player.photoUrl ? (
                                         <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover" />
-                                    ) : (player.jerseyNumber !== undefined && player.jerseyNumber !== null && player.jerseyNumber !== '') ? (
+                                    ) : (player.jerseyNumber !== undefined && player.jerseyNumber !== null) ? (
                                         <span className="text-3xl font-black">{player.jerseyNumber}</span>
                                     ) : (
                                         <span className="text-2xl font-bold">{getInitials(player.name)}</span>

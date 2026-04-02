@@ -295,17 +295,16 @@ export default function MatchDetail() {
                     </div>
 
                     {/* SAĞ TARAF: İSTATİSTİK BAŞLAT / DEVAM ET BUTONU */}
-                    {(!match.finished) && (
-                        <button
-                            onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
-                            className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
-                        >
-                            <span className="material-icons-outlined">play_circle</span>
-                            {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
-                                ? "İstatistik Takibini Başlat" 
-                                : "Takibe Devam Et"}
-                        </button>
-                    )}
+                    {/* İstenilen Düzenleme: Butonun sürekli görünmesi için koşul kaldırıldı */}
+                    <button
+                        onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
+                        className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
+                    >
+                        <span className="material-icons-outlined">play_circle</span>
+                        {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
+                            ? "İstatistik Takibini Başlat" 
+                            : "Takibe Devam Et"}
+                    </button>
                 </div>
 
 
