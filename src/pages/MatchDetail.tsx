@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMatch, getMatchEvents, getPlayers, updateMatchData, getTournaments } from '../services/repository';
+import { getMatch, getPlayers, updateMatchData, getTournaments } from '../services/repository';
 import type { Match, MatchEvent, Player, Tournament } from '../types';
 import YouTube from 'react-youtube';
 
@@ -23,12 +23,7 @@ export default function MatchDetail() {
     // VİDEO SCOUTER STATE'LERİ
     const [videoUrl, setVideoUrl] = useState('');
     const [ytPlayer, setYtPlayer] = useState<any>(null);
-    const seekToTime = (seconds?: number) => {
-        if (ytPlayer && seconds !== undefined) {
-            ytPlayer.seekTo(seconds, true);
-            ytPlayer.playVideo();
-        }
-    };
+ 
     // Tablo Sıralama State'i
 
     // Tablo Sıralama State'i
@@ -347,6 +342,7 @@ export default function MatchDetail() {
                         {/* MAÇI SİL BUTONU */}
                         <button
                             onClick={async () => {
+                                if (!tournamentId || !matchId) return; // TS HATASINI ÇÖZEN KONTROL
                                 if (window.confirm("Bu maçı ve içindeki tüm istatistikleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
                                     const { deleteMatch } = await import('../services/repository');
                                     const success = await deleteMatch(tournamentId, matchId);
