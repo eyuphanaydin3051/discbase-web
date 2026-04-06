@@ -342,17 +342,38 @@ export default function MatchDetail() {
                         </div>
                     </div>
 
-                    {/* SAĞ TARAF: İSTATİSTİK BAŞLAT / DEVAM ET BUTONU */}
-                    {/* İstenilen Düzenleme: Butonun sürekli görünmesi için koşul kaldırıldı */}
-                    <button
-                        onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
-                        className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
-                    >
-                        <span className="material-icons-outlined">play_circle</span>
-                        {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
-                            ? "İstatistik Takibini Başlat" 
-                            : "Takibe Devam Et"}
-                    </button>
+                    {/* SAĞ TARAF: AKSİYON BUTONLARI (SİL VE BAŞLAT) */}
+                    <div className="flex flex-col md:flex-row items-center gap-3">
+                        {/* MAÇI SİL BUTONU */}
+                        <button
+                            onClick={async () => {
+                                if (window.confirm("Bu maçı ve içindeki tüm istatistikleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
+                                    const { deleteMatch } = await import('../services/repository');
+                                    const success = await deleteMatch(tournamentId, matchId);
+                                    if (success) {
+                                        navigate(`/tournament/${tournamentId}`);
+                                    } else {
+                                        alert("Maç silinirken bir hata oluştu.");
+                                    }
+                                }
+                            }}
+                            className="flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-xl font-bold transition-all border border-transparent hover:border-red-200 dark:hover:border-red-800"
+                            title="Maçı Sil"
+                        >
+                            <span className="material-icons-outlined">delete</span>
+                            <span className="hidden md:inline">Maçı Sil</span>
+                        </button>
+
+                        <button
+                            onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
+                            className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
+                        >
+                            <span className="material-icons-outlined">play_circle</span>
+                            {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
+                                ? "İstatistik Takibini Başlat" 
+                                : "Takibe Devam Et"}
+                        </button>
+                    </div>
                 </div>
 
 

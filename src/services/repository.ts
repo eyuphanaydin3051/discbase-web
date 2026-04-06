@@ -11,7 +11,8 @@ import {
     updateDoc,
     getDocs,
     getDoc,
-    setDoc // setDoc eklendi
+    setDoc, // setDoc eklendi
+    deleteDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
@@ -465,3 +466,17 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
     });
 };
 
+// Maçı ve içindeki verileri silme fonksiyonu
+export const deleteMatch = async (tournamentId: string, matchId: string) => {
+    try {
+        const teamId = localStorage.getItem('selectedTeamId');
+        if (!teamId) return false;
+        
+        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        await deleteDoc(matchRef);
+        return true;
+    } catch (error) {
+        console.error("Maç silinirken hata oluştu:", error);
+        return false;
+    }
+};

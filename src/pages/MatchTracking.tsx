@@ -555,9 +555,6 @@ export default function MatchTracking() {
                                             className={`flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-700 border border-slate-700 transition-colors ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer hover:border-violet-500' : 'cursor-default opacity-70'}`}
                                         >
                                             <div className="flex items-center gap-3">
-                                                <span className="font-mono text-xs font-bold text-violet-300 bg-violet-900/30 px-2 py-1.5 rounded border border-violet-800/50">
-                                                    {formatTime(evt.videoTimestampSeconds)}
-                                                </span>
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-bold text-slate-200">
                                                         {evt.eventType} {evt.currentScore && <span className="text-slate-500 ml-1">({evt.currentScore[0]} - {evt.currentScore[1]})</span>}
