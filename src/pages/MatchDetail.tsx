@@ -59,18 +59,20 @@ export default function MatchDetail() {
                 return;
             }
             setMatch(fetchedMatch);
-        });
-
-        const unsubscribeEvents = getMatchEvents(tournamentId, matchId, (fetchedEvents) => {
-            setEvents(fetchedEvents);
+            
+            // YENİ MİMARİ: Olaylar artık alt koleksiyondan değil, direkt maç dokümanının içinden okunuyor.
+            if (fetchedMatch.events && Array.isArray(fetchedMatch.events)) {
+                setEvents(fetchedMatch.events);
+            } else {
+                setEvents([]);
+            }
+            
             setLoading(false);
         });
-        
 
         const safetyTimer = setTimeout(() => setLoading(false), 2000);
 
         return () => {
-            unsubscribeEvents();
             clearTimeout(safetyTimer);
         };
     }, [tournamentId, matchId, activeTeamId, navigate]);
