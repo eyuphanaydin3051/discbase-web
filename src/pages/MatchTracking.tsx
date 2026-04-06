@@ -41,12 +41,19 @@ export default function MatchTracking() {
 
     // --- VİDEO SCOUTER STATE ---
     const [ytPlayer, setYtPlayer] = useState<any>(null);
+    const [liveEvents, setLiveEvents] = useState<MatchEvent[]>([]); // YENİ: Canlı olay akışı state'i
 
     // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
         const teamId = localStorage.getItem('selectedTeamId');
         if (matchId && tournamentId && teamId) {
-            getMatch(tournamentId, matchId).then(setMatch);
+            getMatch(tournamentId, matchId).then(m => {
+                setMatch(m);
+                // Eğer maçın geçmiş eventleri varsa onları çekip yeniden eskiye sıralayalım
+                if (m && m.events) {
+                    setLiveEvents(m.events.sort((a, b) => b.timestamp - a.timestamp));
+                }
+            });
             const unsubPlayers = getPlayers(teamId, setRoster);
             const unsubTournaments = getTournaments(teamId, (tours) => {
                 const currentTour = tours.find(t => t.id === tournamentId);
@@ -82,6 +89,10 @@ export default function MatchTracking() {
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
         await undoLastEvent(tournamentId, matchId);
+        
+        // Geri alındığında listeden de son eklenen aksiyonu kaldırıyoruz
+        setLiveEvents(prev => prev.slice(1));
+
         if (historyStack.length > 0) {
             const prevState = historyStack[historyStack.length - 1];
             setGameMode(prevState.gameMode);
@@ -172,6 +183,9 @@ export default function MatchTracking() {
         
         await addMatchEvent(tournamentId, matchId, event);
         setTimeout(() => setLastAction(null), 300);
+        
+        // Yeni eventi arayüzdeki olay geçmişinin en üstüne ekliyoruz
+        setLiveEvents(prev => [event, ...prev]);
     };
 
     // --- HÜCUM AKSİYONLARI ---
@@ -343,6 +357,14 @@ export default function MatchTracking() {
         </div>
     );
 
+    // YouTube videosunu istenilen saniyeye sardırma fonksiyonu
+    const seekToTime = (seconds?: number) => {
+        if (ytPlayer && seconds !== undefined) {
+            ytPlayer.seekTo(seconds, true);
+            ytPlayer.playVideo();
+        }
+    };
+
     // ==========================================
     // 1. AŞAMA: KADRO SEÇİMİ VE GRUPLANDIRMA EKRANI
     // ==========================================
@@ -487,22 +509,66 @@ export default function MatchTracking() {
 
             <div className={`flex-1 flex flex-col ${match?.youtubeVideoId ? 'lg:flex-row' : ''} p-4 md:p-6 overflow-hidden gap-6`}>
 
-                {/* SOL TARAF: VİDEO OYNATICI (Sadece Maçta Video Varsa Gösterilir) */}
+                {/* SOL TARAF: VİDEO OYNATICI VE OLAY GEÇMİŞİ */}
                 {match?.youtubeVideoId && (
-                    <div className="w-full lg:w-1/2 flex flex-col bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-                        <div className="p-3 bg-slate-800 flex justify-between items-center border-b border-slate-700">
-                            <h3 className="font-bold text-red-400 flex items-center gap-2">
-                                <span className="material-icons-outlined">smart_display</span> Scout Modu
-                            </h3>
-                            <span className="text-xs text-slate-400">Tıklanan aksiyonlar anlık saniyeyle kaydedilir.</span>
+                    <div className="w-full lg:w-1/2 flex flex-col gap-4 h-full">
+                        {/* VİDEO OYNATICI ALANI */}
+                        <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl flex-shrink-0">
+                            <div className="p-3 bg-slate-800 flex justify-between items-center border-b border-slate-700">
+                                <h3 className="font-bold text-red-400 flex items-center gap-2">
+                                    <span className="material-icons-outlined">smart_display</span> Scout Modu
+                                </h3>
+                                <span className="text-xs text-slate-400">Tıklanan aksiyonlar anlık saniyeyle kaydedilir.</span>
+                            </div>
+                            <div className="bg-black w-full h-[300px] xl:h-[400px]">
+                                <YouTube
+                                    videoId={match.youtubeVideoId}
+                                    opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
+                                    onReady={(e) => setYtPlayer(e.target)}
+                                    className="w-full h-full"
+                                />
+                            </div>
                         </div>
-                        <div className="flex-1 bg-black w-full h-full min-h-[300px]">
-                            <YouTube
-                                videoId={match.youtubeVideoId}
-                                opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
-                                onReady={(e) => setYtPlayer(e.target)}
-                                className="w-full h-full"
-                            />
+
+                        {/* OLAY GEÇMİŞİ (EVENT HISTORY) ALANI */}
+                        <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl flex-1 flex flex-col min-h-[200px]">
+                            <div className="p-3 bg-slate-800 border-b border-slate-700 sticky top-0 shadow-md">
+                                <h3 className="font-bold text-white flex items-center gap-2 text-sm">
+                                    <span className="material-icons-outlined text-base">history</span> Olay Geçmişi (Tıklayarak Gidin)
+                                </h3>
+                            </div>
+                            <div className="p-2 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                                {liveEvents.length === 0 && (
+                                    <p className="text-slate-500 text-sm text-center py-4">Henüz bir aksiyon kaydedilmedi.</p>
+                                )}
+                                {liveEvents.map((evt, idx) => {
+                                    const p = evt.playerId ? roster.find(r => r.id === evt.playerId) : null;
+                                    const formatTime = (sec?: number) => sec !== undefined ? `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}` : '--:--';
+                                    return (
+                                        <div 
+                                            key={evt.id || idx} 
+                                            onClick={() => evt.videoTimestampSeconds !== undefined && seekToTime(evt.videoTimestampSeconds)}
+                                            className={`flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-700 border border-slate-700 transition-colors ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
+                                            title="Videoda bu ana gitmek için tıklayın"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-mono text-xs font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded">
+                                                    {formatTime(evt.videoTimestampSeconds)}
+                                                </span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-slate-200">
+                                                        {evt.eventType} {evt.currentScore && `(${evt.currentScore[0]} - ${evt.currentScore[1]})`}
+                                                    </span>
+                                                    {p && <span className="text-xs text-slate-400">{p.name} <span className="text-slate-500">(#{p.jerseyNumber})</span></span>}
+                                                </div>
+                                            </div>
+                                            {evt.videoTimestampSeconds !== undefined && (
+                                                <span className="material-icons-outlined text-slate-500 hover:text-white">play_circle</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 )}
