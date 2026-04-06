@@ -162,7 +162,7 @@ export default function MatchTracking() {
     };
 
     // 4. Mod Seçimi ve Sayı Başlatma
-    const handleStartModeSelect = (mode: 'OFFENSE' | 'DEFENSE') => {
+    const handleStartModeSelect = (mode: 'OFFENSE' | 'DEFENSE' | 'DEFENSE_PULL') => {
         setStartMode(mode);
         const initialStats: PlayerStats[] = selectedLineup.map(id => {
             const player = roster.find(r => r.id === id);
@@ -280,15 +280,7 @@ export default function MatchTracking() {
         await finishPoint('US');
     };
 
-    // --- SAVUNMA AKSİYONLARI ---
-    const handlePull = (playerId: string, isSuccessful: boolean) => {
-        saveStateToHistory();
-        updatePlayerStat(playerId, {
-            pullAttempts: currentPointStats.find(p => p.playerId === playerId)!.pullAttempts + 1,
-            successfulPulls: isSuccessful ? currentPointStats.find(p => p.playerId === playerId)!.successfulPulls + 1 : currentPointStats.find(p => p.playerId === playerId)!.successfulPulls
-        });
-        setGameMode('DEFENSE');
-    };
+    
 
     const handleBlock = async (playerId: string) => {
         saveStateToHistory();
@@ -390,13 +382,7 @@ export default function MatchTracking() {
         </div>
     );
 
-    // YENİ: Videoyu istenilen saniyeye sarar
-    const seekToTime = (seconds?: number) => {
-        if (ytPlayer && seconds !== undefined) {
-            ytPlayer.seekTo(seconds, true);
-            ytPlayer.playVideo();
-        }
-    };
+   
 
     // ==========================================
     // 1. AŞAMA: KADRO SEÇİMİ VE GRUPLANDIRMA EKRANI
@@ -569,7 +555,7 @@ export default function MatchTracking() {
                         </button>
                         <div className="flex-1 text-center overflow-hidden px-2">
                             <h2 className="font-black text-[11px] text-slate-800 uppercase truncate">
-                                {match?.opponentTeamName || 'Rakip Bekleniyor'}
+                                {match?.opponentName || 'Rakip Bekleniyor'}
                             </h2>
                         </div>
                         <div className="flex items-center gap-1 font-mono text-base font-black bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
