@@ -58,6 +58,8 @@ export interface PlayerStats {
     pointsPlayed: number;
     totalPullTimeSeconds: number;
     passDistribution: { [playerName: string]: number };
+    totalPulls?: number;
+    [key: string]: any; // TS'in esnek istatistik anahtarlarına izin vermesi için
 }
 
 export interface AdvancedPlayerStats {

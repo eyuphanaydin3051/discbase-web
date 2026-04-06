@@ -203,7 +203,7 @@ export default function MatchTracking() {
                         : p
                 );
             } else {
-                return [...prev, { playerId, [statKey]: value } as PlayerStats];
+                return [...prev, { playerId, [statKey]: value } as unknown as PlayerStats];
             }
         });
     };
@@ -273,7 +273,10 @@ export default function MatchTracking() {
     const handleThrowaway = async () => {
         if (!activePasserId) return;
         saveStateToHistory();
-        updatePlayerStat(activePasserId, { throwaway: currentPointStats.find(p => p.playerId === activePasserId)!.throwaway + 1 });
+        
+        // Yeni fonksiyona sadece 'throwaway' yazmamız yeterli, +1'i kendi ekler
+        updatePlayerStat(activePasserId, 'throwaway'); 
+        
         setGameMode('DEFENSE');
         const passerCache = activePasserId;
         setActivePasserId(null);
@@ -301,9 +304,12 @@ export default function MatchTracking() {
 
     
 
-    const handleBlock = async (playerId: string) => {
+   const handleBlock = async (playerId: string) => {
         saveStateToHistory();
-        updatePlayerStat(playerId, { block: currentPointStats.find(p => p.playerId === playerId)!.block + 1 });
+        
+        // Yeni fonksiyona sadece 'block' yazmamız yeterli, +1'i kendi ekler
+        updatePlayerStat(playerId, 'block'); 
+        
         setGameMode('OFFENSE');
         await fireEvent('D-Up', playerId);
     };
