@@ -76,9 +76,7 @@ export default function MatchTracking() {
             getMatch(tournamentId, matchId).then(m => {
                 setMatch(m);
                 // Firebase'den veri gelirse, olayları en yeni en üstte olacak şekilde sırala
-                if (m && m.events) {
-                    setLiveEvents(m.events.sort((a, b) => b.timestamp - a.timestamp));
-                }
+                
             });
             const unsubPlayers = getPlayers(teamId, setRoster);
             const unsubTournaments = getTournaments(teamId, (tours) => {
@@ -117,7 +115,6 @@ export default function MatchTracking() {
         await undoLastEvent(tournamentId, matchId);
         
         // Listeden de en son eklenen elemanı anında siliyoruz
-        setLiveEvents(prev => prev.slice(1));
 
         if (historyStack.length > 0) {
             const prevState = historyStack[historyStack.length - 1];
@@ -208,7 +205,6 @@ export default function MatchTracking() {
         } as MatchEvent;
         
         // Önce ekranda hemen göster (Hızlı hissettirmesi için)
-        setLiveEvents(prev => [event, ...prev]);
 
         // Sonra Firebase'e gönder (Arka planda çalışır, UI'ı dondurmaz)
         await addMatchEvent(tournamentId, matchId, event);
