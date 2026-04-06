@@ -43,8 +43,10 @@ export default function MatchTracking() {
     const [ytPlayer, setYtPlayer] = useState<any>(null);
     
     // --- PULL (HANG TIME) STATE'LERİ ---
+    // --- PULL (HANG TIME) STATE'LERİ ---
     const [pullStartTime, setPullStartTime] = useState<number | null>(null);
     const [pullElapsedTime, setPullElapsedTime] = useState<number>(0);
+    const [pullingPlayerId, setPullingPlayerId] = useState<string | null>(null); // YENİ: Pull atan oyuncu takibi
 
     useEffect(() => {
         let interval: any;
@@ -56,18 +58,26 @@ export default function MatchTracking() {
         return () => clearInterval(interval);
     }, [pullStartTime]);
 
-    const startPull = () => {
+    // Uygulamadaki Mantık: Oyuncuya tıklandığında süre başlar
+    const handleStartPull = (pid: string) => {
+        setPullingPlayerId(pid);
         setPullStartTime(Date.now());
         setPullElapsedTime(0);
-        fireEvent('Pull Atıldı'); // Videoya tam atıldığı saniyeyi kaydeder
+        fireEvent('Pull Atıldı', pid); // Videoda atış saniyesini yakalar
     };
 
-    const endPull = (isSuccess: boolean) => {
+    // Uygulamadaki Mantık: Süre bittiğinde içerde/dışarda seçilir ve Defansa geçilir
+    const handleEndPull = (isSuccess: boolean) => {
         const time = (Date.now() - (pullStartTime || Date.now())) / 1000;
-        fireEvent(`Pull Bitti - ${isSuccess ? 'Başarılı' : 'Başarısız'} (${time.toFixed(1)} sn)`);
+        fireEvent(`Pull Bitti - ${isSuccess ? 'İçerde' : 'Dışarda'} (${time.toFixed(1)} sn)`, pullingPlayerId || undefined);
+        
         setPullStartTime(null);
         setPullElapsedTime(0);
+        setPullingPlayerId(null);
+        setGameMode('DEFENSE'); // Pull bittiği an direkt defans kurgusuna geç
     };
+
+    
 
     // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
@@ -524,127 +534,185 @@ export default function MatchTracking() {
     }
 
     // ==========================================
-    // 3. AŞAMA: GELİŞMİŞ TAKİP EKRANI (AÇIK TEMA & VİDEO ÜSTTE)
+    // GELİŞMİŞ TAKİP EKRANI (VİDEO 16:9, SAĞDA BUTONLAR, MİNİ KARTLAR)
     // ==========================================
     return (
-        <div className="h-screen flex flex-col bg-slate-50 text-slate-900 font-sans overflow-hidden">
-            <TopBar />
-
-            <div className="flex-1 flex flex-col p-2 md:p-4 overflow-y-auto custom-scrollbar gap-4 max-w-5xl mx-auto w-full">
+        <div className="h-screen w-full flex flex-col bg-slate-100 text-slate-900 font-sans overflow-hidden p-2 gap-2">
+            
+            {/* ÜST BÖLÜM: SOLDA 16:9 VİDEO | SAĞDA MAÇ KONTROLLERİ VE BİLGİLERİ */}
+            <div className="flex flex-col lg:flex-row gap-2 shrink-0">
                 
-                {/* 1. KISIM: VİDEO OYNATICI (ÜSTTE) */}
-                {match?.youtubeVideoId && (
-                    <div className="w-full bg-black rounded-xl border border-slate-300 overflow-hidden shadow-md flex-shrink-0 aspect-[21/9] lg:aspect-[24/9]">
+                {/* SOL: VİDEO OYNATICI (Her Aşamada Görünür, Sabit 16:9 Oranı) */}
+                <div className="w-full lg:w-[70%] xl:w-[75%] bg-black rounded-xl overflow-hidden shadow-md aspect-video flex items-center justify-center relative">
+                    {match?.youtubeVideoId ? (
                         <YouTube
                             videoId={match.youtubeVideoId}
                             opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
                             onReady={(e) => setYtPlayer(e.target)}
-                            className="w-full h-full"
+                            className="w-full h-full absolute inset-0"
                         />
-                    </div>
-                )}
+                    ) : (
+                        <span className="text-slate-500 text-sm flex flex-col items-center gap-2">
+                            <span className="material-icons-outlined text-4xl">videocam_off</span>
+                            Bu maça video eklenmemiş.
+                        </span>
+                    )}
+                </div>
 
-                {/* 2. KISIM: AKSİYON ALANI */}
-                <div className="flex flex-col gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex-1">
+                {/* SAĞ: DAR KONTROL PANELİ VE BİLGİ BARI */}
+                <div className="w-full lg:w-[30%] xl:w-[25%] flex flex-col gap-2 shrink-0 max-h-[35vh] lg:max-h-full overflow-y-auto custom-scrollbar pr-1">
                     
-                    {/* Pull Timer ve Geri Al / Turnover Çubuğu */}
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                        {/* Pull Timer Alanı */}
-                        <div className="flex items-center gap-2">
-                            {pullStartTime === null ? (
-                                <button onClick={startPull} className="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all flex items-center gap-1">
-                                    <span className="material-icons-outlined text-[16px]">timer</span> Pull Başlat
-                                </button>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-lg font-mono font-black text-violet-600 w-16 text-center">
-                                        {pullElapsedTime.toFixed(1)}s
-                                    </span>
-                                    <button onClick={() => endPull(true)} className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold text-xs shadow-sm">
-                                        İçerde
-                                    </button>
-                                    <button onClick={() => endPull(false)} className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-bold text-xs shadow-sm">
-                                        Dışarda
-                                    </button>
-                                </div>
-                            )}
+                    {/* Skor ve Geri Dönüş Barı */}
+                    <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                        <button onClick={() => navigate(-1)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
+                            <span className="material-icons-outlined">arrow_back</span>
+                        </button>
+                        <div className="flex-1 text-center overflow-hidden px-2">
+                            <h2 className="font-black text-[11px] text-slate-800 uppercase truncate">
+                                {match?.opponentTeamName || 'Rakip Bekleniyor'}
+                            </h2>
                         </div>
-
-                        {/* Aksiyon Barı */}
-                        <div className="flex gap-2">
-                            <button onClick={handleUndo} disabled={historyStack.length === 0} className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg flex items-center gap-1 transition-all disabled:opacity-50 text-xs shadow-sm">
-                                <span className="material-icons-outlined text-[14px]">undo</span> Geri Al
-                            </button>
-
-                            {gameMode.includes('DEFENSE') && (
-                                <div className="flex gap-2">
-                                    <button onClick={handleOpponentTurnover} className="px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-200 rounded-lg font-black transition-all shadow-sm flex items-center gap-1 text-xs">
-                                        <span className="material-icons-outlined text-[14px]">swap_horiz</span> TOP BİZE GEÇTİ
-                                    </button>
-                                    <button onClick={handleOpponentScore} className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 rounded-lg font-black transition-all shadow-sm flex items-center gap-1 text-xs">
-                                        <span className="material-icons-outlined text-[14px]">close</span> RAKİP SAYI ATTI
-                                    </button>
-                                </div>
-                            )}
+                        <div className="flex items-center gap-1 font-mono text-base font-black bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                            <span className="text-violet-600">{match?.scoreUs ?? match?.score?.[0] ?? 0}</span>
+                            <span className="text-slate-300">-</span>
+                            <span className="text-rose-600">{match?.scoreThem ?? match?.score?.[1] ?? 0}</span>
                         </div>
                     </div>
 
-                    {/* KÜÇÜLTÜLMÜŞ OYUNCU GRİDİ */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pb-6">
+                    {/* Maç İçi Eylemler (Sadece İstatistik Takibi Başladığında Görünür) */}
+                    {gameMode && (
+                        <div className="flex flex-col gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                            
+                            {/* Aktif Pull Ekranı (Sadece Pull Atıldığında Ortaya Çıkar) */}
+                            {pullStartTime !== null ? (
+                                <div className="flex flex-col gap-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100">
+                                    <div className="text-center font-black text-[10px] text-indigo-800 uppercase tracking-widest">Pull Havada</div>
+                                    <div className="text-3xl font-mono font-black text-indigo-600 text-center leading-none">
+                                        {pullElapsedTime.toFixed(1)}s
+                                    </div>
+                                    <div className="flex gap-1.5 mt-1">
+                                        <button onClick={() => handleEndPull(true)} className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-bold text-[11px] shadow-sm uppercase">İçerde</button>
+                                        <button onClick={() => handleEndPull(false)} className="flex-1 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded font-bold text-[11px] shadow-sm uppercase">Dışarda</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Geri Al Butonu */}
+                                    <button onClick={handleUndo} disabled={historyStack.length === 0} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg flex items-center justify-center gap-1 transition-all disabled:opacity-50 text-[11px]">
+                                        <span className="material-icons-outlined text-[14px]">undo</span> Son İşlemi Geri Al
+                                    </button>
+
+                                    {/* Defans Eylemleri (Turnover & Rakip Sayı) */}
+                                    {gameMode.includes('DEFENSE') && gameMode !== 'DEFENSE_PULL' && (
+                                        <div className="flex flex-col gap-1.5 mt-1">
+                                            <button onClick={handleOpponentTurnover} className="w-full py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg font-black transition-all text-[11px] flex items-center justify-center gap-1 uppercase">
+                                                <span className="material-icons-outlined text-[15px]">swap_horiz</span> TOP BİZE GEÇTİ
+                                            </button>
+                                            <button onClick={handleOpponentScore} className="w-full py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg font-black transition-all text-[11px] flex items-center justify-center gap-1 uppercase">
+                                                <span className="material-icons-outlined text-[15px]">close</span> RAKİP SAYI ATTI
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* AŞAMA 1 VE AŞAMA 2 (Çizgi Seçimi) */}
+                    {!gameMode && (
+                        <div className="flex flex-col gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                            {selectedLineup.length === 0 ? (
+                                <div className="text-center flex flex-col gap-2">
+                                    <h3 className="text-xs font-bold text-slate-700">1. Maça Başlayacak Çizgiyi Seçin</h3>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {/* Burada kendi kadro oluşturma mantığınızı/butonlarınızı koruyabilirsiniz */}
+                                        <button onClick={() => setSelectedLineup(roster.slice(0, 7).map(p => p.id))} className="py-2 bg-violet-100 hover:bg-violet-200 text-violet-700 rounded font-bold text-[11px]">Rastgele 7'li Seç (Test)</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center flex flex-col gap-2">
+                                    <h3 className="text-xs font-bold text-slate-700">2. Maç Kime Başlıyor?</h3>
+                                    <div className="flex flex-col gap-2">
+                                        <button onClick={() => handleStartModeSelect('OFFENSE')} className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1">
+                                            <span className="material-icons-outlined text-[16px]">sports_handball</span> Hücum Bizde
+                                        </button>
+                                        <button onClick={() => handleStartModeSelect('DEFENSE_PULL')} className="py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1">
+                                            <span className="material-icons-outlined text-[16px]">shield</span> Defans (Biz Pull Atıyoruz)
+                                        </button>
+                                        <button onClick={() => handleStartModeSelect('DEFENSE')} className="py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold text-xs">
+                                            Defans (Rakip Pull Atıyor)
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ALT BÖLÜM: KOMPAKT (Sıkıştırılmış) OYUNCU KARTLARI */}
+            {gameMode && pullStartTime === null && (
+                <div className="flex-1 overflow-y-auto bg-white p-2 rounded-xl border border-slate-200 shadow-sm custom-scrollbar">
+                    {/* Oyuncu sayısına göre kolon sayısını dinamik artırdık, kartlar artık çok daha ufak */}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7 gap-1.5 pb-8">
                         {selectedLineup.map(pid => {
                             const player = roster.find(r => r.id === pid);
                             const isDiskHolder = activePasserId === pid;
                             const isJustActed = lastAction?.startsWith(pid);
 
                             return (
-                                <div key={pid} className={`flex flex-col bg-white rounded-xl border transition-all ${isDiskHolder ? 'border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)] scale-[1.02]' : isJustActed ? 'border-violet-400' : 'border-slate-200'}`}>
-                                    <div className="p-2 border-b border-slate-100 flex items-center gap-2 bg-slate-50 rounded-t-xl">
-                                        <div className={`h-8 w-8 rounded-full flex items-center justify-center font-black text-xs shadow-inner ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
-                                            {player?.jerseyNumber || '??'}
+                                <div key={pid} className={`flex flex-col bg-white rounded-lg border transition-all ${isDiskHolder ? 'border-blue-500 bg-blue-50/20 shadow-md scale-[1.02]' : isJustActed ? 'border-violet-400 shadow-sm' : 'border-slate-200'}`}>
+                                    
+                                    {/* Kart Üst (Oyuncu Bilgisi) */}
+                                    <div className="p-1 border-b border-slate-100 flex items-center gap-1.5 bg-slate-50 rounded-t-lg">
+                                        <div className={`h-5 w-5 rounded-full flex items-center justify-center font-black text-[9px] shadow-inner shrink-0 ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 border border-slate-300'}`}>
+                                            {player?.jerseyNumber || '?'}
                                         </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <p className="font-bold text-slate-800 text-xs leading-tight truncate">{player?.name}</p>
-                                            <p className="text-[9px] text-slate-500 uppercase tracking-wider">{player?.position || 'Oyuncu'}</p>
+                                        <div className="flex-1 overflow-hidden leading-none">
+                                            <p className="font-bold text-slate-800 text-[10px] truncate">{player?.name}</p>
+                                            {isDiskHolder && <span className="text-[7px] text-blue-600 font-bold uppercase mt-0.5 block tracking-wider">Diski Tutuyor</span>}
                                         </div>
-                                        {isDiskHolder && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-0.5"><span className="material-icons-outlined text-[10px]">adjust</span> Disk Onda</span>}
                                     </div>
 
-                                    <div className="p-1.5 grid grid-cols-2 gap-1">
+                                    {/* Kart Alt (Aksiyon Butonları) */}
+                                    <div className="p-1 flex flex-col gap-1">
                                         {gameMode === 'DEFENSE_PULL' ? (
-                                            <button onClick={() => handlePull(pid, true)} className="col-span-2 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 rounded-lg text-[11px] font-bold transition-all uppercase">
-                                                Pull Atışı
+                                            <button onClick={() => handleStartPull(pid)} className="w-full py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 rounded text-[9px] font-black transition-all uppercase tracking-widest">
+                                                PULL AT
                                             </button>
                                         ) : gameMode === 'OFFENSE' ? (
                                             isDiskHolder ? (
-                                                <button onClick={handleThrowaway} className="col-span-2 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-[11px] font-black uppercase transition-colors">
+                                                <button onClick={handleThrowaway} className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded text-[9px] font-black uppercase tracking-wider">
                                                     Hatalı Pas
                                                 </button>
                                             ) : activePasserId ? (
-                                                <>
-                                                    <button onClick={() => handleCatch(pid)} className="col-span-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-black uppercase transition-colors">
+                                                <div className="flex flex-col gap-1">
+                                                    <button onClick={() => handleCatch(pid)} className="w-full py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-[9px] font-black uppercase">
                                                         Pas Aldı
                                                     </button>
-                                                    <button onClick={() => handleDrop(pid)} className="py-2 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold uppercase transition-colors">
-                                                        Drop
-                                                    </button>
-                                                    <button onClick={() => handleGoal(pid)} className="py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-[10px] font-black uppercase transition-colors">
-                                                        GOL!
-                                                    </button>
-                                                </>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => handleDrop(pid)} className="flex-1 py-1 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded text-[8px] font-bold uppercase border border-transparent hover:border-rose-200">
+                                                            Drop
+                                                        </button>
+                                                        <button onClick={() => handleGoal(pid)} className="flex-1 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded text-[8px] font-black uppercase border border-emerald-200">
+                                                            GOL!
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             ) : (
-                                                <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="col-span-2 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg text-[11px] font-black uppercase transition-colors flex items-center justify-center gap-1">
-                                                    <span className="material-icons-outlined text-[14px]">sports_handball</span> Diski Aldı
+                                                <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="w-full py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded text-[9px] font-black uppercase flex items-center justify-center gap-0.5">
+                                                    <span className="material-icons-outlined text-[12px]">sports_handball</span> Diski Aldı
                                                 </button>
                                             )
                                         ) : (
-                                            <>
-                                                <button onClick={() => handleBlock(pid)} className="col-span-2 py-2 bg-slate-100 hover:bg-orange-100 text-slate-700 hover:text-orange-700 border border-slate-200 rounded-lg text-[11px] font-black uppercase transition-colors flex items-center justify-center gap-1">
-                                                    <span className="material-icons-outlined text-[14px]">pan_tool</span> BLOK
+                                            <div className="flex flex-col gap-1">
+                                                <button onClick={() => handleBlock(pid)} className="w-full py-1.5 bg-slate-100 hover:bg-orange-100 text-slate-700 hover:text-orange-700 border border-slate-200 rounded text-[10px] font-black uppercase">
+                                                    BLOK
                                                 </button>
-                                                <button onClick={() => handleCallahan(pid)} className="col-span-2 py-2 mt-0.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 rounded-lg text-[10px] font-black uppercase transition-colors">
+                                                <button onClick={() => handleCallahan(pid)} className="w-full py-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 rounded text-[8px] font-black uppercase tracking-wider">
                                                     CALLAHAN
                                                 </button>
-                                            </>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -652,7 +720,7 @@ export default function MatchTracking() {
                         })}
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
