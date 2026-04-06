@@ -41,7 +41,33 @@ export default function MatchTracking() {
 
     // --- VİDEO SCOUTER STATE ---
     const [ytPlayer, setYtPlayer] = useState<any>(null);
-    const [liveEvents, setLiveEvents] = useState<MatchEvent[]>([]); // YENİ: Video zaman çizelgesi
+    
+    // --- PULL (HANG TIME) STATE'LERİ ---
+    const [pullStartTime, setPullStartTime] = useState<number | null>(null);
+    const [pullElapsedTime, setPullElapsedTime] = useState<number>(0);
+
+    useEffect(() => {
+        let interval: any;
+        if (pullStartTime !== null) {
+            interval = setInterval(() => {
+                setPullElapsedTime((Date.now() - pullStartTime) / 1000);
+            }, 100);
+        }
+        return () => clearInterval(interval);
+    }, [pullStartTime]);
+
+    const startPull = () => {
+        setPullStartTime(Date.now());
+        setPullElapsedTime(0);
+        fireEvent('Pull Atıldı'); // Videoya tam atıldığı saniyeyi kaydeder
+    };
+
+    const endPull = (isSuccess: boolean) => {
+        const time = (Date.now() - (pullStartTime || Date.now())) / 1000;
+        fireEvent(`Pull Bitti - ${isSuccess ? 'Başarılı' : 'Başarısız'} (${time.toFixed(1)} sn)`);
+        setPullStartTime(null);
+        setPullElapsedTime(0);
+    };
 
     // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
