@@ -23,7 +23,12 @@ export default function MatchDetail() {
     // VİDEO SCOUTER STATE'LERİ
     const [videoUrl, setVideoUrl] = useState('');
     const [ytPlayer, setYtPlayer] = useState<any>(null);
-
+    const seekToTime = (seconds?: number) => {
+        if (ytPlayer && seconds !== undefined) {
+            ytPlayer.seekTo(seconds, true);
+            ytPlayer.playVideo();
+        }
+    };
     // Tablo Sıralama State'i
 
     // Tablo Sıralama State'i
