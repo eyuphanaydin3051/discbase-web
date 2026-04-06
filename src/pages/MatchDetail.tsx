@@ -407,46 +407,69 @@ export default function MatchDetail() {
                             />
                         </div>
                         
-                        {/* Sağ Taraf: Olay Geçmişi (Play-by-play) */}
+                        {/* Sağ Taraf: Olay Geçmişi (Sayı Gruplamalı) */}
                         <div className="w-full lg:w-1/3 flex flex-col h-[300px] md:h-[400px] lg:h-[500px]">
-                            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-t-xl">
+                            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-t-xl flex justify-between items-center">
                                 <h3 className="font-bold flex items-center gap-2">
                                     <span className="material-icons-outlined text-red-600">history</span>
                                     Olay Geçmişi
                                 </h3>
+                                <span className="text-[10px] text-slate-400">Videoya gitmek için tıklayın</span>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar bg-slate-50/50 dark:bg-slate-900/50 rounded-b-xl border border-t-0 border-slate-100 dark:border-slate-800">
-                                {enrichedEvents.length > 0 ? [...enrichedEvents].reverse().map(event => (
-                                    <div key={event.id} className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-bold text-slate-900 dark:text-white">
-                                                {event.player?.name || 'Bilinmeyen'} <span className="text-violet-600 dark:text-violet-400 text-xs uppercase ml-1 px-1.5 py-0.5 bg-violet-50 dark:bg-violet-900/30 rounded">{event.eventType}</span>
-                                            </span>
-                                            {event.videoTimestampSeconds && (
-                                                <span className="text-[10px] text-slate-400 font-mono mt-1">
-                                                    {(event.videoTimestampSeconds / 60).toFixed(0).padStart(2,'0')}:{(event.videoTimestampSeconds % 60).toString().padStart(2,'0')}
-                                                </span>
-                                            )}
+                            <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar bg-slate-50/50 dark:bg-slate-900/50 rounded-b-xl border border-t-0 border-slate-100 dark:border-slate-800">
+                                {(!enrichedEvents || enrichedEvents.length === 0) ? (
+                                    <div className="text-center py-10 text-slate-400 text-sm">Bu maçta henüz olay kaydedilmedi.</div>
+                                ) : (
+                                    Object.entries(
+                                        [...enrichedEvents]
+                                            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+                                            .reduce((acc: any, evt) => {
+                                                const scoreKey = evt.currentScore ? `${evt.currentScore[0]} - ${evt.currentScore[1]}` : 'Diğer';
+                                                if (!acc[scoreKey]) acc[scoreKey] = [];
+                                                acc[scoreKey].push(evt);
+                                                return acc;
+                                            }, {})
+                                    ).reverse().map(([score, eventsGroup]: [string, any], groupIdx) => (
+                                        <div key={groupIdx} className="flex flex-col gap-2">
+                                            {/* Skor Ayracı */}
+                                            <div className="sticky top-0 z-10 py-1 px-2 bg-slate-200/90 dark:bg-slate-700/90 backdrop-blur-sm rounded text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider self-start shadow-sm border border-slate-300 dark:border-slate-600">
+                                                Skor: {score}
+                                            </div>
+                                            
+                                            {/* Olay Listesi */}
+                                            {(eventsGroup as MatchEvent[]).map((evt) => {
+                                                const isPull = evt.eventType.includes('Pull');
+                                                return (
+                                                    <div key={evt.id} className={`flex items-center justify-between p-2 rounded-lg border shadow-sm ml-2 transition-all ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer hover:border-violet-400' : ''} ${isPull ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800/30' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
+                                                        onClick={() => {
+                                                            if (evt.videoTimestampSeconds !== undefined && ytPlayer) {
+                                                                ytPlayer.seekTo(Math.max(0, evt.videoTimestampSeconds - 4), true);
+                                                                ytPlayer.playVideo();
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                            }
+                                                        }}>
+                                                        <div className="flex items-center gap-2">
+                                                            {evt.videoTimestampSeconds !== undefined && (
+                                                                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isPull ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'}`}>
+                                                                    {(evt.videoTimestampSeconds / 60).toFixed(0).padStart(2,'0')}:{(evt.videoTimestampSeconds % 60).toString().padStart(2,'0')}
+                                                                </span>
+                                                            )}
+                                                            <div className="flex flex-col">
+                                                                <span className={`text-xs font-bold ${isPull ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-900 dark:text-white'}`}>
+                                                                    {evt.player?.name || 'Bilinmeyen'} 
+                                                                    <span className={`text-[9px] uppercase ml-1 px-1 rounded ${isPull ? 'text-indigo-600 dark:text-indigo-400' : 'text-violet-600 dark:text-violet-400'}`}>{evt.eventType}</span>
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        {evt.videoTimestampSeconds !== undefined && (
+                                                            <span className="material-icons-outlined text-[16px] text-slate-400 hover:text-violet-600 transition-colors">play_arrow</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                        {event.videoTimestampSeconds && (
-                                            <button 
-                                                onClick={() => {
-                                                    if(ytPlayer) {
-                                                        // Olaydan 4 saniye öncesine sar ve oynat
-                                                        ytPlayer.seekTo(Math.max(0, event.videoTimestampSeconds! - 4), true);
-                                                        ytPlayer.playVideo();
-                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                    } else {
-                                                        alert("Video henüz yüklenmedi.");
-                                                    }
-                                                }}
-                                                className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
-                                            >
-                                                <span className="material-icons-outlined text-[16px]">play_arrow</span> İzle
-                                            </button>
-                                        )}
-                                    </div>
-                                )) : <div className="text-center py-10 text-slate-400 text-sm">Bu maçta henüz olay kaydedilmedi.</div>}
+                                    ))
+                                )}
                             </div>
                         </div>
                     </div>
