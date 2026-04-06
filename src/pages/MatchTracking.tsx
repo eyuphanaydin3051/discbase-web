@@ -42,40 +42,10 @@ export default function MatchTracking() {
     // --- VİDEO SCOUTER STATE ---
     const [ytPlayer, setYtPlayer] = useState<any>(null);
     
-    // --- PULL (HANG TIME) STATE'LERİ ---
-    // --- PULL (HANG TIME) STATE'LERİ ---
-    const [pullStartTime, setPullStartTime] = useState<number | null>(null);
-    const [pullElapsedTime, setPullElapsedTime] = useState<number>(0);
-    const [pullingPlayerId, setPullingPlayerId] = useState<string | null>(null); // YENİ: Pull atan oyuncu takibi
+    
 
-    useEffect(() => {
-        let interval: any;
-        if (pullStartTime !== null) {
-            interval = setInterval(() => {
-                setPullElapsedTime((Date.now() - pullStartTime) / 1000);
-            }, 100);
-        }
-        return () => clearInterval(interval);
-    }, [pullStartTime]);
+   
 
-    // Uygulamadaki Mantık: Oyuncuya tıklandığında süre başlar
-    const handleStartPull = (pid: string) => {
-        setPullingPlayerId(pid);
-        setPullStartTime(Date.now());
-        setPullElapsedTime(0);
-        fireEvent('Pull Atıldı', pid); // Videoda atış saniyesini yakalar
-    };
-
-    // Uygulamadaki Mantık: Süre bittiğinde içerde/dışarda seçilir ve Defansa geçilir
-    const handleEndPull = (isSuccess: boolean) => {
-        const time = (Date.now() - (pullStartTime || Date.now())) / 1000;
-        fireEvent(`Pull Bitti - ${isSuccess ? 'İçerde' : 'Dışarda'} (${time.toFixed(1)} sn)`, pullingPlayerId || undefined);
-        
-        setPullStartTime(null);
-        setPullElapsedTime(0);
-        setPullingPlayerId(null);
-        setGameMode('DEFENSE'); // Pull bittiği an direkt defans kurgusuna geç
-    };
 
     
 
@@ -161,32 +131,81 @@ export default function MatchTracking() {
         }
     };
 
-    // 4. Mod Seçimi ve Sayı Başlatma
-    const handleStartModeSelect = (mode: 'OFFENSE' | 'DEFENSE' | 'DEFENSE_PULL') => {
-        setStartMode(mode);
-        const initialStats: PlayerStats[] = selectedLineup.map(id => {
-            const player = roster.find(r => r.id === id);
-            return {
-                playerId: id,
-                name: player?.name || 'Unknown',
-                successfulPass: 0, assist: 0, throwaway: 0, catchStat: 0, drop: 0, goal: 0,
-                pullAttempts: 0, successfulPulls: 0, block: 0, callahan: 0,
-                secondsPlayed: 0, totalTempoSeconds: 0, pointsPlayed: 1, totalPullTimeSeconds: 0,
-                passDistribution: {}
-            };
-        });
+    // --- YENİ PULL VE DEFANS MİMARİSİ ---
+    const [isPullPhase, setIsPullPhase] = useState<boolean>(false); // Defans başlangıcındaki Pull aşamasını yönetir
+    const [pullStartTime, setPullStartTime] = useState<number | null>(null);
+    const [pullElapsedTime, setPullElapsedTime] = useState<number>(0);
+    const [pullingPlayerId, setPullingPlayerId] = useState<string | null>(null);
 
-        setCurrentPointStats(initialStats);
-        setGameMode(mode === 'OFFENSE' ? 'OFFENSE' : 'DEFENSE_PULL');
-        setIsTimerRunning(true);
+    useEffect(() => {
+        let interval: any;
+        if (pullStartTime !== null) {
+            interval = setInterval(() => {
+                setPullElapsedTime((Date.now() - pullStartTime) / 1000);
+            }, 100);
+        }
+        return () => clearInterval(interval);
+    }, [pullStartTime]);
+
+    // 1. Seçilen Başlangıç Moduna Göre Hazırlık
+    const handleStartModeSelect = (mode: 'OFFENSE' | 'DEFENSE') => {
+        setGameMode(mode);
         setPointTimer(0);
         setHistoryStack([]);
         setActivePasserId(null);
-        setTrackingStep('tracking');
+        setLastAction(null);
+        setCurrentPointStats([]);
+        
+        // Eğer Defans başlıyorsa sistem otomatik olarak Pull atma zorunluluğuna girer
+        if (mode === 'DEFENSE') {
+            setIsPullPhase(true);
+            setPullingPlayerId(null);
+            setPullStartTime(null);
+            setPullElapsedTime(0);
+        } else {
+            setIsPullPhase(false);
+        }
     };
 
-    const updatePlayerStat = (playerId: string, updates: Partial<PlayerStats>) => {
-        setCurrentPointStats(prev => prev.map(p => p.playerId === playerId ? { ...p, ...updates } : p));
+    // 2. Oyuncu seçildikten sonra tıklanan "Pull Süresini Başlat" Butonu
+    const handleStartPullTimer = () => {
+        if (!pullingPlayerId) return;
+        setPullStartTime(Date.now());
+        setPullElapsedTime(0);
+        fireEvent('Pull Atıldı', pullingPlayerId);
+    };
+
+    // 3. Havada süzülen diskin İçerde/Dışarda seçimi ve normal defansa geçiş
+    const handleEndPull = (isSuccess: boolean) => {
+        const time = (Date.now() - (pullStartTime || Date.now())) / 1000;
+        const timeInt = Math.round(time);
+        fireEvent(`Pull Bitti - ${isSuccess ? 'İçerde' : 'Dışarda'} (${time.toFixed(1)} sn)`, pullingPlayerId || undefined);
+        
+        if (pullingPlayerId) {
+            // Uygulamanın hesaplama yapısına uygun olarak atış süresi ve sayısını kaydet
+            updatePlayerStat(pullingPlayerId, 'totalPulls', 1);
+            updatePlayerStat(pullingPlayerId, 'totalPullTimeSeconds', timeInt);
+        }
+        
+        setPullStartTime(null);
+        setPullElapsedTime(0);
+        setPullingPlayerId(null);
+        setIsPullPhase(false); // Pull bitti, artık normal defans eylemleri (Blok, Callahan vb.) açılabilir
+    };
+
+    const updatePlayerStat = (playerId: string, statKey: keyof PlayerStats, value: number = 1) => {
+        setCurrentPointStats(prev => {
+            const existing = prev.find(p => p.playerId === playerId);
+            if (existing) {
+                return prev.map(p => 
+                    p.playerId === playerId 
+                        ? { ...p, [statKey]: ((p[statKey] as number) || 0) + value } 
+                        : p
+                );
+            } else {
+                return [...prev, { playerId, [statKey]: value } as PlayerStats];
+            }
+        });
     };
 
     const fireEvent = async (type: MatchEvent['eventType'], playerId?: string) => {
@@ -569,17 +588,29 @@ export default function MatchTracking() {
                     {gameMode && (
                         <div className="flex flex-col gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm shrink-0">
                             
-                            {/* Aktif Pull Ekranı (Sadece Pull Atıldığında Ortaya Çıkar) */}
-                            {pullStartTime !== null ? (
+                            {/* YENİ PULL EKRANI */}
+                            {isPullPhase ? (
                                 <div className="flex flex-col gap-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100">
-                                    <div className="text-center font-black text-[10px] text-indigo-800 uppercase tracking-widest">Pull Havada</div>
-                                    <div className="text-3xl font-mono font-black text-indigo-600 text-center leading-none">
-                                        {pullElapsedTime.toFixed(1)}s
-                                    </div>
-                                    <div className="flex gap-1.5 mt-1">
-                                        <button onClick={() => handleEndPull(true)} className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-bold text-[11px] shadow-sm uppercase">İçerde</button>
-                                        <button onClick={() => handleEndPull(false)} className="flex-1 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded font-bold text-[11px] shadow-sm uppercase">Dışarda</button>
-                                    </div>
+                                    {!pullingPlayerId ? (
+                                        <div className="text-center font-black text-[11px] text-indigo-800 py-4 uppercase">
+                                            Aşağıdan Pull Atacak Oyuncuyu Seçin
+                                        </div>
+                                    ) : pullStartTime === null ? (
+                                        <button onClick={handleStartPullTimer} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-black text-[13px] shadow-md uppercase tracking-wider transition-all animate-pulse">
+                                            PULL SÜRESİNİ BAŞLAT
+                                        </button>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-1">
+                                            <div className="text-center font-black text-[10px] text-indigo-800 uppercase tracking-widest">Pull Havada</div>
+                                            <div className="text-4xl font-mono font-black text-indigo-600 text-center leading-none my-1">
+                                                {pullElapsedTime.toFixed(1)}s
+                                            </div>
+                                            <div className="flex gap-1.5 mt-1 w-full">
+                                                <button onClick={() => handleEndPull(true)} className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold text-[11px] shadow-sm uppercase">İçerde</button>
+                                                <button onClick={() => handleEndPull(false)} className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-bold text-[11px] shadow-sm uppercase">Dışarda</button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <>
@@ -589,7 +620,7 @@ export default function MatchTracking() {
                                     </button>
 
                                     {/* Defans Eylemleri (Turnover & Rakip Sayı) */}
-                                    {gameMode.includes('DEFENSE') && gameMode !== 'DEFENSE_PULL' && (
+                                    {gameMode === 'DEFENSE' && (
                                         <div className="flex flex-col gap-1.5 mt-1">
                                             <button onClick={handleOpponentTurnover} className="w-full py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg font-black transition-all text-[11px] flex items-center justify-center gap-1 uppercase">
                                                 <span className="material-icons-outlined text-[15px]">swap_horiz</span> TOP BİZE GEÇTİ
@@ -611,8 +642,7 @@ export default function MatchTracking() {
                                 <div className="text-center flex flex-col gap-2">
                                     <h3 className="text-xs font-bold text-slate-700">1. Maça Başlayacak Çizgiyi Seçin</h3>
                                     <div className="grid grid-cols-1 gap-2">
-                                        {/* Burada kendi kadro oluşturma mantığınızı/butonlarınızı koruyabilirsiniz */}
-                                        <button onClick={() => setSelectedLineup(roster.slice(0, 7).map(p => p.id))} className="py-2 bg-violet-100 hover:bg-violet-200 text-violet-700 rounded font-bold text-[11px]">Rastgele 7'li Seç (Test)</button>
+                                        <button onClick={() => setSelectedLineup(roster.slice(0, 7).map(p => p.id))} className="py-2 bg-violet-100 hover:bg-violet-200 text-violet-700 rounded font-bold text-[11px]">Rastgele 7'li Seç</button>
                                     </div>
                                 </div>
                             ) : (
@@ -622,11 +652,8 @@ export default function MatchTracking() {
                                         <button onClick={() => handleStartModeSelect('OFFENSE')} className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1">
                                             <span className="material-icons-outlined text-[16px]">sports_handball</span> Hücum Bizde
                                         </button>
-                                        <button onClick={() => handleStartModeSelect('DEFENSE_PULL')} className="py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1">
-                                            <span className="material-icons-outlined text-[16px]">shield</span> Defans (Biz Pull Atıyoruz)
-                                        </button>
-                                        <button onClick={() => handleStartModeSelect('DEFENSE')} className="py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold text-xs">
-                                            Defans (Rakip Pull Atıyor)
+                                        <button onClick={() => handleStartModeSelect('DEFENSE')} className="py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1">
+                                            <span className="material-icons-outlined text-[16px]">shield</span> Defans (Pull Atıyoruz)
                                         </button>
                                     </div>
                                 </div>
@@ -637,9 +664,8 @@ export default function MatchTracking() {
             </div>
 
             {/* ALT BÖLÜM: KOMPAKT (Sıkıştırılmış) OYUNCU KARTLARI */}
-            {gameMode && pullStartTime === null && (
+            {gameMode && (
                 <div className="flex-1 overflow-y-auto bg-white p-2 rounded-xl border border-slate-200 shadow-sm custom-scrollbar">
-                    {/* Oyuncu sayısına göre kolon sayısını dinamik artırdık, kartlar artık çok daha ufak */}
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7 gap-1.5 pb-8">
                         {selectedLineup.map(pid => {
                             const player = roster.find(r => r.id === pid);
@@ -662,10 +688,20 @@ export default function MatchTracking() {
 
                                     {/* Kart Alt (Aksiyon Butonları) */}
                                     <div className="p-1 flex flex-col gap-1">
-                                        {gameMode === 'DEFENSE_PULL' ? (
-                                            <button onClick={() => handleStartPull(pid)} className="w-full py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 rounded text-[9px] font-black transition-all uppercase tracking-widest">
-                                                PULL AT
-                                            </button>
+                                        {isPullPhase ? (
+                                            !pullingPlayerId ? (
+                                                <button onClick={() => setPullingPlayerId(pid)} className="w-full py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 rounded text-[10px] font-black transition-all uppercase tracking-widest">
+                                                    PULL İÇİN SEÇ
+                                                </button>
+                                            ) : pullingPlayerId === pid ? (
+                                                <span className="text-center py-1.5 text-[10px] font-black text-indigo-600 bg-indigo-50 rounded border border-indigo-200 uppercase tracking-widest">
+                                                    Pull Atan
+                                                </span>
+                                            ) : (
+                                                <span className="text-center py-1.5 text-[10px] font-bold text-slate-400 opacity-50 uppercase tracking-widest">
+                                                    Bekliyor
+                                                </span>
+                                            )
                                         ) : gameMode === 'OFFENSE' ? (
                                             isDiskHolder ? (
                                                 <button onClick={handleThrowaway} className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded text-[9px] font-black uppercase tracking-wider">
