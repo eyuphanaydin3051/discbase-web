@@ -364,16 +364,52 @@ export const updateMatchData = async (teamId: string, tournamentId: string, matc
 
 
 
-// --- MATCH TRACKING (CANLI İSTATİSTİK) FONKSİYONLARI ---
 
-export const addMatchEvent = async (tournamentId: string, matchId: string, event: MatchEvent) => {
-    const teamId = localStorage.getItem('selectedTeamId');
-    if (!teamId) return;
-    // HATA DÜZELTİLDİ: Doğru Firebase yolu eklendi
-    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
-    await updateDoc(matchRef, {
-        events: arrayUnion(event)
-    });
+
+// ... diğer importlar ...
+
+// YENİ EKLENEN/GÜNCELLENEN: Olayı maçın içine dizi elemanı olarak kaydeder
+export const addMatchEvent = async (tournamentId: string, matchId: string, event: any) => {
+    try {
+        const teamId = localStorage.getItem('selectedTeamId');
+        if (!teamId) return;
+
+        // Maçın yolunu buluyoruz (Kendi veritabanı ağacınıza göre güncelleyin)
+        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        
+        // arrayUnion ile olayı var olan dizinin içine (diğer verileri bozmadan) itiyoruz
+        await updateDoc(matchRef, {
+            events: arrayUnion(event)
+        });
+    } catch (error) {
+        console.error("Video olayı kaydedilirken hata:", error);
+    }
+};
+
+// YENİ EKLENEN/GÜNCELLENEN: Son olayı geri alır (Undo)
+export const undoLastEvent = async (tournamentId: string, matchId: string) => {
+    try {
+        const teamId = localStorage.getItem('selectedTeamId');
+        if (!teamId) return;
+
+        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        const matchSnap = await getDoc(matchRef);
+        
+        if (matchSnap.exists()) {
+            const matchData = matchSnap.data();
+            const events = matchData.events || [];
+            
+            if (events.length > 0) {
+                // Zaman damgasına göre en son ekleneni bul (en yüksek timestamp)
+                const sortedEvents = events.sort((a: any, b: any) => b.timestamp - a.timestamp);
+                const eventsToKeep = sortedEvents.slice(1); // En sonuncuyu çıkar
+                
+                await updateDoc(matchRef, { events: eventsToKeep });
+            }
+        }
+    } catch (error) {
+        console.error("Geri alırken hata:", error);
+    }
 };
 
 export const archivePoint = async (tournamentId: string, matchId: string, lineup: string[], startMode: 'OFFENSE' | 'DEFENSE', whoScored: 'US' | 'THEM') => {
@@ -429,38 +465,3 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
     });
 };
 
-export const undoLastEvent = async (tournamentId: string, matchId: string) => {
-    const teamId = localStorage.getItem('selectedTeamId');
-    if (!teamId) return;
-    // HATA DÜZELTİLDİ: Doğru Firebase yolu eklendi
-    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
-    const matchSnap = await getDoc(matchRef);
-    if (!matchSnap.exists()) return;
-
-    const matchData = matchSnap.data();
-    const events = matchData.events || [];
-
-    if (events.length > 0) {
-        const lastEvent = events[events.length - 1];
-        await updateDoc(matchRef, {
-            events: arrayRemove(lastEvent)
-        });
-    } else {
-        const pointsArchive = matchData.pointsArchive || [];
-        if (pointsArchive.length > 0) {
-            const lastPoint = pointsArchive[pointsArchive.length - 1];
-            let newScoreUs = matchData.scoreUs ?? matchData.score?.[0] ?? 0;
-            let newScoreThem = matchData.scoreThem ?? matchData.score?.[1] ?? 0;
-            
-            if (lastPoint.whoScored === 'US') newScoreUs = Math.max(0, newScoreUs - 1);
-            else if (lastPoint.whoScored === 'THEM') newScoreThem = Math.max(0, newScoreThem - 1);
-
-            await updateDoc(matchRef, {
-                pointsArchive: arrayRemove(lastPoint),
-                scoreUs: newScoreUs,
-                scoreThem: newScoreThem,
-                score: [newScoreUs, newScoreThem]
-            });
-        }
-    }
-};

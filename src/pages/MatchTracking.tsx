@@ -41,7 +41,7 @@ export default function MatchTracking() {
 
     // --- VİDEO SCOUTER STATE ---
     const [ytPlayer, setYtPlayer] = useState<any>(null);
-    const [liveEvents, setLiveEvents] = useState<MatchEvent[]>([]); // YENİ: Canlı olay akışı state'i
+    const [liveEvents, setLiveEvents] = useState<MatchEvent[]>([]); // YENİ: Video zaman çizelgesi
 
     // 1. Veri Çekme ve Timer Kurulumu
     useEffect(() => {
@@ -49,7 +49,7 @@ export default function MatchTracking() {
         if (matchId && tournamentId && teamId) {
             getMatch(tournamentId, matchId).then(m => {
                 setMatch(m);
-                // Eğer maçın geçmiş eventleri varsa onları çekip yeniden eskiye sıralayalım
+                // Firebase'den veri gelirse, olayları en yeni en üstte olacak şekilde sırala
                 if (m && m.events) {
                     setLiveEvents(m.events.sort((a, b) => b.timestamp - a.timestamp));
                 }
@@ -90,7 +90,7 @@ export default function MatchTracking() {
         if (!matchId || !tournamentId) return;
         await undoLastEvent(tournamentId, matchId);
         
-        // Geri alındığında listeden de son eklenen aksiyonu kaldırıyoruz
+        // Listeden de en son eklenen elemanı anında siliyoruz
         setLiveEvents(prev => prev.slice(1));
 
         if (historyStack.length > 0) {
@@ -160,7 +160,7 @@ export default function MatchTracking() {
         if (!matchId || !tournamentId) return;
         setLastAction(`${playerId}_${type}`);
 
-        // O ANKİ VİDEO SANİYESİNİ AL (Video varsa ve oynatılıyorsa)
+        // VİDEO SANİYESİNİ YAKALA
         let currentVideoTime: number | undefined = undefined;
         if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
             const time = ytPlayer.getCurrentTime();
@@ -181,11 +181,12 @@ export default function MatchTracking() {
             videoTimestampSeconds: currentVideoTime
         } as MatchEvent;
         
+        // Önce ekranda hemen göster (Hızlı hissettirmesi için)
+        setLiveEvents(prev => [event, ...prev]);
+
+        // Sonra Firebase'e gönder (Arka planda çalışır, UI'ı dondurmaz)
         await addMatchEvent(tournamentId, matchId, event);
         setTimeout(() => setLastAction(null), 300);
-        
-        // Yeni eventi arayüzdeki olay geçmişinin en üstüne ekliyoruz
-        setLiveEvents(prev => [event, ...prev]);
     };
 
     // --- HÜCUM AKSİYONLARI ---
@@ -357,7 +358,7 @@ export default function MatchTracking() {
         </div>
     );
 
-    // YouTube videosunu istenilen saniyeye sardırma fonksiyonu
+    // YENİ: Videoyu istenilen saniyeye sarar
     const seekToTime = (seconds?: number) => {
         if (ytPlayer && seconds !== undefined) {
             ytPlayer.seekTo(seconds, true);
@@ -511,7 +512,8 @@ export default function MatchTracking() {
 
                 {/* SOL TARAF: VİDEO OYNATICI VE OLAY GEÇMİŞİ */}
                 {match?.youtubeVideoId && (
-                    <div className="w-full lg:w-1/2 flex flex-col gap-4 h-full">
+                    <div className="w-full lg:w-1/2 flex flex-col gap-4 h-full overflow-y-auto custom-scrollbar pr-2 pb-10">
+                        
                         {/* VİDEO OYNATICI ALANI */}
                         <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl flex-shrink-0">
                             <div className="p-3 bg-slate-800 flex justify-between items-center border-b border-slate-700">
@@ -520,7 +522,7 @@ export default function MatchTracking() {
                                 </h3>
                                 <span className="text-xs text-slate-400">Tıklanan aksiyonlar anlık saniyeyle kaydedilir.</span>
                             </div>
-                            <div className="bg-black w-full h-[300px] xl:h-[400px]">
+                            <div className="bg-black w-full aspect-video min-h-[250px]">
                                 <YouTube
                                     videoId={match.youtubeVideoId}
                                     opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
@@ -531,39 +533,40 @@ export default function MatchTracking() {
                         </div>
 
                         {/* OLAY GEÇMİŞİ (EVENT HISTORY) ALANI */}
-                        <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl flex-1 flex flex-col min-h-[200px]">
-                            <div className="p-3 bg-slate-800 border-b border-slate-700 sticky top-0 shadow-md">
+                        <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl flex-shrink-0">
+                            <div className="p-3 bg-slate-800 border-b border-slate-700 flex justify-between items-center sticky top-0">
                                 <h3 className="font-bold text-white flex items-center gap-2 text-sm">
-                                    <span className="material-icons-outlined text-base">history</span> Olay Geçmişi (Tıklayarak Gidin)
+                                    <span className="material-icons-outlined text-base">history</span> Olay Geçmişi
                                 </h3>
+                                <span className="text-[10px] text-slate-400 bg-slate-900 px-2 py-1 rounded">Tıklayarak o saniyeye gidin</span>
                             </div>
-                            <div className="p-2 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                            <div className="p-2 max-h-[350px] overflow-y-auto custom-scrollbar flex flex-col gap-2">
                                 {liveEvents.length === 0 && (
-                                    <p className="text-slate-500 text-sm text-center py-4">Henüz bir aksiyon kaydedilmedi.</p>
+                                    <p className="text-slate-500 text-sm text-center py-8">Henüz bir aksiyon kaydedilmedi.</p>
                                 )}
                                 {liveEvents.map((evt, idx) => {
                                     const p = evt.playerId ? roster.find(r => r.id === evt.playerId) : null;
                                     const formatTime = (sec?: number) => sec !== undefined ? `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}` : '--:--';
+                                    
                                     return (
                                         <div 
                                             key={evt.id || idx} 
                                             onClick={() => evt.videoTimestampSeconds !== undefined && seekToTime(evt.videoTimestampSeconds)}
-                                            className={`flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-700 border border-slate-700 transition-colors ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
-                                            title="Videoda bu ana gitmek için tıklayın"
+                                            className={`flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-700 border border-slate-700 transition-colors ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer hover:border-violet-500' : 'cursor-default opacity-70'}`}
                                         >
                                             <div className="flex items-center gap-3">
-                                                <span className="font-mono text-xs font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded">
+                                                <span className="font-mono text-xs font-bold text-violet-300 bg-violet-900/30 px-2 py-1.5 rounded border border-violet-800/50">
                                                     {formatTime(evt.videoTimestampSeconds)}
                                                 </span>
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-bold text-slate-200">
-                                                        {evt.eventType} {evt.currentScore && `(${evt.currentScore[0]} - ${evt.currentScore[1]})`}
+                                                        {evt.eventType} {evt.currentScore && <span className="text-slate-500 ml-1">({evt.currentScore[0]} - {evt.currentScore[1]})</span>}
                                                     </span>
-                                                    {p && <span className="text-xs text-slate-400">{p.name} <span className="text-slate-500">(#{p.jerseyNumber})</span></span>}
+                                                    {p && <span className="text-xs text-slate-400">{p.name} <span className="text-slate-500 font-mono">(#{p.jerseyNumber})</span></span>}
                                                 </div>
                                             </div>
                                             {evt.videoTimestampSeconds !== undefined && (
-                                                <span className="material-icons-outlined text-slate-500 hover:text-white">play_circle</span>
+                                                <span className="material-icons-outlined text-slate-500 hover:text-white transition-colors">play_circle</span>
                                             )}
                                         </div>
                                     );
