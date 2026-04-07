@@ -588,8 +588,8 @@ export default function MatchTracking() {
                 )}
 
                 {trackingStep === 'tracking' && (
-                    // DİKEY YÜKSEKLİĞİ ARTIRILMIŞ VE SIRALANMIŞ OYUNCU KARTLARI
-                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-2 pb-2 auto-rows-[minmax(140px,1fr)] md:auto-rows-[minmax(160px,1fr)] h-full">
+                    // KAYDIRMA (SCROLL) OLMADAN EKRANA TAM OTURAN OYUNCU KARTLARI
+                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-1.5 md:gap-2 h-full">
                         {[...selectedLineup]
                             .sort((idA, idB) => getJerseyNumber(roster.find(r => r.id === idA)) - getJerseyNumber(roster.find(r => r.id === idB)))
                             .map(pid => {

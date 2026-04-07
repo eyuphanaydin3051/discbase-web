@@ -447,7 +447,7 @@ export default function MatchDetail() {
                                                     <div key={evt.id} className={`flex items-center justify-between p-2 rounded-lg border shadow-sm ml-2 transition-all ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer hover:border-violet-400' : ''} ${isPull ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800/30' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
                                                         onClick={() => {
                                                             if (evt.videoTimestampSeconds !== undefined && ytPlayer) {
-                                                                ytPlayer.seekTo(Math.max(0, evt.videoTimestampSeconds - 4), true);
+                                                                ytPlayer.seekTo(Math.max(0, evt.videoTimestampSeconds - 1), true);
                                                                 ytPlayer.playVideo();
                                                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                                                             }
