@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMatch, getPlayers, updateMatchData, getTournaments } from '../services/repository';
+import { getPlayers, updateMatchData, getTournaments } from '../services/repository';
 import type { Match, MatchEvent, Player, Tournament } from '../types';
 import YouTube from 'react-youtube';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -22,61 +22,11 @@ export default function MatchDetail() {
     const [loading, setLoading] = useState(true);
 
     // VİDEO SCOUTER STATE'LERİ
+    // VİDEO SCOUTER STATE'LERİ
     const [videoUrl, setVideoUrl] = useState('');
     const [ytPlayer, setYtPlayer] = useState<any>(null);
     const [expandedPointIndex, setExpandedPointIndex] = useState<number | null>(null); // Accordion için yeni state
-
-    // Olayları Sayılara (Point) Göre Gruplama
-    const groupedEventsByPoint = useMemo(() => {
-        if (!enrichedEvents || enrichedEvents.length === 0) return [];
-        const sorted = [...enrichedEvents].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        const points: MatchEvent[][] = [];
-        let currentPointEvents: MatchEvent[] = [];
-
-        sorted.forEach((evt) => {
-            currentPointEvents.push(evt);
-            // Gol veya Callahan olduğunda bir sayı biter
-            if (evt.eventType === 'Goal' || evt.eventType === 'Callahan') {
-                points.push([...currentPointEvents]);
-                currentPointEvents = [];
-            }
-        });
-
-        // Son sayı henüz bitmediyse kalanları da bir grup yap
-        if (currentPointEvents.length > 0) {
-            points.push(currentPointEvents);
-        }
-        return points;
-    }, [enrichedEvents]);
-
-    // Olayları okunaklı Türkçe metne çevirme fonksiyonu
-    const getEventDescriptionText = (evt: MatchEvent) => {
-        const playerName = evt.player?.name || 'Bilinmeyen oyuncu';
-        const type = evt.eventType;
-
-        switch (type) {
-            case 'Completion': return <><span className="font-bold">{playerName}</span> başarılı pas attı.</>;
-            case 'Drop': return <><span className="font-bold">{playerName}</span> diski düşürdü (Drop).</>;
-            case 'Throwaway': return <><span className="font-bold">{playerName}</span> hatalı pas attı (Throwaway).</>;
-            case 'Goal': return <><span className="font-bold">{playerName}</span> GOL attı!</>;
-            case 'Assist': return <><span className="font-bold">{playerName}</span> asist yaptı.</>;
-            case 'D-Up': return <><span className="font-bold">{playerName}</span> blok (D-Up) yaptı.</>;
-            case 'Callahan': return <><span className="font-bold text-purple-600">{playerName}</span> CALLAHAN yaptı!</>;
-            case 'Interception': return <><span className="font-bold">{playerName}</span> araya girdi.</>;
-            case 'Stall': return <><span className="font-bold">{playerName}</span> elinde diskle süre doldu (Stall).</>;
-            default:
-                if (type.includes('Pull')) {
-                    let pullStatus = "pull attı.";
-                    if (type.includes('OB')) pullStatus = "başarısız (OB) pull attı.";
-                    if (type.includes('IB')) pullStatus = "başarılı (IB) pull attı.";
-                    return <><span className="font-bold">{playerName}</span> {pullStatus}</>;
-                }
-                return <><span className="font-bold">{playerName}</span> {type} aksiyonu yaptı.</>;
-        }
-    };
-
-    // Tablo Sıralama State'i
-
+ 
     // Tablo Sıralama State'i
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({
         key: 'pointsPlayed',
@@ -148,6 +98,56 @@ export default function MatchDetail() {
             return { ...event, player, secondaryPlayer } as MatchEvent;
         });
     }, [events, rosterPlayers]);
+
+    // --- YENİ: Olayları Sayılara (Point) Göre Gruplama ---
+    // (enrichedEvents yukarıda tanımlandıktan sonra çalıştığı için hata vermeyecek)
+    const groupedEventsByPoint = useMemo(() => {
+        if (!enrichedEvents || enrichedEvents.length === 0) return [];
+        const sorted = [...enrichedEvents].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        const points: MatchEvent[][] = [];
+        let currentPointEvents: MatchEvent[] = [];
+
+        sorted.forEach((evt) => {
+            currentPointEvents.push(evt);
+            // Gol veya Callahan olduğunda bir sayı biter
+            if (evt.eventType === 'Goal' || evt.eventType === 'Callahan') {
+                points.push([...currentPointEvents]);
+                currentPointEvents = [];
+            }
+        });
+
+        // Son sayı henüz bitmediyse kalanları da bir grup yap
+        if (currentPointEvents.length > 0) {
+            points.push(currentPointEvents);
+        }
+        return points;
+    }, [enrichedEvents]);
+
+    // Olayları okunaklı Türkçe metne çevirme fonksiyonu
+    const getEventDescriptionText = (evt: MatchEvent) => {
+        const playerName = evt.player?.name || 'Bilinmeyen oyuncu';
+        const type = evt.eventType;
+
+        switch (type) {
+            case 'Completion': return <><span className="font-bold">{playerName}</span> başarılı pas attı.</>;
+            case 'Drop': return <><span className="font-bold">{playerName}</span> diski düşürdü (Drop).</>;
+            case 'Throwaway': return <><span className="font-bold">{playerName}</span> hatalı pas attı (Throwaway).</>;
+            case 'Goal': return <><span className="font-bold">{playerName}</span> GOL attı!</>;
+            case 'Assist': return <><span className="font-bold">{playerName}</span> asist yaptı.</>;
+            case 'D-Up': return <><span className="font-bold">{playerName}</span> blok (D-Up) yaptı.</>;
+            case 'Callahan': return <><span className="font-bold text-purple-600">{playerName}</span> CALLAHAN yaptı!</>;
+            case 'Interception': return <><span className="font-bold">{playerName}</span> araya girdi.</>;
+            case 'Stall': return <><span className="font-bold">{playerName}</span> elinde diskle süre doldu (Stall).</>;
+            default: 
+                if (type.includes('Pull')) {
+                    let pullStatus = "pull attı.";
+                    if (type.includes('OB')) pullStatus = "başarısız (OB) pull attı.";
+                    if (type.includes('IB')) pullStatus = "başarılı (IB) pull attı.";
+                    return <><span className="font-bold">{playerName}</span> {pullStatus}</>;
+                }
+                return <><span className="font-bold">{playerName}</span> {type} aksiyonu yaptı.</>;
+        }
+    };
 
     // 4. İstatistik Hesaplama (Oyuncular için - Kapsamlı Mod)
     const computePlayerStats = () => {
@@ -520,7 +520,7 @@ export default function MatchDetail() {
                                                                     className={`flex items-center justify-between p-2.5 rounded-md border shadow-sm transition-all ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer hover:border-violet-400' : ''} ${isGoal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/30' : isTurnover ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/30' : isPull ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800/30' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
                                                                     onClick={() => {
                                                                         if (evt.videoTimestampSeconds !== undefined && ytPlayer) {
-                                                                            ytPlayer.seekTo(Math.max(0, evt.videoTimestampSeconds - 1), true);
+                                                                            ytPlayer.seekTo(Math.max(0, evt.videoTimestampSeconds - 1.5), true);
                                                                             ytPlayer.playVideo();
                                                                             window.scrollTo({ top: 0, behavior: 'smooth' });
                                                                         }
