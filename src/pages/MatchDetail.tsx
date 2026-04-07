@@ -7,7 +7,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 // Takım adını güvenli şekilde çeken yardımcı fonksiyon
 // src/pages/MatchDetail.tsx - getTeamName güncellemesi
-const getTeamName = (match: Match | null, tournament: any | null) => 
+const getTeamName = (match: Match | null, tournament: any | null) =>
     match?.ourTeamName || tournament?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
 
 export default function MatchDetail() {
@@ -20,17 +20,67 @@ export default function MatchDetail() {
     const [events, setEvents] = useState<MatchEvent[]>([]);
     const [rosterPlayers, setRosterPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
-    
+
     // VİDEO SCOUTER STATE'LERİ
     const [videoUrl, setVideoUrl] = useState('');
     const [ytPlayer, setYtPlayer] = useState<any>(null);
- 
+    const [expandedPointIndex, setExpandedPointIndex] = useState<number | null>(null); // Accordion için yeni state
+
+    // Olayları Sayılara (Point) Göre Gruplama
+    const groupedEventsByPoint = useMemo(() => {
+        if (!enrichedEvents || enrichedEvents.length === 0) return [];
+        const sorted = [...enrichedEvents].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        const points: MatchEvent[][] = [];
+        let currentPointEvents: MatchEvent[] = [];
+
+        sorted.forEach((evt) => {
+            currentPointEvents.push(evt);
+            // Gol veya Callahan olduğunda bir sayı biter
+            if (evt.eventType === 'Goal' || evt.eventType === 'Callahan') {
+                points.push([...currentPointEvents]);
+                currentPointEvents = [];
+            }
+        });
+
+        // Son sayı henüz bitmediyse kalanları da bir grup yap
+        if (currentPointEvents.length > 0) {
+            points.push(currentPointEvents);
+        }
+        return points;
+    }, [enrichedEvents]);
+
+    // Olayları okunaklı Türkçe metne çevirme fonksiyonu
+    const getEventDescriptionText = (evt: MatchEvent) => {
+        const playerName = evt.player?.name || 'Bilinmeyen oyuncu';
+        const type = evt.eventType;
+
+        switch (type) {
+            case 'Completion': return <><span className="font-bold">{playerName}</span> başarılı pas attı.</>;
+            case 'Drop': return <><span className="font-bold">{playerName}</span> diski düşürdü (Drop).</>;
+            case 'Throwaway': return <><span className="font-bold">{playerName}</span> hatalı pas attı (Throwaway).</>;
+            case 'Goal': return <><span className="font-bold">{playerName}</span> GOL attı!</>;
+            case 'Assist': return <><span className="font-bold">{playerName}</span> asist yaptı.</>;
+            case 'D-Up': return <><span className="font-bold">{playerName}</span> blok (D-Up) yaptı.</>;
+            case 'Callahan': return <><span className="font-bold text-purple-600">{playerName}</span> CALLAHAN yaptı!</>;
+            case 'Interception': return <><span className="font-bold">{playerName}</span> araya girdi.</>;
+            case 'Stall': return <><span className="font-bold">{playerName}</span> elinde diskle süre doldu (Stall).</>;
+            default:
+                if (type.includes('Pull')) {
+                    let pullStatus = "pull attı.";
+                    if (type.includes('OB')) pullStatus = "başarısız (OB) pull attı.";
+                    if (type.includes('IB')) pullStatus = "başarılı (IB) pull attı.";
+                    return <><span className="font-bold">{playerName}</span> {pullStatus}</>;
+                }
+                return <><span className="font-bold">{playerName}</span> {type} aksiyonu yaptı.</>;
+        }
+    };
+
     // Tablo Sıralama State'i
 
     // Tablo Sıralama State'i
-    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ 
-        key: 'pointsPlayed', 
-        direction: 'desc' 
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({
+        key: 'pointsPlayed',
+        direction: 'desc'
     });
 
     // 1. Oyuncuları çek
@@ -51,12 +101,12 @@ export default function MatchDetail() {
         }
 
         const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
-        
+
         const unsubscribe = onSnapshot(matchDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 const fetchedMatch = { id: docSnap.id, ...docSnap.data() } as Match;
                 setMatch(fetchedMatch);
-                
+
                 if (fetchedMatch.events && Array.isArray(fetchedMatch.events)) {
                     setEvents(fetchedMatch.events);
                 } else {
@@ -77,17 +127,17 @@ export default function MatchDetail() {
     }, [tournamentId, matchId, activeTeamId, navigate]);
     // 5. Turnuva verisini çek (Takım adı için)
     useEffect(() => {
-    if (!activeTeamId || !tournamentId) return;
-    
-    const unsubscribeTour = getTournaments(activeTeamId, (tours: Tournament[]) => {
-        const currentTour = tours.find((t: Tournament) => t.id === tournamentId);
-        if (currentTour) {
-            setTournament(currentTour);
-        }
-    });
-    
-    return () => unsubscribeTour();
-}, [activeTeamId, tournamentId]);
+        if (!activeTeamId || !tournamentId) return;
+
+        const unsubscribeTour = getTournaments(activeTeamId, (tours: Tournament[]) => {
+            const currentTour = tours.find((t: Tournament) => t.id === tournamentId);
+            if (currentTour) {
+                setTournament(currentTour);
+            }
+        });
+
+        return () => unsubscribeTour();
+    }, [activeTeamId, tournamentId]);
     // 3. Olayları Zenginleştir
     const enrichedEvents = useMemo(() => {
         return events.map(event => {
@@ -109,7 +159,7 @@ export default function MatchDetail() {
                 name: player.name,
                 jerseyNumber: player.jerseyNumber ?? undefined,
                 photoUrl: player.photoUrl ?? undefined,
-                goals: 0, assists: 0, blocks: 0, callahans: 0, 
+                goals: 0, assists: 0, blocks: 0, callahans: 0,
                 passes: 0, drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0
             };
         });
@@ -156,16 +206,16 @@ export default function MatchDetail() {
         // Hesaplamaları yap
         return Object.values(statsMap).map((stats: any) => {
             const totalPassAttempts = stats.passes + stats.throwaways;
-            const passPercentage = totalPassAttempts > 0 
+            const passPercentage = totalPassAttempts > 0
                 ? parseFloat(((stats.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
 
             const catches = totalPassAttempts + stats.goals;
             const totalCatchOpportunities = catches + stats.drops;
-            const catchPercentage = totalCatchOpportunities > 0 
+            const catchPercentage = totalCatchOpportunities > 0
                 ? parseFloat(((catches / totalCatchOpportunities) * 100).toFixed(1)) : 0;
 
             // Verimlilik formülü (App Utils.kt ile birebir)
-            const efficiencyScore = 
+            const efficiencyScore =
                 ((stats.goals - stats.callahans) * 1.0) +
                 (stats.assists * 1.0) +
                 ((stats.blocks - stats.callahans) * 1.5) +
@@ -182,7 +232,7 @@ export default function MatchDetail() {
             };
         });
     };
-    
+
 
     // --- Takım Dinamik İstatistikleri (Mobil App ile Birebir Mantık) ---
     const computeTeamStats = () => {
@@ -196,12 +246,12 @@ export default function MatchDetail() {
         // A. Arşivdeki (Bitmiş) Sayıları İşle
         if (match?.pointsArchive && match.pointsArchive.length > 0) {
             totalPointsPlayed = match.pointsArchive.length;
-            
+
             match.pointsArchive.forEach(point => {
                 const isOurPoint = point.whoScored === 'US' || point.whoScored === 'OURS'; // Geriye dönük uyumluluk
                 let pointTurnovers = 0;
                 let pointBlocks = 0;
-                
+
                 if (point.startMode === 'OFFENSE') {
                     totalOffensePoints++;
                     if (isOurPoint) offensiveHolds++;
@@ -217,7 +267,7 @@ export default function MatchDetail() {
                     totalThrowaways += stat.throwaway || 0;
                     totalDrops += stat.drop || 0;
                     totalBlocks += stat.block || 0;
-                    
+
                     pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
                     pointBlocks += stat.block || 0;
                 });
@@ -236,18 +286,18 @@ export default function MatchDetail() {
         // B. Canlı Olayları Ekle
         if (enrichedEvents && enrichedEvents.length > 0) {
             enrichedEvents.forEach(e => {
-                if(e.eventType === 'Goal') totalGoals++;
-                if(e.eventType === 'Assist') totalAssists++;
-                if(e.eventType === 'Completion') totalSuccessfulPass++;
-                if(e.eventType === 'Throwaway') totalThrowaways++;
-                if(e.eventType === 'Drop') totalDrops++;
-                if(e.eventType === 'D-Up' || e.eventType === 'Callahan') totalBlocks++;
+                if (e.eventType === 'Goal') totalGoals++;
+                if (e.eventType === 'Assist') totalAssists++;
+                if (e.eventType === 'Completion') totalSuccessfulPass++;
+                if (e.eventType === 'Throwaway') totalThrowaways++;
+                if (e.eventType === 'Drop') totalDrops++;
+                if (e.eventType === 'D-Up' || e.eventType === 'Callahan') totalBlocks++;
             });
         }
 
         const totalPassesCompleted = totalSuccessfulPass + totalAssists;
         const totalPassesAttempted = totalPassesCompleted + totalThrowaways + totalDrops;
-        const totalPossessions = totalGoals + totalThrowaways + totalDrops; 
+        const totalPossessions = totalGoals + totalThrowaways + totalDrops;
 
         const holdPercent = totalOffensePoints > 0 ? Math.round((offensiveHolds / totalOffensePoints) * 100) : 0;
         const cleanHoldPercent = totalOffensePoints > 0 ? Math.round((cleanHolds / totalOffensePoints) * 100) : 0;
@@ -256,9 +306,9 @@ export default function MatchDetail() {
         const conversionRate = totalPossessions > 0 ? Math.round((totalGoals / totalPossessions) * 100) : 0;
         const blockConversionRate = totalBlockPoints > 0 ? Math.round((blocksConvertedToGoals / totalBlockPoints) * 100) : 0;
 
-        return { 
-            totalPointsPlayed, totalGoals, totalAssists, totalBlocks, 
-            totalTurnovers: totalThrowaways + totalDrops, 
+        return {
+            totalPointsPlayed, totalGoals, totalAssists, totalBlocks,
+            totalTurnovers: totalThrowaways + totalDrops,
             totalPassesCompleted, totalPassesAttempted, totalPossessions,
             offensiveHolds, totalOffensePoints, cleanHolds, breakPointsScored, totalDefensePoints,
             totalBlockPoints, blocksConvertedToGoals,
@@ -320,61 +370,61 @@ export default function MatchDetail() {
 
     return (
         <div className="p-6 md:p-8 pb-24 lg:pb-8 w-full font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 min-h-screen">
-            
+
             {/* Üst Geri Dönüş ve Aksiyonlar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => navigate(`/tournament/${tournamentId}`)}
-                            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors"
-                        >
-                            <span className="material-icons-outlined">arrow_back</span>
-                        </button>
-                        <div>
-                            <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                {getTeamName(match, tournament)} <span className="text-violet-500 px-2">vs</span> {match.opponentName}
-                            </h1>
-                            <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
-                                <span className="material-icons-outlined text-[18px]">event</span>
-                                {match.date ? new Date(match.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tarih Belirsiz'}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* SAĞ TARAF: AKSİYON BUTONLARI (SİL VE BAŞLAT) */}
-                    <div className="flex flex-col md:flex-row items-center gap-3">
-                        {/* MAÇI SİL BUTONU */}
-                        <button
-                            onClick={async () => {
-                                if (!tournamentId || !matchId) return; // TS HATASINI ÇÖZEN KONTROL
-                                if (window.confirm("Bu maçı ve içindeki tüm istatistikleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
-                                    const { deleteMatch } = await import('../services/repository');
-                                    const success = await deleteMatch(tournamentId, matchId);
-                                    if (success) {
-                                        navigate(`/tournament/${tournamentId}`);
-                                    } else {
-                                        alert("Maç silinirken bir hata oluştu.");
-                                    }
-                                }
-                            }}
-                            className="flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-xl font-bold transition-all border border-transparent hover:border-red-200 dark:hover:border-red-800"
-                            title="Maçı Sil"
-                        >
-                            <span className="material-icons-outlined">delete</span>
-                            <span className="hidden md:inline">Maçı Sil</span>
-                        </button>
-
-                        <button
-                            onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
-                            className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
-                        >
-                            <span className="material-icons-outlined">play_circle</span>
-                            {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0) 
-                                ? "İstatistik Takibini Başlat" 
-                                : "Takibe Devam Et"}
-                        </button>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate(`/tournament/${tournamentId}`)}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors"
+                    >
+                        <span className="material-icons-outlined">arrow_back</span>
+                    </button>
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                            {getTeamName(match, tournament)} <span className="text-violet-500 px-2">vs</span> {match.opponentName}
+                        </h1>
+                        <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
+                            <span className="material-icons-outlined text-[18px]">event</span>
+                            {match.date ? new Date(match.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tarih Belirsiz'}
+                        </p>
                     </div>
                 </div>
+
+                {/* SAĞ TARAF: AKSİYON BUTONLARI (SİL VE BAŞLAT) */}
+                <div className="flex flex-col md:flex-row items-center gap-3">
+                    {/* MAÇI SİL BUTONU */}
+                    <button
+                        onClick={async () => {
+                            if (!tournamentId || !matchId) return; // TS HATASINI ÇÖZEN KONTROL
+                            if (window.confirm("Bu maçı ve içindeki tüm istatistikleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
+                                const { deleteMatch } = await import('../services/repository');
+                                const success = await deleteMatch(tournamentId, matchId);
+                                if (success) {
+                                    navigate(`/tournament/${tournamentId}`);
+                                } else {
+                                    alert("Maç silinirken bir hata oluştu.");
+                                }
+                            }
+                        }}
+                        className="flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-xl font-bold transition-all border border-transparent hover:border-red-200 dark:hover:border-red-800"
+                        title="Maçı Sil"
+                    >
+                        <span className="material-icons-outlined">delete</span>
+                        <span className="hidden md:inline">Maçı Sil</span>
+                    </button>
+
+                    <button
+                        onClick={() => navigate(`/tournament/${tournamentId}/match/${matchId}/track`)}
+                        className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold shadow-lg shadow-violet-200 dark:shadow-none transition-all"
+                    >
+                        <span className="material-icons-outlined">play_circle</span>
+                        {match.scoreUs === 0 && match.scoreThem === 0 && (!match.pointsArchive || match.pointsArchive.length === 0)
+                            ? "İstatistik Takibini Başlat"
+                            : "Takibe Devam Et"}
+                    </button>
+                </div>
+            </div>
 
 
             {/* VİDEO SCOUTER BÖLÜMÜ */}
@@ -387,9 +437,9 @@ export default function MatchDetail() {
                             <p className="text-sm text-slate-500">Video destekli istatistik tutmak ve analiz yapmak için maçın YouTube linkini yapıştırın.</p>
                         </div>
                         <div className="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
-                            <input 
-                                type="text" 
-                                placeholder="https://youtube.com/watch?v=..." 
+                            <input
+                                type="text"
+                                placeholder="https://youtube.com/watch?v=..."
                                 className="flex-1 md:w-64 p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:border-violet-500"
                                 value={videoUrl}
                                 onChange={(e) => setVideoUrl(e.target.value)}
@@ -403,76 +453,100 @@ export default function MatchDetail() {
                     <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row gap-6">
                         {/* Sol Taraf: Video */}
                         <div className="w-full lg:w-2/3 h-[300px] md:h-[400px] lg:h-[500px] bg-black rounded-xl overflow-hidden">
-                            <YouTube 
-                                videoId={match.youtubeVideoId} 
+                            <YouTube
+                                videoId={match.youtubeVideoId}
                                 opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
                                 onReady={(e) => setYtPlayer(e.target)}
                                 className="w-full h-full"
                             />
                         </div>
-                        
-                        {/* Sağ Taraf: Olay Geçmişi (Sayı Gruplamalı) */}
+
+                        {/* Sağ Taraf: Olay Geçmişi (Sayı Gruplamalı ve Akordiyon) */}
                         <div className="w-full lg:w-1/3 flex flex-col h-[300px] md:h-[400px] lg:h-[500px]">
                             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-t-xl flex justify-between items-center">
                                 <h3 className="font-bold flex items-center gap-2">
                                     <span className="material-icons-outlined text-red-600">history</span>
                                     Olay Geçmişi
                                 </h3>
-                                <span className="text-[10px] text-slate-400">Videoya gitmek için tıklayın</span>
+                                <span className="text-[10px] text-slate-400">Detay için sayıya tıklayın</span>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar bg-slate-50/50 dark:bg-slate-900/50 rounded-b-xl border border-t-0 border-slate-100 dark:border-slate-800">
-                                {(!enrichedEvents || enrichedEvents.length === 0) ? (
+                            <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-50/50 dark:bg-slate-900/50 rounded-b-xl border border-t-0 border-slate-100 dark:border-slate-800">
+                                {groupedEventsByPoint.length === 0 ? (
                                     <div className="text-center py-10 text-slate-400 text-sm">Bu maçta henüz olay kaydedilmedi.</div>
                                 ) : (
-                                    Object.entries(
-                                        [...enrichedEvents]
-                                            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-                                            .reduce((acc: any, evt) => {
-                                                const scoreKey = evt.currentScore ? `${evt.currentScore[0]} - ${evt.currentScore[1]}` : 'Diğer';
-                                                if (!acc[scoreKey]) acc[scoreKey] = [];
-                                                acc[scoreKey].push(evt);
-                                                return acc;
-                                            }, {})
-                                    ).reverse().map(([score, eventsGroup]: [string, any], groupIdx) => (
-                                        <div key={groupIdx} className="flex flex-col gap-2">
-                                            {/* Skor Ayracı */}
-                                            <div className="sticky top-0 z-10 py-1 px-2 bg-slate-200/90 dark:bg-slate-700/90 backdrop-blur-sm rounded text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider self-start shadow-sm border border-slate-300 dark:border-slate-600">
-                                                Skor: {score}
-                                            </div>
-                                            
-                                            {/* Olay Listesi */}
-                                            {(eventsGroup as MatchEvent[]).map((evt) => {
-                                                const isPull = evt.eventType.includes('Pull');
-                                                return (
-                                                    <div key={evt.id} className={`flex items-center justify-between p-2 rounded-lg border shadow-sm ml-2 transition-all ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer hover:border-violet-400' : ''} ${isPull ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800/30' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
-                                                        onClick={() => {
-                                                            if (evt.videoTimestampSeconds !== undefined && ytPlayer) {
-                                                                ytPlayer.seekTo(Math.max(0, evt.videoTimestampSeconds - 1), true);
-                                                                ytPlayer.playVideo();
-                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                            }
-                                                        }}>
-                                                        <div className="flex items-center gap-2">
-                                                            {evt.videoTimestampSeconds !== undefined && (
-                                                                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isPull ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'}`}>
-                                                                    {(evt.videoTimestampSeconds / 60).toFixed(0).padStart(2,'0')}:{(evt.videoTimestampSeconds % 60).toString().padStart(2,'0')}
-                                                                </span>
-                                                            )}
-                                                            <div className="flex flex-col">
-                                                                <span className={`text-xs font-bold ${isPull ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-900 dark:text-white'}`}>
-                                                                    {evt.player?.name || 'Bilinmeyen'} 
-                                                                    <span className={`text-[9px] uppercase ml-1 px-1 rounded ${isPull ? 'text-indigo-600 dark:text-indigo-400' : 'text-violet-600 dark:text-violet-400'}`}>{evt.eventType}</span>
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        {evt.videoTimestampSeconds !== undefined && (
-                                                            <span className="material-icons-outlined text-[16px] text-slate-400 hover:text-violet-600 transition-colors">play_arrow</span>
-                                                        )}
+                                    groupedEventsByPoint.slice().reverse().map((eventsGroup, reverseIdx) => {
+                                        const actualPointNumber = groupedEventsByPoint.length - reverseIdx;
+                                        const isExpanded = expandedPointIndex === actualPointNumber;
+                                        
+                                        // Grubun son olayından o anki skoru bulalım
+                                        const lastEvent = eventsGroup[eventsGroup.length - 1];
+                                        const currentScore = lastEvent?.currentScore ? `${lastEvent.currentScore[0]} - ${lastEvent.currentScore[1]}` : '? - ?';
+
+                                        return (
+                                            <div key={actualPointNumber} className="flex flex-col border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800 shadow-sm transition-all">
+                                                {/* Akordiyon Başlığı */}
+                                                <button 
+                                                    onClick={() => setExpandedPointIndex(isExpanded ? null : actualPointNumber)}
+                                                    className={`flex items-center justify-between p-3 w-full text-left transition-colors ${isExpanded ? 'bg-violet-50 dark:bg-violet-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 text-xs font-black">
+                                                            {actualPointNumber}
+                                                        </span>
+                                                        <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                                                            {actualPointNumber}. Sayı
+                                                        </span>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ))
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">
+                                                            Skor: {currentScore}
+                                                        </span>
+                                                        <span className={`material-icons-outlined text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                                                            expand_more
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                                
+                                                {/* Akordiyon İçeriği (Olaylar) */}
+                                                {isExpanded && (
+                                                    <div className="flex flex-col gap-1.5 p-2 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-700">
+                                                        {eventsGroup.map((evt) => {
+                                                            const isPull = evt.eventType.includes('Pull');
+                                                            const isGoal = evt.eventType === 'Goal';
+                                                            const isTurnover = evt.eventType === 'Drop' || evt.eventType === 'Throwaway';
+
+                                                            return (
+                                                                <div key={evt.id} 
+                                                                    className={`flex items-center justify-between p-2.5 rounded-md border shadow-sm transition-all ${evt.videoTimestampSeconds !== undefined ? 'cursor-pointer hover:border-violet-400' : ''} ${isGoal ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/30' : isTurnover ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/30' : isPull ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800/30' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
+                                                                    onClick={() => {
+                                                                        if (evt.videoTimestampSeconds !== undefined && ytPlayer) {
+                                                                            ytPlayer.seekTo(Math.max(0, evt.videoTimestampSeconds - 1), true);
+                                                                            ytPlayer.playVideo();
+                                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-center gap-2.5">
+                                                                        {evt.videoTimestampSeconds !== undefined && (
+                                                                            <span className={`text-[10px] font-mono px-1.5 py-1 rounded border ${isGoal ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : isTurnover ? 'bg-rose-100 text-rose-700 border-rose-200' : isPull ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'}`}>
+                                                                                {(evt.videoTimestampSeconds / 60).toFixed(0).padStart(2,'0')}:{(evt.videoTimestampSeconds % 60).toString().padStart(2,'0')}
+                                                                            </span>
+                                                                        )}
+                                                                        <div className="text-xs text-slate-700 dark:text-slate-200">
+                                                                            {getEventDescriptionText(evt)}
+                                                                        </div>
+                                                                    </div>
+                                                                    {evt.videoTimestampSeconds !== undefined && (
+                                                                        <span className="material-icons-outlined text-[16px] text-slate-400 hover:text-violet-600 transition-colors shrink-0">play_arrow</span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>
@@ -482,7 +556,7 @@ export default function MatchDetail() {
 
             {/* Dashboard Grid */}
             <div className="grid grid-cols-12 gap-6">
-                
+
                 {/* Sol Üst: Takım Performansı (Detaylı App Modeli) */}
                 <div className="col-span-12 lg:col-span-7 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between mb-6">
@@ -492,7 +566,7 @@ export default function MatchDetail() {
                         </h3>
                         <span className="text-xs font-bold text-violet-600 px-3 py-1 bg-violet-50 dark:bg-violet-900/30 rounded-full uppercase tracking-wider">Kapsamlı Veri</span>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6">
                         {/* Hücum & Defans Hatları */}
                         <div className="space-y-5">
@@ -505,7 +579,7 @@ export default function MatchDetail() {
                                     <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${teamStats.holdPercent}%` }}></div>
                                 </div>
                             </div>
-                            
+
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm font-semibold">
                                     <span className="text-slate-600 dark:text-slate-400">Temiz Hold %</span>
@@ -618,16 +692,14 @@ export default function MatchDetail() {
                                     <div className="flex items-center justify-between mb-3">
                                         <span className="text-xs font-black text-slate-400 dark:text-slate-500">SAYI #{pointNumber}</span>
                                         <div className="flex gap-2">
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                                                point.startMode === 'OFFENSE' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${point.startMode === 'OFFENSE' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
                                                 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                                            }`}>
+                                                }`}>
                                                 {point.startMode || 'UNKNOWN'}
                                             </span>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                                                isOurPoint ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase ${isOurPoint ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
                                                 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                            }`}>
+                                                }`}>
                                                 {isOurPoint ? 'OUR POINT' : 'THEIR POINT'}
                                             </span>
                                         </div>
@@ -640,7 +712,7 @@ export default function MatchDetail() {
                                                     const playerInfo = rosterPlayers.find(rp => rp.id === stat.playerId);
                                                     return (
                                                         <div key={stat.playerId} title={playerInfo?.name || stat.name} className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-[10px] z-10 overflow-hidden">
-                                                            {playerInfo?.photoUrl ? <img src={playerInfo.photoUrl} alt="" className="w-full h-full object-cover"/> : getInitials(playerInfo?.name || stat.name)}
+                                                            {playerInfo?.photoUrl ? <img src={playerInfo.photoUrl} alt="" className="w-full h-full object-cover" /> : getInitials(playerInfo?.name || stat.name)}
                                                         </div>
                                                     );
                                                 })}
