@@ -7,9 +7,6 @@ import {
 import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
 import YouTube from 'react-youtube';
 
-const getTeamName = (match: Match | null) => match?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
-const getOpponentName = (match: Match | null) => match?.opponentName || match?.teamNames?.[1] || 'RAKİP';
-
 export default function MatchTracking() {
     const { tournamentId, matchId } = useParams();
     const navigate = useNavigate();
@@ -400,8 +397,8 @@ export default function MatchTracking() {
     
     // YENİ: Uygulamadaki gibi forma numarası olmayanları en sona (999) atan sıralama mantığı
     const getJerseyNumber = (p: Player | undefined) => {
-        if (!p || p.jerseyNumber === undefined || p.jerseyNumber === null || p.jerseyNumber === '') return 999;
-        const num = parseInt(p.jerseyNumber as any, 10);
+        if (!p || p.jerseyNumber === undefined || p.jerseyNumber === null) return 999;
+        const num = Number(p.jerseyNumber);
         return isNaN(num) ? 999 : num;
     };
     
@@ -575,6 +572,7 @@ export default function MatchTracking() {
                             </div>
                         )}
                     </div>
+                </div>
                 </div>
             </div>
 
