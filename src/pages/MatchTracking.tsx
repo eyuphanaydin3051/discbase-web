@@ -300,39 +300,7 @@ export default function MatchTracking() {
         await finishPoint('US');
     };
 
-    const handleThemGoal = async () => {
-        const activeTeamId = localStorage.getItem('selectedTeamId'); // Hata çözümü için eklendi
-        if (!activeTeamId || !tournamentId || !matchId) return;
-        saveStateToHistory();
-        
-        const newScoreThem = (match?.score?.[1] || 0) + 1;
-        const newScoreUs = (match?.score?.[0] || 0);
-
-        // Rakip golünü olay geçmişine ekle
-        const themGoalEvent: MatchEvent = {
-            id: crypto.randomUUID(),
-            matchId,
-            teamId: activeTeamId,
-            eventType: 'OpponentGoal',
-            timestamp: Date.now(),
-            currentScore: [newScoreUs, newScoreThem],
-            period: match?.period || 1,
-            videoTimestampSeconds: ytPlayer ? Math.floor(ytPlayer.getCurrentTime()) : undefined
-        };
-        
-        // repository.ts içindeki addMatchEvent 3 parametre alıyor: (teamId, tournamentId, matchId)
-        // Event verisini ise updateDoc içinde events: arrayUnion(event) şeklinde gönderiyoruz.
-        // HATA ÇÖZÜMÜ: Fonksiyon çağrısını ve parametreleri düzeltiyoruz.
-        await updateMatchData(activeTeamId, tournamentId, { 
-            id: matchId, 
-            events: arrayUnion(themGoalEvent) as any 
-        });
-
-        await archivePoint('THEM', newScoreUs, newScoreThem);
-        setTrackingStep('roster');
-        setSelectedLineup([]);
-        setActivePasserId(null);
-    };
+    
 
    const handleBlock = async (playerId: string) => {
         saveStateToHistory();
@@ -363,7 +331,7 @@ export default function MatchTracking() {
 
     const handleOpponentScore = async () => {
         saveStateToHistory();
-        await fireEvent('OpponentScore');
+        await fireEvent('OpponentGoal'); // RAKİP SAYISI AKORDİYONU İÇİN BURASI DEĞİŞTİ
         await finishPoint('THEM');
     };
 
@@ -681,20 +649,23 @@ export default function MatchTracking() {
                                                 <button onClick={async () => { 
                                                     saveStateToHistory(); 
                                                     setActivePasserId(pid);
-                                                    // YENİ: İlk aksiyonu (Pickup) tarihçeye ekliyoruz
-                                                    if (matchId && tournamentId && activeTeamId) {
+                                                    
+                                                    // YENİ VE DÜZELTİLMİŞ: İlk aksiyonu (Pickup) tarihçeye ekliyoruz
+                                                    const teamId = localStorage.getItem('selectedTeamId');
+                                                    if (matchId && tournamentId && teamId) {
                                                         const pickupEvent: MatchEvent = {
-                                                            id: crypto.randomUUID(),
+                                                            id: Date.now().toString(),
                                                             matchId,
-                                                            teamId: activeTeamId,
+                                                            teamId: teamId,
                                                             playerId: pid,
                                                             eventType: 'Pickup',
                                                             timestamp: Date.now(),
                                                             currentScore: match?.score || [0, 0],
                                                             period: match?.period || 1,
-                                                            videoTimestampSeconds: ytPlayer ? Math.floor(ytPlayer.getCurrentTime()) : undefined
+                                                            videoTimestampSeconds: ytPlayer && typeof ytPlayer.getCurrentTime === 'function' ? Math.floor(ytPlayer.getCurrentTime()) : undefined
                                                         };
-                                                        await addMatchEvent(activeTeamId, tournamentId, matchId, pickupEvent);
+                                                        // addMatchEvent 3 parametre alıyor: tournamentId, matchId, event
+                                                        await addMatchEvent(tournamentId, matchId, pickupEvent);
                                                     }
                                                 }} className="w-full flex-1 h-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded text-[10px] md:text-xs font-black uppercase flex items-center justify-center">
                                                     Diski Aldı
