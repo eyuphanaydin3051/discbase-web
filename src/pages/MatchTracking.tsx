@@ -397,33 +397,43 @@ export default function MatchTracking() {
     // BİRLEŞTİRİLMİŞ TEK EKRAN (VİDEO HER ZAMAN GÖRÜNÜR)
     // ==========================================
     const activeRoster = roster.filter(p => tournament?.rosterPlayerIds?.includes(p.id));
-    const sortedRoster = activeRoster.sort((a, b) => (Number(a.jerseyNumber) || 0) - (Number(b.jerseyNumber) || 0));
+    
+    // YENİ: Uygulamadaki gibi forma numarası olmayanları en sona (999) atan sıralama mantığı
+    const getJerseyNumber = (p: Player | undefined) => {
+        if (!p || p.jerseyNumber === undefined || p.jerseyNumber === null || p.jerseyNumber === '') return 999;
+        const num = parseInt(p.jerseyNumber as any, 10);
+        return isNaN(num) ? 999 : num;
+    };
+    
+    const sortedRoster = [...activeRoster].sort((a, b) => getJerseyNumber(a) - getJerseyNumber(b));
 
     return (
         <div className="h-screen w-full flex flex-col bg-slate-100 text-slate-900 font-sans overflow-hidden p-2 gap-2">
             
             {/* ÜST BÖLÜM: SOLDA VİDEO | SAĞDA DAR KONTROL PANELİ */}
-            <div className="flex flex-col lg:flex-row gap-2 shrink-0">
-                
-                {/* SOL: VİDEO OYNATICI (SABİT 16:9) */}
-                <div className="w-full lg:w-[75%] bg-black rounded-xl overflow-hidden shadow-md aspect-video flex items-center justify-center relative">
-                    {match?.youtubeVideoId ? (
-                        <YouTube
-                            videoId={match.youtubeVideoId}
-                            opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
-                            onReady={(e) => setYtPlayer(e.target)}
-                            className="w-full h-full absolute inset-0"
-                        />
-                    ) : (
-                        <span className="text-slate-500 text-sm flex flex-col items-center gap-2">
-                            <span className="material-icons-outlined text-4xl">videocam_off</span>
-                            Bu maça video eklenmemiş.
-                        </span>
-                    )}
-                </div>
+            <div className="relative w-full shrink-0">
+                <div className="flex flex-col lg:flex-row gap-2">
+                    
+                    {/* SOL: VİDEO OYNATICI (KATI 16:9 ORANI) */}
+                    <div className="w-full lg:w-[75%] bg-black rounded-xl overflow-hidden shadow-md aspect-video flex items-center justify-center relative shrink-0">
+                        {match?.youtubeVideoId ? (
+                            <YouTube
+                                videoId={match.youtubeVideoId}
+                                opts={{ width: '100%', height: '100%', playerVars: { controls: 1, rel: 0 } }}
+                                onReady={(e) => setYtPlayer(e.target)}
+                                className="w-full h-full absolute inset-0"
+                            />
+                        ) : (
+                            <span className="text-slate-500 text-sm flex flex-col items-center gap-2">
+                                <span className="material-icons-outlined text-4xl">videocam_off</span>
+                                Bu maça video eklenmemiş.
+                            </span>
+                        )}
+                    </div>
 
-                {/* SAĞ: DAR KONTROL PANELİ */}
-                <div className="w-full lg:w-[25%] flex flex-col gap-2 shrink-0 max-h-[35vh] lg:max-h-full overflow-y-auto custom-scrollbar">
+                    {/* SAĞ: DAR KONTROL PANELİ (DESKTOP'TA VİDEO İLE AYNI BOYDA VE SCROLLABLE) */}
+                    <div className="w-full lg:w-[calc(25%-0.5rem)] flex flex-col gap-2 shrink-0 lg:absolute lg:top-0 lg:right-0 lg:h-full lg:max-h-full overflow-y-auto custom-scrollbar pb-2">
+                        {/* ... İçeriklerin başlangıcı, Skor başlığı vb. önceki adımlardaki gibi kalacak ... */}
                     
                     {/* SAĞ PANEL HEADER: Skor ve Maçı Bitir (SÜRE KALDIRILDI) */}
                     <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm shrink-0">
@@ -580,72 +590,74 @@ export default function MatchTracking() {
                 )}
 
                 {trackingStep === 'tracking' && (
-                    // DAHA KÜÇÜK OYUNCU KARTLARI
-                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-1.5 pb-2">
-                        {selectedLineup.map(pid => {
+                    // DİKEY YÜKSEKLİĞİ ARTIRILMIŞ VE SIRALANMIŞ OYUNCU KARTLARI
+                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-2 pb-2 auto-rows-[minmax(140px,1fr)] md:auto-rows-[minmax(160px,1fr)] h-full">
+                        {[...selectedLineup]
+                            .sort((idA, idB) => getJerseyNumber(roster.find(r => r.id === idA)) - getJerseyNumber(roster.find(r => r.id === idB)))
+                            .map(pid => {
                             const player = roster.find(r => r.id === pid);
                             const isDiskHolder = activePasserId === pid;
                             const isJustActed = lastAction?.startsWith(pid);
 
                             return (
-                                <div key={pid} className={`flex flex-col bg-white rounded-md border transition-all ${isDiskHolder ? 'border-blue-500 bg-blue-50/20 shadow-md scale-[1.02]' : isJustActed ? 'border-violet-400 shadow-sm' : 'border-slate-200'}`}>
+                                <div key={pid} className={`flex flex-col h-full bg-white rounded-lg border-2 transition-all ${isDiskHolder ? 'border-blue-500 bg-blue-50/20 shadow-lg scale-[1.02]' : isJustActed ? 'border-violet-400 shadow-md' : 'border-slate-200 shadow-sm'}`}>
                                     
                                     {/* Kart Üst (Oyuncu Bilgisi) */}
-                                    <div className="p-1 border-b border-slate-100 flex items-center gap-1.5 bg-slate-50 rounded-t-md">
-                                        <div className={`h-4 w-4 rounded-full flex items-center justify-center font-black text-[8px] shadow-inner shrink-0 ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 border border-slate-300'}`}>
+                                    <div className="p-2 border-b-2 border-slate-100 flex items-center gap-1.5 bg-slate-50 rounded-t-lg shrink-0">
+                                        <div className={`h-5 w-5 md:h-6 md:w-6 rounded-full flex items-center justify-center font-black text-[10px] md:text-xs shadow-inner shrink-0 ${isDiskHolder ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700 border border-slate-300'}`}>
                                             {player?.jerseyNumber || '?'}
                                         </div>
                                         <div className="flex-1 overflow-hidden leading-none">
-                                            <p className="font-bold text-slate-800 text-[9px] truncate">{player?.name}</p>
+                                            <p className="font-bold text-slate-800 text-[10px] md:text-xs truncate">{player?.name}</p>
                                         </div>
                                     </div>
 
-                                    {/* Kart Alt (Aksiyon Butonları) */}
-                                    <div className="p-1 flex flex-col gap-0.5">
+                                    {/* Kart Alt (Aksiyon Butonları) - YÜKSEKLİĞİ TAM DOLDURUR */}
+                                    <div className="p-1.5 flex flex-col gap-1.5 flex-1 h-full">
                                         {isPullPhase ? (
                                             !pullingPlayerId ? (
-                                                <button onClick={() => setPullingPlayerId(pid)} className="w-full py-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 rounded text-[9px] font-black transition-all uppercase">
+                                                <button onClick={() => setPullingPlayerId(pid)} className="w-full flex-1 h-full bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 rounded text-[10px] md:text-xs font-black transition-all uppercase">
                                                     SEÇ
                                                 </button>
                                             ) : pullingPlayerId === pid ? (
-                                                <span className="text-center py-1 text-[9px] font-black text-indigo-600 bg-indigo-50 rounded border border-indigo-200 uppercase">
+                                                <span className="w-full flex-1 h-full flex items-center justify-center text-[10px] md:text-xs font-black text-indigo-600 bg-indigo-50 rounded border border-indigo-200 uppercase">
                                                     PULL ATAN
                                                 </span>
                                             ) : (
-                                                <span className="text-center py-1 text-[9px] font-bold text-slate-300 uppercase">
+                                                <span className="w-full flex-1 h-full flex items-center justify-center text-[10px] md:text-xs font-bold text-slate-300 uppercase">
                                                     BEKLİYOR
                                                 </span>
                                             )
                                         ) : gameMode === 'OFFENSE' ? (
                                             isDiskHolder ? (
-                                                <button onClick={handleThrowaway} className="w-full py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded text-[8px] font-black uppercase">
+                                                <button onClick={handleThrowaway} className="w-full flex-1 h-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded text-[10px] md:text-xs font-black uppercase">
                                                     Hatalı Pas
                                                 </button>
                                             ) : activePasserId ? (
-                                                <div className="flex flex-col gap-0.5">
-                                                    <button onClick={() => handleCatch(pid)} className="w-full py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-[8px] font-black uppercase">
+                                                <div className="flex flex-col gap-1.5 flex-1 h-full">
+                                                    <button onClick={() => handleCatch(pid)} className="w-full flex-1 h-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-[10px] md:text-xs font-black uppercase">
                                                         Pas Aldı
                                                     </button>
-                                                    <div className="flex gap-0.5">
-                                                        <button onClick={() => handleDrop(pid)} className="flex-1 py-1 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded text-[7px] font-bold uppercase border border-transparent hover:border-rose-200">
+                                                    <div className="flex gap-1.5 flex-1 h-full">
+                                                        <button onClick={() => handleDrop(pid)} className="flex-1 h-full bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded text-[9px] md:text-[10px] font-bold uppercase border border-slate-200 hover:border-rose-300 transition-colors">
                                                             Drop
                                                         </button>
-                                                        <button onClick={() => handleGoal(pid)} className="flex-1 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded text-[7px] font-black uppercase border border-emerald-200">
+                                                        <button onClick={() => handleGoal(pid)} className="flex-1 h-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded text-[9px] md:text-[10px] font-black uppercase border border-emerald-200 transition-colors">
                                                             GOL!
                                                         </button>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="w-full py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded text-[8px] font-black uppercase flex items-center justify-center gap-0.5">
+                                                <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="w-full flex-1 h-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded text-[10px] md:text-xs font-black uppercase flex items-center justify-center">
                                                     Diski Aldı
                                                 </button>
                                             )
                                         ) : (
-                                            <div className="flex flex-col gap-0.5">
-                                                <button onClick={() => handleBlock(pid)} className="w-full py-1 bg-slate-100 hover:bg-orange-100 text-slate-700 hover:text-orange-700 border border-slate-200 rounded text-[9px] font-black uppercase">
+                                            <div className="flex flex-col gap-1.5 flex-1 h-full">
+                                                <button onClick={() => handleBlock(pid)} className="w-full flex-1 h-full bg-slate-100 hover:bg-orange-100 text-slate-700 hover:text-orange-700 border border-slate-200 hover:border-orange-300 rounded text-[10px] md:text-xs font-black uppercase transition-colors">
                                                     BLOK
                                                 </button>
-                                                <button onClick={() => handleCallahan(pid)} className="w-full py-0.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 rounded text-[7px] font-black uppercase">
+                                                <button onClick={() => handleCallahan(pid)} className="w-full flex-1 h-full bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 rounded text-[9px] md:text-[10px] font-black uppercase transition-colors">
                                                     CALLAHAN
                                                 </button>
                                             </div>
