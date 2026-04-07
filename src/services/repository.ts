@@ -459,7 +459,7 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
 
     await updateDoc(matchRef, {
         pointsArchive: arrayUnion(newPoint),
-        events: [],
+        // events: [],  <-- SİLİNDİ: Olay geçmişinin kaybolmaması için kaldırıldı
         scoreUs: newScoreUs,
         scoreThem: newScoreThem,
         score: [newScoreUs, newScoreThem] 

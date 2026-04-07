@@ -377,7 +377,7 @@ export default function MatchTracking() {
 
     // --- YARDIMCI RENDER FONKSİYONU: KADRO KARTLARI ---
     const renderPlayerGrid = (players: Player[]) => (
-        <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2">
             {players.map(p => (
                 <button
                     key={p.id} onClick={() => togglePlayer(p.id)}
@@ -443,13 +443,13 @@ export default function MatchTracking() {
                     {/* SAĞ PANEL İÇERİK: AŞAMAYA GÖRE DEĞİŞİR */}
                     <div className="flex flex-col gap-2 bg-white p-3 rounded-xl border border-slate-200 shadow-sm shrink-0 flex-1">
                         
-                        {/* AŞAMA 1: KADRO SEÇİM KONTROLLERİ */}
+                        {/* AŞAMA 1: KADRO SEÇİM KONTROLLERİ & OYUNCU LİSTESİ */}
                         {trackingStep === 'roster' && (
-                            <div className="flex flex-col gap-3 h-full">
-                                <div className="text-center font-bold text-xs text-slate-700 uppercase tracking-wide border-b pb-2">
+                            <div className="flex flex-col gap-3 h-full overflow-hidden">
+                                <div className="text-center font-bold text-xs text-slate-700 uppercase tracking-wide border-b pb-2 shrink-0">
                                     7 Kişi Seç ({selectedLineup.length}/7)
                                 </div>
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-2 shrink-0">
                                     <span className="text-[10px] font-bold text-slate-500">Filtre:</span>
                                     <div className="flex border border-slate-200 rounded-md overflow-hidden">
                                         <button onClick={() => setGroupingMode('NONE')} className={`flex-1 py-1 text-[10px] font-bold ${groupingMode === 'NONE' ? 'bg-violet-600 text-white' : 'bg-slate-50 text-slate-500'}`}>Tümü</button>
@@ -457,7 +457,37 @@ export default function MatchTracking() {
                                         <button onClick={() => setGroupingMode('POSITION')} className={`flex-1 py-1 text-[10px] font-bold ${groupingMode === 'POSITION' ? 'bg-violet-600 text-white' : 'bg-slate-50 text-slate-500'}`}>Mevki</button>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 mt-auto">
+                                
+                                {/* OYUNCULAR ARTIK BURADA (SAĞ PANELDE) YER ALIYOR */}
+                                <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                    {groupingMode === 'NONE' && renderPlayerGrid(sortedRoster)}
+                                    {groupingMode === 'GENDER' && (
+                                        <div className="flex flex-col gap-4">
+                                            <div>
+                                                <h3 className="text-xs font-bold mb-2 text-violet-600 uppercase">Erkek</h3>
+                                                {renderPlayerGrid(sortedRoster.filter(p => p.gender?.toLowerCase().includes('erkek') || p.gender?.toLowerCase().includes('male')))}
+                                            </div>
+                                            <div className="border-t border-slate-200 pt-2">
+                                                <h3 className="text-xs font-bold mb-2 text-violet-600 uppercase">Kadın</h3>
+                                                {renderPlayerGrid(sortedRoster.filter(p => p.gender?.toLowerCase().includes('kadın') || p.gender?.toLowerCase().includes('female')))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {groupingMode === 'POSITION' && (
+                                        <div className="flex flex-col gap-4">
+                                            <div>
+                                                <h3 className="text-xs font-bold mb-2 text-emerald-600 uppercase">Handlers</h3>
+                                                {renderPlayerGrid(sortedRoster.filter(p => p.position?.toLowerCase().includes('handler')))}
+                                            </div>
+                                            <div className="border-t border-slate-200 pt-2">
+                                                <h3 className="text-xs font-bold mb-2 text-rose-600 uppercase">Cutters</h3>
+                                                {renderPlayerGrid(sortedRoster.filter(p => p.position?.toLowerCase().includes('cutter')))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-2 mt-auto shrink-0 pt-2">
                                     <button onClick={loadLastLine} className="flex-1 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1">
                                         <span className="material-icons-outlined text-[14px]">history</span> Son Line
                                     </button>
@@ -541,35 +571,7 @@ export default function MatchTracking() {
             {/* ALT BÖLÜM: DİNAMİK İÇERİK (KADRO VEYA DAHA KÜÇÜK OYUNCU KARTLARI) */}
             <div className="flex-1 overflow-y-auto bg-white p-2 rounded-xl border border-slate-200 shadow-sm custom-scrollbar relative">
                 
-                {trackingStep === 'roster' && (
-                    <div className="h-full">
-                        {groupingMode === 'NONE' && renderPlayerGrid(sortedRoster)}
-                        {groupingMode === 'GENDER' && (
-                            <div className="flex flex-col gap-4">
-                                <div>
-                                    <h3 className="text-xs font-bold mb-2 text-violet-600 uppercase">Erkek</h3>
-                                    {renderPlayerGrid(sortedRoster.filter(p => p.gender?.toLowerCase().includes('erkek') || p.gender?.toLowerCase().includes('male')))}
-                                </div>
-                                <div className="border-t border-slate-100 pt-2">
-                                    <h3 className="text-xs font-bold mb-2 text-violet-600 uppercase">Kadın</h3>
-                                    {renderPlayerGrid(sortedRoster.filter(p => p.gender?.toLowerCase().includes('kadın') || p.gender?.toLowerCase().includes('female')))}
-                                </div>
-                            </div>
-                        )}
-                        {groupingMode === 'POSITION' && (
-                            <div className="flex flex-col gap-4">
-                                <div>
-                                    <h3 className="text-xs font-bold mb-2 text-emerald-600 uppercase">Handlers</h3>
-                                    {renderPlayerGrid(sortedRoster.filter(p => p.position?.toLowerCase().includes('handler')))}
-                                </div>
-                                <div className="border-t border-slate-100 pt-2">
-                                    <h3 className="text-xs font-bold mb-2 text-rose-600 uppercase">Cutters</h3>
-                                    {renderPlayerGrid(sortedRoster.filter(p => p.position?.toLowerCase().includes('cutter')))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                
 
                 {trackingStep === 'start_mode' && (
                     <div className="h-full flex items-center justify-center text-slate-400 text-xs font-bold uppercase tracking-widest">

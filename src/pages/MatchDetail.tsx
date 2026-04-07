@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getMatch, getPlayers, updateMatchData, getTournaments } from '../services/repository';
 import type { Match, MatchEvent, Player, Tournament } from '../types';
 import YouTube from 'react-youtube';
-
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 // Takım adını güvenli şekilde çeken yardımcı fonksiyon
 // src/pages/MatchDetail.tsx - getTeamName güncellemesi
 const getTeamName = (match: Match | null, tournament: any | null) => 
@@ -42,33 +43,36 @@ export default function MatchDetail() {
     }, [activeTeamId]);
 
     // 2. Maç ve Olayları çek
+    // 2. Maç ve Olayları çek (Gerçek Zamanlı)
     useEffect(() => {
         if (!matchId || !tournamentId || !activeTeamId) {
             navigate('/teams');
             return;
         }
 
-        getMatch(tournamentId, matchId).then(fetchedMatch => {
-            if (!fetchedMatch) {
-                navigate('/teams');
-                return;
-            }
-            setMatch(fetchedMatch);
-            
-            // YENİ MİMARİ: Olaylar artık alt koleksiyondan değil, direkt maç dokümanının içinden okunuyor.
-            if (fetchedMatch.events && Array.isArray(fetchedMatch.events)) {
-                setEvents(fetchedMatch.events);
+        const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
+        
+        const unsubscribe = onSnapshot(matchDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const fetchedMatch = { id: docSnap.id, ...docSnap.data() } as Match;
+                setMatch(fetchedMatch);
+                
+                if (fetchedMatch.events && Array.isArray(fetchedMatch.events)) {
+                    setEvents(fetchedMatch.events);
+                } else {
+                    setEvents([]);
+                }
+                setLoading(false);
             } else {
-                setEvents([]);
+                navigate('/teams');
             }
-            
-            setLoading(false);
         });
 
         const safetyTimer = setTimeout(() => setLoading(false), 2000);
 
         return () => {
             clearTimeout(safetyTimer);
+            unsubscribe();
         };
     }, [tournamentId, matchId, activeTeamId, navigate]);
     // 5. Turnuva verisini çek (Takım adı için)
