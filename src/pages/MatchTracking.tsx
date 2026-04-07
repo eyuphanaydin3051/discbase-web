@@ -206,7 +206,7 @@ export default function MatchTracking() {
         });
     };
 
-    const fireEvent = async (type: MatchEvent['eventType'], playerId?: string) => {
+    const fireEvent = async (type: MatchEvent['eventType'], playerId?: string, secondaryPlayerId?: string) => {
         if (!matchId || !tournamentId) return;
         setLastAction(`${playerId}_${type}`);
 
@@ -220,11 +220,11 @@ export default function MatchTracking() {
         }
 
         const event = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             eventType: type,
             playerId: playerId || null, 
-            timestamp: Date.now(),
-            matchId: matchId,
+            secondaryPlayerId: secondaryPlayerId || null, // YENİ: 2. Oyuncu Eklendi
+            timestamp: Date.now(),            matchId: matchId,
             teamId: localStorage.getItem('selectedTeamId') || match?.teamIds?.[0] || '',
             currentScore: [match?.scoreUs ?? match?.score?.[0] ?? 0, match?.scoreThem ?? match?.score?.[1] ?? 0],
             period: match?.period || 1,
@@ -251,8 +251,11 @@ export default function MatchTracking() {
             if (p.playerId === receiverId) return { ...p, catchStat: p.catchStat + 1 };
             return p;
         }));
+        const passerId = activePasserId; // Pası atanı hafızaya al
         setActivePasserId(receiverId);
-        await fireEvent('Completion', receiverId);
+        
+        // YENİ: Pas olayında playerId=Atan, secondaryPlayerId=Tutan olarak gönderiyoruz
+        await fireEvent('Completion', passerId, receiverId);
     };
 
     const handleDrop = async (receiverId: string) => {
@@ -295,8 +298,11 @@ export default function MatchTracking() {
         });
         setCurrentPointStats(updatedStats);
 
-        await fireEvent('Goal', receiverId);
-        await fireEvent('Assist', activePasserId);
+        const assisterId = activePasserId;
+        
+        // YENİ: Asist önce kaydedilir, gole de asisti yapan eklenir
+        await fireEvent('Assist', assisterId);
+        await fireEvent('Goal', receiverId, assisterId); 
         await finishPoint('US');
     };
 
