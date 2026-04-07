@@ -300,7 +300,39 @@ export default function MatchTracking() {
         await finishPoint('US');
     };
 
-    
+    const handleThemGoal = async () => {
+        const activeTeamId = localStorage.getItem('selectedTeamId'); // Hata çözümü için eklendi
+        if (!activeTeamId || !tournamentId || !matchId) return;
+        saveStateToHistory();
+        
+        const newScoreThem = (match?.score?.[1] || 0) + 1;
+        const newScoreUs = (match?.score?.[0] || 0);
+
+        // Rakip golünü olay geçmişine ekle
+        const themGoalEvent: MatchEvent = {
+            id: crypto.randomUUID(),
+            matchId,
+            teamId: activeTeamId,
+            eventType: 'OpponentGoal',
+            timestamp: Date.now(),
+            currentScore: [newScoreUs, newScoreThem],
+            period: match?.period || 1,
+            videoTimestampSeconds: ytPlayer ? Math.floor(ytPlayer.getCurrentTime()) : undefined
+        };
+        
+        // repository.ts içindeki addMatchEvent 3 parametre alıyor: (teamId, tournamentId, matchId)
+        // Event verisini ise updateDoc içinde events: arrayUnion(event) şeklinde gönderiyoruz.
+        // HATA ÇÖZÜMÜ: Fonksiyon çağrısını ve parametreleri düzeltiyoruz.
+        await updateMatchData(activeTeamId, tournamentId, { 
+            id: matchId, 
+            events: arrayUnion(themGoalEvent) as any 
+        });
+
+        await archivePoint('THEM', newScoreUs, newScoreThem);
+        setTrackingStep('roster');
+        setSelectedLineup([]);
+        setActivePasserId(null);
+    };
 
    const handleBlock = async (playerId: string) => {
         saveStateToHistory();

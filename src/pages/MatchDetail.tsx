@@ -101,6 +101,7 @@ export default function MatchDetail() {
 
     // --- YENİ: Olayları Sayılara (Point) Göre Gruplama ---
     // (enrichedEvents yukarıda tanımlandıktan sonra çalıştığı için hata vermeyecek)
+    // --- Olayları Sayılara (Point) Göre Gruplama (Asist/Gol Birleştirme Mantığı Dahil) ---
     const groupedEventsByPoint = useMemo(() => {
         if (!enrichedEvents || enrichedEvents.length === 0) return [];
         const sorted = [...enrichedEvents].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -108,18 +109,27 @@ export default function MatchDetail() {
         let currentPointEvents: MatchEvent[] = [];
 
         sorted.forEach((evt) => {
+            // Eğer bu bir 'Goal' ise ve hemen öncesinde aynı sayı içinde bir 'Assist' varsa, 
+            // asisti bu golün içine gömüp ayrı bir satır olarak göstermeyeceğiz.
+            if (evt.eventType === 'Goal') {
+                const lastEvt = currentPointEvents[currentPointEvents.length - 1];
+                if (lastEvt && lastEvt.eventType === 'Assist') {
+                    // Gol olayını zenginleştir: asisti yapanı secondaryPlayer olarak ata
+                    evt.secondaryPlayer = lastEvt.player;
+                    // Asist olayını listeden çıkar (çünkü golle birleşti)
+                    currentPointEvents.pop();
+                }
+            }
+            
             currentPointEvents.push(evt);
-            // Sayı bittiğinde (Gol, Rakip golü veya Callahan) grubu kapatıyoruz
+
             if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
                 points.push([...currentPointEvents]);
                 currentPointEvents = [];
             }
         });
 
-        // Son sayı henüz bitmediyse kalanları da bir grup yap
-        if (currentPointEvents.length > 0) {
-            points.push(currentPointEvents);
-        }
+        if (currentPointEvents.length > 0) points.push(currentPointEvents);
         return points;
     }, [enrichedEvents]);
 
@@ -141,6 +151,9 @@ export default function MatchDetail() {
             case 'Throwaway': 
                 return <><span className="font-bold">{playerName}</span> hatalı pas attı (Disk dışarıda veya yerde).</>;
             case 'Goal': 
+                if (evt.secondaryPlayer) {
+                    return <><span className="font-bold text-violet-600">{evt.secondaryPlayer.name}</span> asistinde <span className="font-bold text-emerald-600">{playerName}</span> GOL attı!</>;
+                }
                 return <><span className="font-bold text-emerald-600">{playerName} GOL ATTI!</span></>;
             case 'Assist': 
                 return <><span className="font-bold">{playerName}</span> muhteşem bir asist yaptı.</>;
