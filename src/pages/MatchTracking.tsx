@@ -646,7 +646,25 @@ export default function MatchTracking() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <button onClick={() => { saveStateToHistory(); setActivePasserId(pid); }} className="w-full flex-1 h-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded text-[10px] md:text-xs font-black uppercase flex items-center justify-center">
+                                                <button onClick={async () => { 
+                                                    saveStateToHistory(); 
+                                                    setActivePasserId(pid);
+                                                    // YENİ: İlk aksiyonu (Pickup) tarihçeye ekliyoruz
+                                                    if (matchId && tournamentId && activeTeamId) {
+                                                        const pickupEvent: MatchEvent = {
+                                                            id: crypto.randomUUID(),
+                                                            matchId,
+                                                            teamId: activeTeamId,
+                                                            playerId: pid,
+                                                            eventType: 'Pickup',
+                                                            timestamp: Date.now(),
+                                                            currentScore: match?.score || [0, 0],
+                                                            period: match?.period || 1,
+                                                            videoTimestampSeconds: ytPlayer ? Math.floor(ytPlayer.getCurrentTime()) : undefined
+                                                        };
+                                                        await addMatchEvent(activeTeamId, tournamentId, matchId, pickupEvent);
+                                                    }
+                                                }} className="w-full flex-1 h-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded text-[10px] md:text-xs font-black uppercase flex items-center justify-center">
                                                     Diski Aldı
                                                 </button>
                                             )

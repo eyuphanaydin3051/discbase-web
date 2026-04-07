@@ -109,8 +109,8 @@ export default function MatchDetail() {
 
         sorted.forEach((evt) => {
             currentPointEvents.push(evt);
-            // Gol veya Callahan olduğunda bir sayı biter
-            if (evt.eventType === 'Goal' || evt.eventType === 'Callahan') {
+            // Sayı bittiğinde (Gol, Rakip golü veya Callahan) grubu kapatıyoruz
+            if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
                 points.push([...currentPointEvents]);
                 currentPointEvents = [];
             }
@@ -126,23 +126,33 @@ export default function MatchDetail() {
     // Olayları okunaklı Türkçe metne çevirme fonksiyonu
     const getEventDescriptionText = (evt: MatchEvent) => {
         const playerName = evt.player?.name || 'Bilinmeyen oyuncu';
+        const receiverName = evt.secondaryPlayer?.name || 'bir oyuncu';
         const type = evt.eventType;
 
         switch (type) {
-            case 'Completion': return <><span className="font-bold">{playerName}</span> başarılı pas attı.</>;
-            case 'Drop': return <><span className="font-bold">{playerName}</span> diski düşürdü (Drop).</>;
-            case 'Throwaway': return <><span className="font-bold">{playerName}</span> hatalı pas attı (Throwaway).</>;
-            case 'Goal': return <><span className="font-bold">{playerName}</span> GOL attı!</>;
-            case 'Assist': return <><span className="font-bold">{playerName}</span> asist yaptı.</>;
-            case 'D-Up': return <><span className="font-bold">{playerName}</span> blok (D-Up) yaptı.</>;
-            case 'Callahan': return <><span className="font-bold text-purple-600">{playerName}</span> CALLAHAN yaptı!</>;
-            case 'Interception': return <><span className="font-bold">{playerName}</span> araya girdi.</>;
-            case 'Stall': return <><span className="font-bold">{playerName}</span> elinde diskle süre doldu (Stall).</>;
+            case 'Pickup': 
+                return <><span className="font-bold text-blue-600">{playerName}</span> diski yerden alarak oyuna soktu.</>;
+            case 'OpponentGoal': 
+                return <><span className="font-bold text-rose-600">RAKİP SAYI ALDI.</span></>;
+            case 'Completion': 
+                return <><span className="font-bold">{playerName}</span> oyuncusundan <span className="font-bold">{receiverName}</span> oyuncusuna başarılı pas.</>;
+            case 'Drop': 
+                return <><span className="font-bold">{playerName}</span> atılan diski tutamadı (Drop).</>;
+            case 'Throwaway': 
+                return <><span className="font-bold">{playerName}</span> hatalı pas attı (Disk dışarıda veya yerde).</>;
+            case 'Goal': 
+                return <><span className="font-bold text-emerald-600">{playerName} GOL ATTI!</span></>;
+            case 'Assist': 
+                return <><span className="font-bold">{playerName}</span> muhteşem bir asist yaptı.</>;
+            case 'D-Up': 
+                return <><span className="font-bold text-orange-600">{playerName} blok (D-Up) yaptı, disk takımımıza geçti.</span></>;
+            case 'Callahan': 
+                return <><span className="font-bold text-purple-600">{playerName} CALLAHAN YAPTI!</span></>;
             default: 
                 if (type.includes('Pull')) {
                     let pullStatus = "pull attı.";
-                    if (type.includes('OB')) pullStatus = "başarısız (OB) pull attı.";
-                    if (type.includes('IB')) pullStatus = "başarılı (IB) pull attı.";
+                    if (type.includes('OB')) pullStatus = "başarısız (Saha dışı - OB) pull attı.";
+                    if (type.includes('IB')) pullStatus = "başarılı (Saha içi - IB) pull attı.";
                     return <><span className="font-bold">{playerName}</span> {pullStatus}</>;
                 }
                 return <><span className="font-bold">{playerName}</span> {type} aksiyonu yaptı.</>;
