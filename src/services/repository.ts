@@ -401,9 +401,11 @@ export const undoLastEvent = async (tournamentId: string, matchId: string) => {
             const events = matchData.events || [];
             
             if (events.length > 0) {
-                // Zaman damgasına göre en son ekleneni bul (en yüksek timestamp)
-                const sortedEvents = events.sort((a: any, b: any) => b.timestamp - a.timestamp);
-                const eventsToKeep = sortedEvents.slice(1); // En sonuncuyu çıkar
+                // Zaman damgasına göre ARTAN sırada sırala (eskiden yeniye)
+                const sortedEvents = events.sort((a: any, b: any) => a.timestamp - b.timestamp);
+                
+                // En son ekleneni (dizinin en sonundaki elemanı) çıkar
+                const eventsToKeep = sortedEvents.slice(0, -1);
                 
                 await updateDoc(matchRef, { events: eventsToKeep });
             }
@@ -486,13 +488,13 @@ export const deleteLastPoint = async (tournamentId: string, matchId: string) => 
     const teamId = localStorage.getItem('selectedTeamId');
     if (!teamId) return;
 
-    // Kendi veritabanı yolunuza göre doc referansını ayarlayın
     const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
     const matchSnap = await getDoc(matchRef);
     
     if (matchSnap.exists()) {
         const matchData = matchSnap.data();
         const pointsArchive = matchData.pointsArchive || [];
+        const events = matchData.events || []; // Event geçmişini de çektik
         
         if (pointsArchive.length > 0) {
             const lastPoint = pointsArchive[pointsArchive.length - 1];
@@ -507,12 +509,34 @@ export const deleteLastPoint = async (tournamentId: string, matchId: string) => 
             if (lastPoint.whoScored === 'US' && newScoreUs > 0) newScoreUs--;
             if (lastPoint.whoScored === 'THEM' && newScoreThem > 0) newScoreThem--;
 
-            // Firebase'i güncelle
+            // Sildiğimiz sayıya ait olayları "events" listesinden temizliyoruz
+            const sortedEvents = events.sort((a: any, b: any) => a.timestamp - b.timestamp);
+            let scoreEventIndices: number[] = [];
+            
+            // Sondan geriye doğru skor yaratan olayları buluyoruz
+            for (let i = sortedEvents.length - 1; i >= 0; i--) {
+                const type = sortedEvents[i].eventType;
+                if (type === 'Goal' || type === 'Callahan' || type === 'OpponentGoal') {
+                    scoreEventIndices.push(i);
+                }
+            }
+
+            let newEvents = [];
+            if (scoreEventIndices.length > 1) {
+                // Sildiğimiz sayıdan bir önceki sayıya kadar olan tüm eventleri koru
+                newEvents = sortedEvents.slice(0, scoreEventIndices[1] + 1);
+            } else {
+                // Ekranda sadece 1 skor varsa veya henüz hiç yoksa tüm geçmişi temizle
+                newEvents = [];
+            }
+
+            // Firebase'i güncelle (Sayı, Skorlar ve Temizlenmiş Event Geçmişi ile)
             await updateDoc(matchRef, {
                 pointsArchive: newArchive,
                 scoreUs: newScoreUs,
                 scoreThem: newScoreThem,
-                score: [newScoreUs, newScoreThem]
+                score: [newScoreUs, newScoreThem],
+                events: newEvents
             });
         }
     }

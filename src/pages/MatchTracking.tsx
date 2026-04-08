@@ -6,7 +6,6 @@ import {
 } from '../services/repository';
 import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
 import YouTube from 'react-youtube';
-import { t } from 'i18next';
 import { useTranslation } from 'react-i18next';
 export default function MatchTracking() {
     const { t } = useTranslation();
@@ -23,7 +22,8 @@ export default function MatchTracking() {
     const [startMode, setStartMode] = useState<'OFFENSE' | 'DEFENSE' | null>(null);
     const [selectedLineup, setSelectedLineup] = useState<string[]>([]);
     const [lastAction, setLastAction] = useState<string | null>(null);
-    const [injuryReplacement, setInjuryReplacement] = useState<{ originalPlayerId: string } | null>(null);
+    const [isInjuryModalOpen, setIsInjuryModalOpen] = useState(false);
+    const [injuryOutPlayerId, setInjuryOutPlayerId] = useState<string | null>(null);
 
     // Yeni Gruplandırma State'i (Gizleme yerine kategorize etme)
     const [groupingMode, setGroupingMode] = useState<'NONE' | 'GENDER' | 'POSITION'>('NONE');
@@ -405,9 +405,8 @@ export default function MatchTracking() {
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2">
             {players.map(p => (
                 <button
-                    key={p.id} onClick={() => injuryReplacement ? handleInjurySubstitute(p.id) : togglePlayer(p.id)}
-                    className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 relative hover:border-violet-300 group ${selectedLineup.includes(p.id) ? 'border-violet-600 bg-violet-50' : 'border-slate-100 bg-white'} ${injuryReplacement && selectedLineup.includes(p.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    disabled={injuryReplacement && selectedLineup.includes(p.id)}
+                    key={p.id} onClick={() => togglePlayer(p.id)}
+                    className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 relative hover:border-violet-300 group ${selectedLineup.includes(p.id) ? 'border-violet-600 bg-violet-50' : 'border-slate-100 bg-white'}`}
                 >
                     {/* Sayı Sayacı Rozeti */}
                     <div className="absolute -top-1 -right-1 bg-slate-800 text-white text-[8px] px-1 rounded-full font-bold shadow-sm">
@@ -466,12 +465,13 @@ export default function MatchTracking() {
 
     const getPlayerMatchPoints = (playerId: string) => {
         if (!match?.pointsArchive) return 0;
-        return match.pointsArchive.filter(p => p.playerIds?.includes(playerId)).length;
+        // PointData tipinde playerIds olmadığı için veriyi stats üzerinden okuyoruz
+        return match.pointsArchive.filter(p => p.stats?.some((s: any) => s.playerId === playerId)).length;
     };
 
     const handleInjurySubstitute = async (newPlayerId: string) => {
-        if (!injuryReplacement) return;
-        const outId = injuryReplacement.originalPlayerId;
+        if (!injuryOutPlayerId) return;
+        const outId = injuryOutPlayerId;
 
         // Kadroyu güncelle
         setSelectedLineup(prev => prev.map(id => id === outId ? newPlayerId : id));
@@ -484,7 +484,9 @@ export default function MatchTracking() {
         // Event kaydı
         await fireEvent('Injury Substitute', outId, newPlayerId);
         
-        setInjuryReplacement(null);
+        // İşlem bitince modalı kapat
+        setIsInjuryModalOpen(false);
+        setInjuryOutPlayerId(null);
     };
     
     const sortedRoster = [...activeRoster].sort((a, b) => getJerseyNumber(a) - getJerseyNumber(b));
@@ -528,8 +530,13 @@ export default function MatchTracking() {
                             <span className="text-rose-600">{match?.scoreThem ?? match?.score?.[1] ?? 0}</span>
                         </div>
     
-                        {/* Bitirme butonu */}
+                        {/* Sakatlık ve Bitirme butonları */}
                         <div className="flex gap-1">
+                            {trackingStep === 'tracking' && (
+                                <button onClick={() => { setIsInjuryModalOpen(true); setInjuryOutPlayerId(null); }} className="p-1 hover:bg-rose-100 rounded-lg text-rose-600 transition-colors" title="Sakatlık / Oyuncu Değişikliği">
+                                    <span className="material-icons-outlined text-lg">medical_services</span>
+                                </button>
+                            )}
                             <button onClick={handleFinishMatch} className="p-1 hover:bg-rose-100 rounded-lg text-rose-600 transition-colors" title={t('btn_finish_match')}>
                                 <span className="material-icons-outlined text-lg">stop_circle</span>
                             </button>
@@ -729,17 +736,6 @@ export default function MatchTracking() {
 
                                     {/* Kart Alt (Aksiyon Butonları) - YÜKSEKLİĞİ TAM DOLDURUR */}
                                     <div className="p-1.5 flex flex-col gap-1.5 flex-1 h-full">
-                                        {/* Injury/Sakatlık Seçeneği */}
-                                        <button 
-                                            onClick={() => {
-                                                setInjuryReplacement({ originalPlayerId: pid });
-                                                setTrackingStep('roster');
-                                            }}
-                                            className="w-full py-1 text-[8px] font-bold text-rose-400 hover:text-rose-600 uppercase transition-colors flex items-center justify-center gap-1 border border-rose-100 rounded"
-                                        >
-                                            <span className="material-icons-outlined text-[10px]">medical_services</span>
-                                            {t('Injury')}
-                                        </button>
                                         {isPullPhase ? (
                                             !pullingPlayerId ? (
                                                 <button onClick={() => setPullingPlayerId(pid)} className="w-full flex-1 h-full bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-300 rounded text-[10px] md:text-xs font-black transition-all uppercase">
