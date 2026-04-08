@@ -428,6 +428,34 @@ export default function MatchTracking() {
         const num = Number(p.jerseyNumber);
         return isNaN(num) ? 999 : num;
     };
+
+    // Uygulamadaki sıralama mantığı için pas sayısı hesaplama ve pozisyon ağırlığı
+    const getPlayerTotalPasses = (playerId: string) => {
+        let passes = 0;
+        // Önceki sayılardaki (arşiv) pasları topla
+        if (match?.pointsArchive) {
+            match.pointsArchive.forEach(point => {
+                const stat = point.stats?.find(s => s.playerId === playerId);
+                if (stat) {
+                    passes += (stat.successfulPass || 0) + (stat.assist || 0);
+                }
+            });
+        }
+        // Mevcut (canlı) sayıdaki pasları ekle
+        const currentStat = currentPointStats.find(s => s.playerId === playerId);
+        if (currentStat) {
+            passes += (currentStat.successfulPass || 0) + (currentStat.assist || 0);
+        }
+        return passes;
+    };
+
+    const getPositionWeight = (position?: string) => {
+        if (!position) return 3;
+        const pos = position.toLowerCase();
+        if (pos.includes('handler')) return 1;
+        if (pos.includes('cutter')) return 2;
+        return 3;
+    };
     
     const sortedRoster = [...activeRoster].sort((a, b) => getJerseyNumber(a) - getJerseyNumber(b));
 
@@ -629,7 +657,28 @@ export default function MatchTracking() {
                     // KAYDIRMA (SCROLL) OLMADAN EKRANA TAM OTURAN OYUNCU KARTLARI
                     <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-1.5 md:gap-2 h-full">
                         {[...selectedLineup]
-                            .sort((idA, idB) => getJerseyNumber(roster.find(r => r.id === idA)) - getJerseyNumber(roster.find(r => r.id === idB)))
+                            .sort((idA, idB) => {
+                                const playerA = roster.find(r => r.id === idA);
+                                const playerB = roster.find(r => r.id === idB);
+                                
+                                const weightA = getPositionWeight(playerA?.position);
+                                const weightB = getPositionWeight(playerB?.position);
+                                
+                                // 1. Öncelikle pozisyona göre sırala (Handler -> Cutter -> Diğerleri)
+                                if (weightA !== weightB) {
+                                    return weightA - weightB;
+                                }
+                                
+                                // 2. Aynı pozisyondalarsa toplam pas (başarılı pas + asist) sayısına göre (azalan) sırala
+                                const passesA = getPlayerTotalPasses(idA);
+                                const passesB = getPlayerTotalPasses(idB);
+                                if (passesA !== passesB) {
+                                    return passesB - passesA; // Çok pas atan daha başa (sola/üste)
+                                }
+                                
+                                // 3. Pas sayıları da eşitse forma numarasına göre sırala
+                                return getJerseyNumber(playerA) - getJerseyNumber(playerB);
+                            })
                             .map(pid => {
                             const player = roster.find(r => r.id === pid);
                             const isDiskHolder = activePasserId === pid;
