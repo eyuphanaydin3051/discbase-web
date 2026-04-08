@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getPlayers, updateMatchData, getTournaments } from '../services/repository';
+import { getPlayers, updateMatchData, getTournaments, deleteLastPoint } from '../services/repository';
 import type { Match, MatchEvent, Player, Tournament } from '../types';
 import YouTube from 'react-youtube';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -371,6 +371,14 @@ export default function MatchDetail() {
         return (urlMatch && urlMatch[2].length === 11) ? urlMatch[2] : null;
     };
 
+    const handleDeleteLastPoint = async () => {
+        if (!tournamentId || !matchId) return;
+        if (window.confirm("Son sayıyı (point) silmek istediğinize emin misiniz? (Bu işlem geri alınamaz ve bu sayıdaki istatistikleriniz silinir!)")) {
+            await deleteLastPoint(tournamentId, matchId);
+            // Firebase onSnapshot aktif olduğu için veriler otomatik olarak senkronize olacak, sayfayı manuel yenilemeye gerek yok.
+        }
+    };
+
     const handleSaveVideo = async () => {
         const videoId = extractYoutubeId(videoUrl);
         if (videoId && tournamentId && matchId && activeTeamId) {
@@ -416,6 +424,18 @@ export default function MatchDetail() {
 
                 {/* SAĞ TARAF: AKSİYON BUTONLARI (SİL VE BAŞLAT) */}
                 <div className="flex flex-col md:flex-row items-center gap-3">
+                    {/* SON SAYIYI SİL BUTONU (Eğer kaydedilmiş en az bir sayı varsa gösterilir) */}
+                    {match.pointsArchive && match.pointsArchive.length > 0 && (
+                        <button
+                            onClick={handleDeleteLastPoint}
+                            className="flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:text-orange-400 rounded-xl font-bold transition-all border border-transparent hover:border-orange-200 dark:hover:border-orange-800"
+                            title="Son Sayıyı Sil"
+                        >
+                            <span className="material-icons-outlined">undo</span>
+                            <span className="hidden md:inline">Son Sayıyı Sil</span>
+                        </button>
+                    )}
+
                     {/* MAÇI SİL BUTONU */}
                     <button
                         onClick={async () => {

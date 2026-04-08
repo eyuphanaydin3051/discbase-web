@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     getMatch, archivePoint, getPlayers, addMatchEvent,
-    undoLastEvent, getTournaments, updateMatchData,
-    deleteLastPoint
+    undoLastEvent, getTournaments, updateMatchData
 } from '../services/repository';
 import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
 import YouTube from 'react-youtube';
@@ -398,19 +397,7 @@ export default function MatchTracking() {
             navigate(`/tournament/${tournamentId}/match/${matchId}`);
         }
     };
-    // src/pages/MatchTracking.tsx içindeki MatchTracking fonksiyonunun İÇİNE eklenecek:
-
-    const handleDeleteLastPoint = async () => {
-        if (!matchId || !tournamentId) return;
-        if (window.confirm(t('confirm_delete_point'))) {
-            // Artık hata vermeden repository'den çağırabiliriz
-            await deleteLastPoint(tournamentId, matchId);
-            
-            // Veriyi tazelemek için maçı yeniden çekin
-            const updatedMatch = await getMatch(tournamentId, matchId);
-            setMatch(updatedMatch);
-        }
-    };
+    
 
     // --- YARDIMCI RENDER FONKSİYONU: KADRO KARTLARI ---
     const renderPlayerGrid = (players: Player[]) => (
@@ -483,11 +470,8 @@ export default function MatchTracking() {
                             <span className="text-rose-600">{match?.scoreThem ?? match?.score?.[1] ?? 0}</span>
                         </div>
     
-                        {/* Silme ve Bitirme butonları yan yana gruplandı */}
+                        {/* Bitirme butonu */}
                         <div className="flex gap-1">
-                            <button onClick={handleDeleteLastPoint} className="p-1 hover:bg-orange-100 rounded-lg text-orange-600 transition-colors" title={t('btn_delete_point')}>
-                                <span className="material-icons-outlined text-lg">delete_sweep</span>
-                            </button>
                             <button onClick={handleFinishMatch} className="p-1 hover:bg-rose-100 rounded-lg text-rose-600 transition-colors" title={t('btn_finish_match')}>
                                 <span className="material-icons-outlined text-lg">stop_circle</span>
                             </button>
