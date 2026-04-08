@@ -220,19 +220,18 @@ export default function MatchTracking() {
         }
 
         const event = {
-            id: crypto.randomUUID(),
+            id: Date.now().toString(),
             eventType: type,
             playerId: playerId || null, 
-            secondaryPlayerId: secondaryPlayerId || null, // YENİ: 2. Oyuncu Eklendi
-            timestamp: Date.now(),            matchId: matchId,
+            secondaryPlayerId: secondaryPlayerId || null,
+            timestamp: Date.now(),
+            matchId: matchId,
             teamId: localStorage.getItem('selectedTeamId') || match?.teamIds?.[0] || '',
             currentScore: [match?.scoreUs ?? match?.score?.[0] ?? 0, match?.scoreThem ?? match?.score?.[1] ?? 0],
             period: match?.period || 1,
             videoTimestampSeconds: currentVideoTime
         } as MatchEvent;
         
-        // Önce ekranda hemen göster (Hızlı hissettirmesi için)
-
         // Sonra Firebase'e gönder (Arka planda çalışır, UI'ı dondurmaz)
         await addMatchEvent(tournamentId, matchId, event);
         setTimeout(() => setLastAction(null), 300);
@@ -251,10 +250,9 @@ export default function MatchTracking() {
             if (p.playerId === receiverId) return { ...p, catchStat: p.catchStat + 1 };
             return p;
         }));
-        const passerId = activePasserId; // Pası atanı hafızaya al
+        const passerId = activePasserId; // Pası atan kişiyi hafızaya al
         setActivePasserId(receiverId);
-        
-        // YENİ: Pas olayında playerId=Atan, secondaryPlayerId=Tutan olarak gönderiyoruz
+        // YENİ: Completion olayında pası atan primary (playerId), tutan secondary (secondaryPlayerId) olur
         await fireEvent('Completion', passerId, receiverId);
     };
 
@@ -298,11 +296,10 @@ export default function MatchTracking() {
         });
         setCurrentPointStats(updatedStats);
 
-        const assisterId = activePasserId;
-        
-        // YENİ: Asist önce kaydedilir, gole de asisti yapan eklenir
-        await fireEvent('Assist', assisterId);
-        await fireEvent('Goal', receiverId, assisterId); 
+        const passerId = activePasserId;
+        // Assist önce, Goal sonra yazılır ki MatchDetail'de sıralı yakalanıp birleşebilsin
+        await fireEvent('Assist', passerId);
+        await fireEvent('Goal', receiverId, passerId);
         await finishPoint('US');
     };
 
