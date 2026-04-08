@@ -489,7 +489,17 @@ export default function MatchTracking() {
         setInjuryOutPlayerId(null);
     };
     
-    const sortedRoster = [...activeRoster].sort((a, b) => getJerseyNumber(a) - getJerseyNumber(b));
+    const sortedRoster = [...activeRoster].sort((a, b) => {
+        // 1. Oynadığı sayı (point) miktarına göre çoktan aza sırala
+        const pointsA = getPlayerMatchPoints(a.id);
+        const pointsB = getPlayerMatchPoints(b.id);
+        if (pointsA !== pointsB) {
+            return pointsB - pointsA; // Çok oynayan üstte (önce)
+        }
+        
+        // 2. Eşitse forma numarasına göre sırala
+        return getJerseyNumber(a) - getJerseyNumber(b);
+    });
 
     return (
         <div className="h-screen w-full flex flex-col bg-slate-100 text-slate-900 font-sans overflow-hidden p-2 gap-2">
