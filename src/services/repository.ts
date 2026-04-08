@@ -347,16 +347,18 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
     }
 };
 
-// --- GÜNCELLENEN: updateMatchData ---
-export const updateMatchData = async (teamId: string, tournamentId: string, matchData: Partial<Match> & { id: string }) => {
-    try {
-        const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchData.id);
-        // Tüm objeyi ezmek yerine sadece gönderilen özellikleri (örn: finished) güncelliyoruz.
-        await updateDoc(matchRef, matchData);
-    } catch (error) {
-        console.error("Maç güncellenirken hata oluştu:", error);
-    }
-};
+const handleBlock = async (playerId: string) => {
+        saveStateToHistory();
+        
+        // DÜZELTME: Güvenli state güncellemesi kullanıldı. Race condition engellendi.
+        setCurrentPointStats(prev => prev.map(p => {
+            if (p.playerId === playerId) return { ...p, block: (p.block || 0) + 1 };
+            return p;
+        }));
+        
+        setGameMode('OFFENSE');
+        await fireEvent('D-Up', playerId);
+    };
 // --- MATCH TRACKING (CANLI İSTATİSTİK) FONKSİYONLARI ---
 
 
@@ -441,7 +443,11 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
             drop: pStat?.drop || 0,
             callahan: pStat?.callahan || 0,
             catchStat: pStat?.catchStat || 0,
-            passDistribution: pStat?.passDistribution || {}
+            passDistribution: pStat?.passDistribution || {},
+            pullAttempts: pStat?.pullAttempts || 0,
+            successfulPulls: pStat?.successfulPulls || 0,
+            totalPulls: pStat?.totalPulls || 0,
+            totalPullTimeSeconds: pStat?.totalPullTimeSeconds || 0
         };
     });
 
@@ -465,6 +471,13 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
         scoreUs: newScoreUs,
         scoreThem: newScoreThem,
         score: [newScoreUs, newScoreThem] 
+    });
+
+    // KRİTİK EKSİK: Sayı kaydedildiğinde istatistiklerin web arayüzüne hemen yansıması için 
+    // turnuvanın lastUpdated alanını güncelliyoruz.
+    const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
+    await updateDoc(tournamentRef, {
+        lastUpdated: Date.now()
     });
 };
 
@@ -537,6 +550,12 @@ export const deleteLastPoint = async (tournamentId: string, matchId: string) => 
                 scoreThem: newScoreThem,
                 score: [newScoreUs, newScoreThem],
                 events: newEvents
+            });
+
+            // KRİTİK EKSİK: Sayı silindiğinde de istatistiklerin yenilenmesi için tetikliyoruz.
+            const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
+            await updateDoc(tournamentRef, {
+                lastUpdated: Date.now()
             });
         }
     }
