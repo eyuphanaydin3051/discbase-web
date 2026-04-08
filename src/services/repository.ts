@@ -418,20 +418,20 @@ export const undoLastEvent = async (tournamentId: string, matchId: string) => {
 export const archivePoint = async (tournamentId: string, matchId: string, lineup: string[], startMode: 'OFFENSE' | 'DEFENSE', whoScored: 'US' | 'THEM', pointStats: any[] = []) => {
     const teamId = localStorage.getItem('selectedTeamId');
     if (!teamId) return;
-    
+
     const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
     const matchSnap = await getDoc(matchRef);
     if (!matchSnap.exists()) return;
 
     const matchData = matchSnap.data();
 
-    // MatchTracking'den doğrudan gelen istatistikleri haritalandırıyoruz (Event geçmişini taramak çift saymaya yol açıyordu)
+    // DÜZELTME: Olay geçmişini taramak yerine, Tracking ekranından gelen güncel pointStats verisini kullanıyoruz.
+    // Bu sayede hem veri kaybı engelleniyor hem de kümülatif (çift sayma) hatası çözülüyor.
     const statsMap: Record<string, any> = {};
     lineup.forEach(id => {
         statsMap[id] = { playerId: id, goal: 0, assist: 0, block: 0, successfulPass: 0, throwaway: 0, drop: 0, callahan: 0, pointsPlayed: 1 };
     });
 
-    // Doğrudan o sayı içinde tutulan (currentPointStats) verileri kadrodaki oyuncuların üzerine yazıyoruz
     pointStats.forEach((stat) => {
         if (statsMap[stat.playerId]) {
             statsMap[stat.playerId] = {

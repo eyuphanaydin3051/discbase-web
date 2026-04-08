@@ -169,7 +169,24 @@ export default function MatchTracking() {
         setHistoryStack([]);
         setActivePasserId(null);
         setLastAction(null);
-        setCurrentPointStats([]);
+        
+        // DÜZELTME: İstatistikleri seçili kadroya (lineup) göre 0'layarak başlatıyoruz. 
+        // Boş dizi ([]) bırakırsak .map() fonksiyonları çalışmaz ve veriler kaydedilmez.
+        const initialStats = selectedLineup.map(id => ({
+            playerId: id,
+            successfulPass: 0,
+            assist: 0,
+            throwaway: 0,
+            catchStat: 0,
+            drop: 0,
+            goal: 0,
+            block: 0,
+            callahan: 0,
+            pointsPlayed: 1,
+            passDistribution: {}
+        }));
+        setCurrentPointStats(initialStats as any);
+
         setTrackingStep('tracking'); // DÜZELTME: Ekrana geçişi ve butonun tepki vermesini sağlar
         
         // Eğer Defans başlıyorsa sistem otomatik olarak Pull atma zorunluluğuna girer
