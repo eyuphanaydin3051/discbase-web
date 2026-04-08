@@ -207,24 +207,7 @@ export default function MatchDetail() {
             });
         }
 
-        // B. Canlı olayları ekle
-        if (enrichedEvents && enrichedEvents.length > 0) {
-            enrichedEvents.forEach(event => {
-                if (!event.playerId) return;
-                const ps = statsMap[event.playerId];
-                if (!ps) return;
-
-                switch (event.eventType) {
-                    case 'Goal': ps.goals += 1; break;
-                    case 'Assist': ps.assists += 1; break;
-                    case 'D-Up': ps.blocks += 1; break;
-                    case 'Callahan': ps.callahans += 1; break;
-                    case 'Completion': ps.passes += 1; break;
-                    case 'Drop': ps.drops += 1; ps.turns += 1; break;
-                    case 'Throwaway': ps.throwaways += 1; ps.turns += 1; break;
-                }
-            });
-        }
+        
 
         // Hesaplamaları yap
         return Object.values(statsMap).map((stats: any) => {
@@ -306,17 +289,7 @@ export default function MatchDetail() {
             });
         }
 
-        // B. Canlı Olayları Ekle
-        if (enrichedEvents && enrichedEvents.length > 0) {
-            enrichedEvents.forEach(e => {
-                if (e.eventType === 'Goal') totalGoals++;
-                if (e.eventType === 'Assist') totalAssists++;
-                if (e.eventType === 'Completion') totalSuccessfulPass++;
-                if (e.eventType === 'Throwaway') totalThrowaways++;
-                if (e.eventType === 'Drop') totalDrops++;
-                if (e.eventType === 'D-Up' || e.eventType === 'Callahan') totalBlocks++;
-            });
-        }
+        
 
         const totalPassesCompleted = totalSuccessfulPass + totalAssists;
         const totalPassesAttempted = totalPassesCompleted + totalThrowaways + totalDrops;

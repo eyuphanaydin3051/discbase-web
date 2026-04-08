@@ -415,32 +415,30 @@ export const undoLastEvent = async (tournamentId: string, matchId: string) => {
     }
 };
 
-export const archivePoint = async (tournamentId: string, matchId: string, lineup: string[], startMode: 'OFFENSE' | 'DEFENSE', whoScored: 'US' | 'THEM') => {
+export const archivePoint = async (tournamentId: string, matchId: string, lineup: string[], startMode: 'OFFENSE' | 'DEFENSE', whoScored: 'US' | 'THEM', pointStats: any[] = []) => {
     const teamId = localStorage.getItem('selectedTeamId');
     if (!teamId) return;
-    // HATA DÜZELTİLDİ: Doğru Firebase yolu eklendi
+    
     const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
     const matchSnap = await getDoc(matchRef);
     if (!matchSnap.exists()) return;
 
     const matchData = matchSnap.data();
-    const currentEvents = matchData.events || [];
 
+    // MatchTracking'den doğrudan gelen istatistikleri haritalandırıyoruz (Event geçmişini taramak çift saymaya yol açıyordu)
     const statsMap: Record<string, any> = {};
     lineup.forEach(id => {
         statsMap[id] = { playerId: id, goal: 0, assist: 0, block: 0, successfulPass: 0, throwaway: 0, drop: 0, callahan: 0, pointsPlayed: 1 };
     });
 
-    currentEvents.forEach((e: any) => {
-        if (!e.playerId || !statsMap[e.playerId]) return;
-        switch (e.eventType) {
-            case 'Goal': statsMap[e.playerId].goal += 1; break;
-            case 'Assist': statsMap[e.playerId].assist += 1; break;
-            case 'D-Up': statsMap[e.playerId].block += 1; break;
-            case 'Completion': statsMap[e.playerId].successfulPass += 1; break;
-            case 'Throwaway': statsMap[e.playerId].throwaway += 1; break;
-            case 'Drop': statsMap[e.playerId].drop += 1; break;
-            case 'Callahan': statsMap[e.playerId].callahan += 1; break;
+    // Doğrudan o sayı içinde tutulan (currentPointStats) verileri kadrodaki oyuncuların üzerine yazıyoruz
+    pointStats.forEach((stat) => {
+        if (statsMap[stat.playerId]) {
+            statsMap[stat.playerId] = {
+                ...statsMap[stat.playerId],
+                ...stat,
+                pointsPlayed: 1
+            };
         }
     });
 
@@ -461,7 +459,6 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
 
     await updateDoc(matchRef, {
         pointsArchive: arrayUnion(newPoint),
-        // events: [],  <-- SİLİNDİ: Olay geçmişinin kaybolmaması için kaldırıldı
         scoreUs: newScoreUs,
         scoreThem: newScoreThem,
         score: [newScoreUs, newScoreThem] 

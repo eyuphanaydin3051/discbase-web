@@ -377,7 +377,8 @@ export default function MatchTracking() {
             ]
         } : prev);
 
-        await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored);
+        // İstatistiklerin çift sayılmasını önlemek için sadece o sayı içinde hesaplanan (currentPointStats) aktarılıyor.
+        await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored, currentPointStats);
 
         setTrackingStep('roster');
         setStartMode(null);
