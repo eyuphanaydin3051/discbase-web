@@ -480,14 +480,40 @@ export const deleteMatch = async (tournamentId: string, matchId: string) => {
         return false;
     }
 };
-const handleDeleteLastPoint = async () => {
-    if (!matchId || !tournamentId) return;
-    if (window.confirm(t('confirm_delete_point'))) {
-        // repository.ts içinden import etmeniz gereken metod
-        // await deleteLastPoint(tournamentId, matchId);
+// src/services/repository.ts dosyasının içine uygun bir yere ekleyin:
+
+export const deleteLastPoint = async (tournamentId: string, matchId: string) => {
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
+
+    // Kendi veritabanı yolunuza göre doc referansını ayarlayın
+    const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+    const matchSnap = await getDoc(matchRef);
+    
+    if (matchSnap.exists()) {
+        const matchData = matchSnap.data();
+        const pointsArchive = matchData.pointsArchive || [];
         
-        // Veriyi tazelemek için maçı yeniden çekin
-        const updatedMatch = await getMatch(tournamentId, matchId);
-        setMatch(updatedMatch);
+        if (pointsArchive.length > 0) {
+            const lastPoint = pointsArchive[pointsArchive.length - 1];
+            
+            // Son sayıyı arşivden çıkar
+            const newArchive = pointsArchive.slice(0, -1);
+            
+            // Skoru geri al
+            let newScoreUs = matchData.scoreUs || 0;
+            let newScoreThem = matchData.scoreThem || 0;
+            
+            if (lastPoint.whoScored === 'US' && newScoreUs > 0) newScoreUs--;
+            if (lastPoint.whoScored === 'THEM' && newScoreThem > 0) newScoreThem--;
+
+            // Firebase'i güncelle
+            await updateDoc(matchRef, {
+                pointsArchive: newArchive,
+                scoreUs: newScoreUs,
+                scoreThem: newScoreThem,
+                score: [newScoreUs, newScoreThem]
+            });
+        }
     }
 };

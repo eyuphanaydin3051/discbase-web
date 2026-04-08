@@ -2,13 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     getMatch, archivePoint, getPlayers, addMatchEvent,
-    undoLastEvent, getTournaments, updateMatchData
+    undoLastEvent, getTournaments, updateMatchData,
+    deleteLastPoint
 } from '../services/repository';
 import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
 import YouTube from 'react-youtube';
 import { t } from 'i18next';
-
+import { useTranslation } from 'react-i18next';
 export default function MatchTracking() {
+    const { t } = useTranslation();
     const { tournamentId, matchId } = useParams();
     const navigate = useNavigate();
 
@@ -394,6 +396,19 @@ export default function MatchTracking() {
             // sadece maçın durumunu güncelleyip veritabanındaki kayıtlı sayıların ezilmesini önlüyoruz.
             await updateMatchData(teamId!, tournamentId, { id: matchId, finished: true });
             navigate(`/tournament/${tournamentId}/match/${matchId}`);
+        }
+    };
+    // src/pages/MatchTracking.tsx içindeki MatchTracking fonksiyonunun İÇİNE eklenecek:
+
+    const handleDeleteLastPoint = async () => {
+        if (!matchId || !tournamentId) return;
+        if (window.confirm(t('confirm_delete_point'))) {
+            // Artık hata vermeden repository'den çağırabiliriz
+            await deleteLastPoint(tournamentId, matchId);
+            
+            // Veriyi tazelemek için maçı yeniden çekin
+            const updatedMatch = await getMatch(tournamentId, matchId);
+            setMatch(updatedMatch);
         }
     };
 
