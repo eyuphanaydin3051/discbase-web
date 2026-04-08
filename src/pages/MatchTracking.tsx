@@ -812,6 +812,83 @@ export default function MatchTracking() {
                     </div>
                 )}
             </div>
+
+            {/* SAKATLIK (INJURY) MODALI */}
+            {isInjuryModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-rose-50 dark:bg-rose-900/20 rounded-t-2xl">
+                            <h3 className="font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                                <span className="material-icons-outlined">medical_services</span>
+                                Sakatlık / Değişiklik
+                            </h3>
+                            <button onClick={() => { setIsInjuryModalOpen(false); setInjuryOutPlayerId(null); }} className="p-1 hover:bg-rose-200 dark:hover:bg-rose-800 rounded-lg text-rose-600 transition-colors">
+                                <span className="material-icons-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-4">
+                            {!injuryOutPlayerId ? (
+                                <>
+                                    <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Oyundan Çıkan Oyuncuyu Seçin:</h4>
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                        {selectedLineup.map(pid => {
+                                            const p = roster.find(r => r.id === pid);
+                                            if (!p) return null;
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => setInjuryOutPlayerId(p.id)}
+                                                    className="p-2 rounded-xl border-2 border-slate-200 bg-slate-50 hover:border-rose-300 hover:bg-rose-50 transition-all flex flex-col items-center gap-1"
+                                                >
+                                                    <div className="h-8 w-8 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center font-bold text-sm text-slate-600">
+                                                        {p.jerseyNumber || '??'}
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-center leading-tight truncate w-full text-slate-700">{p.name}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-2 p-3 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-100 dark:border-rose-800">
+                                        <span className="material-icons-outlined text-rose-500">logout</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-rose-600/80">Çıkan Oyuncu:</span>
+                                            <span className="text-sm font-bold text-rose-700">{roster.find(r => r.id === injuryOutPlayerId)?.name}</span>
+                                        </div>
+                                    </div>
+
+                                    <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mt-2">Oyuna Giren Oyuncuyu Seçin:</h4>
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                        {sortedRoster.filter(p => !selectedLineup.includes(p.id)).map(p => (
+                                            <button
+                                                key={p.id}
+                                                onClick={() => handleInjurySubstitute(p.id)}
+                                                className="p-2 rounded-xl border-2 border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50 transition-all flex flex-col items-center gap-1"
+                                            >
+                                                <div className="h-8 w-8 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center font-bold text-sm text-slate-600">
+                                                    {p.jerseyNumber || '??'}
+                                                </div>
+                                                <span className="text-[10px] font-bold text-center leading-tight truncate w-full text-slate-700">{p.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => setInjuryOutPlayerId(null)}
+                                        className="mt-2 text-sm text-slate-500 hover:text-slate-700 underline text-center w-full"
+                                    >
+                                        Geri Dön (Çıkan Oyuncuyu Değiştir)
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
