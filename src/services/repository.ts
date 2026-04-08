@@ -480,3 +480,14 @@ export const deleteMatch = async (tournamentId: string, matchId: string) => {
         return false;
     }
 };
+const handleDeleteLastPoint = async () => {
+    if (!matchId || !tournamentId) return;
+    if (window.confirm(t('confirm_delete_point'))) {
+        // repository.ts içinden import etmeniz gereken metod
+        // await deleteLastPoint(tournamentId, matchId);
+        
+        // Veriyi tazelemek için maçı yeniden çekin
+        const updatedMatch = await getMatch(tournamentId, matchId);
+        setMatch(updatedMatch);
+    }
+};

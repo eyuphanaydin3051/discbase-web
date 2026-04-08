@@ -57,5 +57,16 @@
   "detailed_connections": "Detaylı Bağlantılar",
   "delete_player": "Oyuncuyu Sil",
   "btn_export_pdf": "PDF İndir",
-  "btn_edit_profile": "Profili Düzenle"
+  "btn_edit_profile": "Profili Düzenle",
+  "ended": "Bitti",
+  "inbounds": "İçerde",
+  "out_of_bounds": "Dışarda",
+  "select_puller": "Aşağıdan Pull Atacak Oyuncuyu Seçin",
+  "start_pull_timer": "PULL SÜRESİNİ BAŞLAT",
+  "pull_in_air": "Pull Havada",
+  "stop_timer": "SÜREYİ DURDUR",
+  "pull_time": "Pull Süresi",
+  "confirm_delete_point": "Son sayıyı ve bu sayıya ait tüm olay geçmişini silmek istediğinize emin misiniz?",
+  "btn_delete_point": "Son Sayıyı Sil",
+  "btn_finish_match": "Maçı Bitir"
 }

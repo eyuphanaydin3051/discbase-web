@@ -6,6 +6,7 @@ import {
 } from '../services/repository';
 import type { Match, Player, PlayerStats, GameMode, MatchEvent, Tournament } from '../types';
 import YouTube from 'react-youtube';
+import { t } from 'i18next';
 
 export default function MatchTracking() {
     const { tournamentId, matchId } = useParams();
@@ -38,7 +39,7 @@ export default function MatchTracking() {
 
     // --- VİDEO SCOUTER STATE ---
     const [ytPlayer, setYtPlayer] = useState<any>(null);
-    
+    const [isPullTimerStopped, setIsPullTimerStopped] = useState<boolean>(false);
     
 
    
@@ -83,22 +84,36 @@ export default function MatchTracking() {
             gameMode,
             currentPointStats: JSON.parse(JSON.stringify(currentPointStats)),
             activePasserId,
-            pointTimer
+            pointTimer,
+            // Pull aşaması için gerekli stateler de geçmişe ekleniyor
+            isPullPhase,
+            pullingPlayerId,
+            pullStartTime,
+            pullElapsedTime,
+            isPullTimerStopped
         }]);
     };
 
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
-        await undoLastEvent(tournamentId, matchId);
         
-        // Listeden de en son eklenen elemanı anında siliyoruz
-
+        // Hem olay geçmişini Firebase'den siliyoruz hem de sonucu bekliyoruz
+        await undoLastEvent(tournamentId, matchId);
+    
         if (historyStack.length > 0) {
             const prevState = historyStack[historyStack.length - 1];
             setGameMode(prevState.gameMode);
             setCurrentPointStats(prevState.currentPointStats);
             setActivePasserId(prevState.activePasserId);
             setPointTimer(prevState.pointTimer);
+        
+            // Pull statelerini geri yüklüyoruz
+            setIsPullPhase(prevState.isPullPhase ?? false);
+            setPullingPlayerId(prevState.pullingPlayerId ?? null);
+            setPullStartTime(prevState.pullStartTime ?? null);
+            setPullElapsedTime(prevState.pullElapsedTime ?? 0);
+            setIsPullTimerStopped(prevState.isPullTimerStopped ?? false);
+
             setHistoryStack(prev => prev.slice(0, -1));
         }
     };
@@ -147,6 +162,7 @@ export default function MatchTracking() {
     // 1. Seçilen Başlangıç Moduna Göre Hazırlık
     const handleStartModeSelect = (mode: 'OFFENSE' | 'DEFENSE') => {
         setGameMode(mode);
+        setStartMode(mode);
         setPointTimer(0);
         setHistoryStack([]);
         setActivePasserId(null);
@@ -160,6 +176,7 @@ export default function MatchTracking() {
             setPullingPlayerId(null);
             setPullStartTime(null);
             setPullElapsedTime(0);
+            setIsPullTimerStopped(false);
         } else {
             setIsPullPhase(false);
         }
@@ -172,23 +189,28 @@ export default function MatchTracking() {
         setPullElapsedTime(0);
         fireEvent('Pull Atıldı', pullingPlayerId);
     };
-
+    const handleStopPullTimer = () => {
+        setIsPullTimerStopped(true);
+        setPullStartTime(null); // Timer durur ama ekrandaki pullElapsedTime sabit kalır
+    };
     // 3. Havada süzülen diskin İçerde/Dışarda seçimi ve normal defansa geçiş
     const handleEndPull = (isSuccess: boolean) => {
-        const time = (Date.now() - (pullStartTime || Date.now())) / 1000;
+        const time = pullElapsedTime; // Artık durdurulmuş süreyi kullanıyoruz
         const timeInt = Math.round(time);
-        fireEvent(`Pull Bitti - ${isSuccess ? 'İçerde' : 'Dışarda'} (${time.toFixed(1)} sn)`, pullingPlayerId || undefined);
-        
+    
+        // Çoklu dil kullanımı (t) eklendi
+        fireEvent(`Pull ${t('ended')} - ${isSuccess ? t('inbounds') : t('out_of_bounds')} (${time.toFixed(1)} sn)`, pullingPlayerId || undefined);
+    
         if (pullingPlayerId) {
-            // Uygulamanın hesaplama yapısına uygun olarak atış süresi ve sayısını kaydet
             updatePlayerStat(pullingPlayerId, 'totalPulls', 1);
             updatePlayerStat(pullingPlayerId, 'totalPullTimeSeconds', timeInt);
         }
-        
+    
         setPullStartTime(null);
         setPullElapsedTime(0);
         setPullingPlayerId(null);
-        setIsPullPhase(false); // Pull bitti, artık normal defans eylemleri (Blok, Callahan vb.) açılabilir
+        setIsPullPhase(false); 
+        setIsPullTimerStopped(false); // Reset
     };
 
     const updatePlayerStat = (playerId: string, statKey: keyof PlayerStats, value: number = 1) => {
@@ -435,7 +457,7 @@ export default function MatchTracking() {
                     <div className="w-full lg:w-[calc(25%-0.5rem)] flex flex-col gap-2 shrink-0 lg:absolute lg:top-0 lg:right-0 lg:h-full lg:max-h-full overflow-y-auto custom-scrollbar pb-2">
                         {/* ... İçeriklerin başlangıcı, Skor başlığı vb. önceki adımlardaki gibi kalacak ... */}
                     
-                    {/* SAĞ PANEL HEADER: Skor ve Maçı Bitir (SÜRE KALDIRILDI) */}
+                    {/* SAĞ PANEL HEADER: Skor ve Maçı Bitir */}
                     <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm shrink-0">
                         <button onClick={() => navigate(-1)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
                             <span className="material-icons-outlined text-lg">arrow_back</span>
@@ -445,9 +467,16 @@ export default function MatchTracking() {
                             <span className="text-slate-300">-</span>
                             <span className="text-rose-600">{match?.scoreThem ?? match?.score?.[1] ?? 0}</span>
                         </div>
-                        <button onClick={handleFinishMatch} className="p-1 hover:bg-rose-100 rounded-lg text-rose-600 transition-colors" title="Maçı Bitir">
-                            <span className="material-icons-outlined text-lg">stop_circle</span>
-                        </button>
+    
+                        {/* Silme ve Bitirme butonları yan yana gruplandı */}
+                        <div className="flex gap-1">
+                            <button onClick={handleDeleteLastPoint} className="p-1 hover:bg-orange-100 rounded-lg text-orange-600 transition-colors" title={t('btn_delete_point')}>
+                                <span className="material-icons-outlined text-lg">delete_sweep</span>
+                            </button>
+                            <button onClick={handleFinishMatch} className="p-1 hover:bg-rose-100 rounded-lg text-rose-600 transition-colors" title={t('btn_finish_match')}>
+                                <span className="material-icons-outlined text-lg">stop_circle</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* SAĞ PANEL İÇERİK: AŞAMAYA GÖRE DEĞİŞİR */}
@@ -535,21 +564,28 @@ export default function MatchTracking() {
                                     <div className="flex flex-col gap-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100">
                                         {!pullingPlayerId ? (
                                             <div className="text-center font-black text-[10px] text-indigo-800 py-3 uppercase">
-                                                Aşağıdan Pull Atacak Oyuncuyu Seçin
+                                                {t('select_puller')}
                                             </div>
-                                        ) : pullStartTime === null ? (
+                                        ) : pullStartTime === null && pullElapsedTime === 0 ? (
                                             <button onClick={handleStartPullTimer} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-black text-[11px] shadow-md uppercase tracking-wider animate-pulse">
-                                                PULL SÜRESİNİ BAŞLAT
+                                                {t('start_pull_timer')}
                                             </button>
-                                        ) : (
+                                        ) : !isPullTimerStopped ? (
                                             <div className="flex flex-col items-center gap-1">
-                                                <div className="text-center font-black text-[9px] text-indigo-800 uppercase tracking-widest">Pull Havada</div>
+                                                <div className="text-center font-black text-[9px] text-indigo-800 uppercase tracking-widest">{t('pull_in_air')}</div>
                                                 <div className="text-3xl font-mono font-black text-indigo-600 text-center leading-none my-1">
                                                     {pullElapsedTime.toFixed(1)}s
                                                 </div>
+                                                <button onClick={handleStopPullTimer} className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[10px] shadow-sm uppercase">
+                                                    {t('stop_timer')}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-1">
+                                                <div className="text-center font-black text-[9px] text-indigo-800 uppercase tracking-widest">{t('pull_time')}: {pullElapsedTime.toFixed(1)}s</div>
                                                 <div className="flex gap-1.5 mt-1 w-full">
-                                                    <button onClick={() => handleEndPull(true)} className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold text-[10px] shadow-sm uppercase">İçerde</button>
-                                                    <button onClick={() => handleEndPull(false)} className="flex-1 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-bold text-[10px] shadow-sm uppercase">Dışarda</button>
+                                                    <button onClick={() => handleEndPull(true)} className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold text-[10px] shadow-sm uppercase">{t('inbounds')}</button>
+                                                    <button onClick={() => handleEndPull(false)} className="flex-1 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-bold text-[10px] shadow-sm uppercase">{t('out_of_bounds')}</button>
                                                 </div>
                                             </div>
                                         )}

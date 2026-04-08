@@ -57,5 +57,16 @@
   "detailed_connections": "Detailed Connections",
   "delete_player": "Delete Player",
   "btn_export_pdf": "Export PDF",
-  "btn_edit_profile": "Edit Profile"
+  "btn_edit_profile": "Edit Profile",
+  "ended": "Ended",
+  "inbounds": "Inbounds",
+  "out_of_bounds": "Out of Bounds",
+  "select_puller": "Select the Player to Pull Below",
+  "start_pull_timer": "START PULL TIMER",
+  "pull_in_air": "Pull in Air",
+  "stop_timer": "STOP TIMER",
+  "pull_time": "Pull Time",
+  "confirm_delete_point": "Are you sure you want to delete the last point and all its event history?",
+  "btn_delete_point": "Delete Last Point",
+  "btn_finish_match": "Finish Match"
 }
