@@ -314,8 +314,11 @@ export default function MatchTracking() {
         if (!activePasserId) return;
         saveStateToHistory();
         
-        // Yeni fonksiyona sadece 'throwaway' yazmamız yeterli, +1'i kendi ekler
-        updatePlayerStat(activePasserId, 'throwaway'); 
+        // DÜZELTME: Güvenli state güncellemesi kullanıldı. Race condition engellendi.
+        setCurrentPointStats(prev => prev.map(p => {
+            if (p.playerId === activePasserId) return { ...p, throwaway: (p.throwaway || 0) + 1 };
+            return p;
+        }));
         
         setGameMode('DEFENSE');
         const passerCache = activePasserId;
@@ -349,8 +352,11 @@ export default function MatchTracking() {
    const handleBlock = async (playerId: string) => {
         saveStateToHistory();
         
-        // Yeni fonksiyona sadece 'block' yazmamız yeterli, +1'i kendi ekler
-        updatePlayerStat(playerId, 'block'); 
+        // DÜZELTME: Güvenli state güncellemesi kullanıldı. Race condition engellendi.
+        setCurrentPointStats(prev => prev.map(p => {
+            if (p.playerId === playerId) return { ...p, block: (p.block || 0) + 1 };
+            return p;
+        }));
         
         setGameMode('OFFENSE');
         await fireEvent('D-Up', playerId);

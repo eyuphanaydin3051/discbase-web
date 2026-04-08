@@ -425,21 +425,24 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
 
     const matchData = matchSnap.data();
 
-    // DÜZELTME: Olay geçmişini taramak yerine, Tracking ekranından gelen güncel pointStats verisini kullanıyoruz.
-    // Bu sayede hem veri kaybı engelleniyor hem de kümülatif (çift sayma) hatası çözülüyor.
-    const statsMap: Record<string, any> = {};
-    lineup.forEach(id => {
-        statsMap[id] = { playerId: id, goal: 0, assist: 0, block: 0, successfulPass: 0, throwaway: 0, drop: 0, callahan: 0, pointsPlayed: 1 };
-    });
-
-    pointStats.forEach((stat) => {
-        if (statsMap[stat.playerId]) {
-            statsMap[stat.playerId] = {
-                ...statsMap[stat.playerId],
-                ...stat,
-                pointsPlayed: 1
-            };
-        }
+    // DÜZELTME: Gelen pointStats'ın direkt objelerini kullan. Eğer lineup'ta olan ama 
+    // pointStats'ta bulunmayan oyuncu varsa onları sıfırlarla ekle.
+    // Eski spread (...stat) mantığı iç içe objelerde (passDistribution) referans kayıplarına yol açıyordu.
+    const statsToArchive = lineup.map(playerId => {
+        const pStat = pointStats.find(s => s.playerId === playerId);
+        return {
+            playerId: playerId,
+            pointsPlayed: 1, // Her halükarda kadrodaysa 1 puan oynadı
+            goal: pStat?.goal || 0,
+            assist: pStat?.assist || 0,
+            block: pStat?.block || 0,
+            successfulPass: pStat?.successfulPass || 0,
+            throwaway: pStat?.throwaway || 0,
+            drop: pStat?.drop || 0,
+            callahan: pStat?.callahan || 0,
+            catchStat: pStat?.catchStat || 0,
+            passDistribution: pStat?.passDistribution || {}
+        };
     });
 
     const newPoint = {
@@ -447,7 +450,7 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
         startMode,
         whoScored,
         playerIds: lineup,
-        stats: Object.values(statsMap),
+        stats: statsToArchive,
         durationSeconds: 0 
     };
 
