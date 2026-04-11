@@ -161,6 +161,8 @@ export default function MatchDetail() {
                 return <><span className="font-bold text-orange-600">{playerName} blok (D-Up) yaptı, disk takımımıza geçti.</span></>;
             case 'Callahan': 
                 return <><span className="font-bold text-purple-600">{playerName} CALLAHAN YAPTI!</span></>;
+            case 'Substitute':
+                return <><span className="font-bold text-rose-600">{playerName}</span> oyundan çıktı, yerine <span className="font-bold text-emerald-600">{receiverName}</span> girdi.</>;
             default: 
                 if (type.includes('Pull')) {
                     let pullStatus = "pull attı.";
@@ -188,30 +190,66 @@ export default function MatchDetail() {
         });
 
         // A. Önce Arşivdeki İstatistikleri Topla
-        const pointDurations: number[] = [];
+        const pointDurationsByPlayer: Record<string, number>[] = [];
         if (match?.events) {
             const sortedEvents = [...match.events].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             let currentPointStart: number | null = null;
-            sortedEvents.forEach(evt => {
-                // Senaryo 1 ve 2: Sayı başlangıcı (Offense -> Pickup, Defense -> Pull)
+            let lastEventTime: number | null = null;
+            let activePlayers = new Set<string>();
+            let currentPointTimes: Record<string, number> = {};
+            let pointIndex = 0;
+
+            sortedEvents.forEach((evt, idx) => {
+                const vTime = evt.videoTimestampSeconds;
+
                 if ((evt.eventType.includes('Pull') || evt.eventType === 'Pickup') && currentPointStart === null) {
-                    currentPointStart = evt.videoTimestampSeconds ?? null;
-                }
-                // Sayı sonu: Bizim gol, rakip gol veya callahan
-                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
-                    if (currentPointStart !== null && evt.videoTimestampSeconds !== undefined) {
-                        pointDurations.push(Math.max(0, evt.videoTimestampSeconds - currentPointStart));
-                    } else {
-                        pointDurations.push(0);
+                    currentPointStart = vTime ?? null;
+                    lastEventTime = vTime ?? null;
+                    currentPointTimes = {};
+                    
+                    const archivePoint = match.pointsArchive?.[pointIndex];
+                    if (archivePoint) {
+                        // O sayının içinde sonradan girenleri bulup başlarken aktif saymamak için filtreliyoruz
+                        const subbedIn = new Set<string>();
+                        for (let i = idx; i < sortedEvents.length; i++) {
+                            const e = sortedEvents[i];
+                            if (e.eventType === 'Substitute' && e.secondaryPlayerId) subbedIn.add(e.secondaryPlayerId);
+                            if (e.eventType === 'Goal' || e.eventType === 'Callahan' || e.eventType === 'OpponentGoal') break;
+                        }
+                        archivePoint.stats?.forEach(s => {
+                            if (!subbedIn.has(s.playerId)) activePlayers.add(s.playerId);
+                        });
                     }
-                    currentPointStart = null; // Sonraki sayı için sıfırla
+                }
+
+                // Olayın olduğu saniyeye kadar sahadaki aktif oyunculara süre yaz
+                if (currentPointStart !== null && vTime !== undefined && lastEventTime !== null) {
+                    const delta = Math.max(0, vTime - lastEventTime);
+                    activePlayers.forEach(pid => {
+                        currentPointTimes[pid] = (currentPointTimes[pid] || 0) + delta;
+                    });
+                    lastEventTime = vTime;
+                }
+
+                // Sakatlık/Değişiklik aksiyonu
+                if (evt.eventType === 'Substitute') {
+                    if (evt.playerId) activePlayers.delete(evt.playerId); // Çıkan oyuncunun süre sayacını durdur
+                    if (evt.secondaryPlayerId) activePlayers.add(evt.secondaryPlayerId); // Giren oyuncunun süre sayacını başlat
+                }
+
+                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
+                    pointDurationsByPlayer.push(currentPointTimes);
+                    currentPointStart = null;
+                    lastEventTime = null;
+                    activePlayers.clear();
+                    pointIndex++;
                 }
             });
         }
 
         if (match?.pointsArchive) {
             match.pointsArchive.forEach((point, pIndex) => {
-                const pointDuration = pointDurations[pIndex] || 0;
+                const playerTimes = pointDurationsByPlayer[pIndex] || {};
                 point.stats?.forEach(stat => {
                     const ps = statsMap[stat.playerId];
                     if (ps) {
@@ -219,14 +257,13 @@ export default function MatchDetail() {
                         ps.assists += stat.assist || 0;
                         ps.blocks += stat.block || 0;
                         ps.callahans += stat.callahan || 0;
-                        // ASİSTİ BAŞARILI PAS OLARAK SAY
                         ps.passes += (stat.successfulPass || 0) + (stat.assist || 0);
                         ps.drops += stat.drop || 0;
                         ps.throwaways += stat.throwaway || 0;
                         ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
                         ps.pointsPlayed += stat.pointsPlayed || 0;
-                        // Oyuncu o sayıda oynadıysa sayı süresini ekle
-                        ps.totalTimePlayedSeconds += pointDuration;
+                        // Tam olarak sahada kaldığı saniyeyi ekle
+                        ps.totalTimePlayedSeconds += (playerTimes[stat.playerId] || 0);
                     }
                 });
             });

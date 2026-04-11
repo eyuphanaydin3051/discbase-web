@@ -141,38 +141,71 @@ const handleCreateMatch = async () => {
     }> = {};
 
     matches.forEach(match => {
-        const pointDurations: number[] = [];
+        const pointDurationsByPlayer: Record<string, number>[] = [];
         if (match?.events) {
             const sortedEvents = [...match.events].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             let currentPointStart: number | null = null;
-            sortedEvents.forEach(evt => {
+            let lastEventTime: number | null = null;
+            let activePlayers = new Set<string>();
+            let currentPointTimes: Record<string, number> = {};
+            let pointIndex = 0;
+
+            sortedEvents.forEach((evt, idx) => {
+                const vTime = evt.videoTimestampSeconds;
+
                 if ((evt.eventType.includes('Pull') || evt.eventType === 'Pickup') && currentPointStart === null) {
-                    currentPointStart = evt.videoTimestampSeconds ?? null;
-                }
-                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
-                    if (currentPointStart !== null && evt.videoTimestampSeconds !== undefined) {
-                        pointDurations.push(Math.max(0, evt.videoTimestampSeconds - currentPointStart));
-                    } else {
-                        pointDurations.push(0);
+                    currentPointStart = vTime ?? null;
+                    lastEventTime = vTime ?? null;
+                    currentPointTimes = {};
+                    
+                    const archivePoint = match.pointsArchive?.[pointIndex];
+                    if (archivePoint) {
+                        const subbedIn = new Set<string>();
+                        for (let i = idx; i < sortedEvents.length; i++) {
+                            const e = sortedEvents[i];
+                            if (e.eventType === 'Substitute' && e.secondaryPlayerId) subbedIn.add(e.secondaryPlayerId);
+                            if (e.eventType === 'Goal' || e.eventType === 'Callahan' || e.eventType === 'OpponentGoal') break;
+                        }
+                        archivePoint.stats?.forEach(s => {
+                            if (!subbedIn.has(s.playerId)) activePlayers.add(s.playerId);
+                        });
                     }
+                }
+
+                if (currentPointStart !== null && vTime !== undefined && lastEventTime !== null) {
+                    const delta = Math.max(0, vTime - lastEventTime);
+                    activePlayers.forEach(pid => {
+                        currentPointTimes[pid] = (currentPointTimes[pid] || 0) + delta;
+                    });
+                    lastEventTime = vTime;
+                }
+
+                if (evt.eventType === 'Substitute') {
+                    if (evt.playerId) activePlayers.delete(evt.playerId);
+                    if (evt.secondaryPlayerId) activePlayers.add(evt.secondaryPlayerId);
+                }
+
+                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
+                    pointDurationsByPlayer.push(currentPointTimes);
                     currentPointStart = null;
+                    lastEventTime = null;
+                    activePlayers.clear();
+                    pointIndex++;
                 }
             });
         }
 
         match.pointsArchive?.forEach((point, pIndex) => {
-            const pointDuration = pointDurations[pIndex] || 0;
+            const playerTimes = pointDurationsByPlayer[pIndex] || {};
             let pointHasOurGoal = false;
 
             point.stats?.forEach(stat => {
-                // Takım geneli için
                 tGoals += stat.goal || 0;
                 tTurns += stat.throwaway || 0;
                 tDrops += stat.drop || 0;
 
                 if (stat.goal && stat.goal > 0) pointHasOurGoal = true;
 
-                // Oyuncu geneli için
                 if (!playerStatsMap[stat.playerId]) {
                     playerStatsMap[stat.playerId] = { 
                         goals: 0, assists: 0, blocks: 0, 
@@ -180,7 +213,7 @@ const handleCreateMatch = async () => {
                         matchIds: new Set() 
                     };
                 }
-                playerStatsMap[stat.playerId].totalTimePlayedSeconds += pointDuration;
+                playerStatsMap[stat.playerId].totalTimePlayedSeconds += (playerTimes[stat.playerId] || 0);
                 playerStatsMap[stat.playerId].goals += stat.goal || 0;
                 playerStatsMap[stat.playerId].assists += stat.assist || 0;
                 playerStatsMap[stat.playerId].blocks += stat.block || 0;

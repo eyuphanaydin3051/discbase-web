@@ -502,13 +502,34 @@ export default function MatchTracking() {
         // Kadroyu güncelle
         setSelectedLineup(prev => prev.map(id => id === outId ? newPlayerId : id));
 
+        // currentPointStats'ı güncelle (Çıkan oyuncuyu silmiyoruz ki verileri kaybolmasın, yeni oyuncuyu ekliyoruz)
+        setCurrentPointStats(prev => {
+            const newStats = [...prev];
+            if (!newStats.find(p => p.playerId === newPlayerId)) {
+                newStats.push({
+                    playerId: newPlayerId,
+                    successfulPass: 0,
+                    assist: 0,
+                    throwaway: 0,
+                    catchStat: 0,
+                    drop: 0,
+                    goal: 0,
+                    block: 0,
+                    callahan: 0,
+                    pointsPlayed: 1,
+                    passDistribution: {}
+                } as PlayerStats);
+            }
+            return newStats;
+        });
+
         // Eğer diski tutan kişi sakatlandıysa, diski yeni girene ver (App Logic)
         if (activePasserId === outId) {
             setActivePasserId(newPlayerId);
         }
 
-        // Event kaydı
-        await fireEvent('Injury Substitute', outId, newPlayerId);
+        // Event kaydı ('Substitute' olarak değiştirildi ki UI tanısın)
+        await fireEvent('Substitute', outId, newPlayerId);
         
         // İşlem bitince modalı kapat
         setIsInjuryModalOpen(false);
