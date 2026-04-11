@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
-import { arrayUnion, arrayRemove } from 'firebase/firestore';
+import { arrayUnion } from 'firebase/firestore';
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
     const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
     return onSnapshot(q, (snapshot) => {
@@ -347,18 +347,19 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
     }
 };
 
-const handleBlock = async (playerId: string) => {
-        saveStateToHistory();
-        
-        // DÜZELTME: Güvenli state güncellemesi kullanıldı. Race condition engellendi.
-        setCurrentPointStats(prev => prev.map(p => {
-            if (p.playerId === playerId) return { ...p, block: (p.block || 0) + 1 };
-            return p;
-        }));
-        
-        setGameMode('OFFENSE');
-        await fireEvent('D-Up', playerId);
-    };
+// YENİ EKLENEN: updateMatchData (Eksik olan fonksiyon eklendi)
+export const updateMatchData = async (teamId: string, tournamentId: string, data: Partial<Match> & { id: string }) => {
+    try {
+        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${data.id}`);
+        const { id, ...updateFields } = data; // Firebase id'yi döküman içinde ayrıca istemez, onu ayırıyoruz
+        await updateDoc(matchRef, updateFields);
+        return true;
+    } catch (error) {
+        console.error("Maç verisi güncellenirken hata:", error);
+        return false;
+    }
+};
+
 // --- MATCH TRACKING (CANLI İSTATİSTİK) FONKSİYONLARI ---
 
 
