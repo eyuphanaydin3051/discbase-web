@@ -183,13 +183,35 @@ export default function MatchDetail() {
                 jerseyNumber: player.jerseyNumber ?? undefined,
                 photoUrl: player.photoUrl ?? undefined,
                 goals: 0, assists: 0, blocks: 0, callahans: 0,
-                passes: 0, drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0
+                passes: 0, drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0
             };
         });
 
         // A. Önce Arşivdeki İstatistikleri Topla
+        const pointDurations: number[] = [];
+        if (match?.events) {
+            const sortedEvents = [...match.events].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            let currentPointStart: number | null = null;
+            sortedEvents.forEach(evt => {
+                // Senaryo 1 ve 2: Sayı başlangıcı (Offense -> Pickup, Defense -> Pull)
+                if ((evt.eventType.includes('Pull') || evt.eventType === 'Pickup') && currentPointStart === null) {
+                    currentPointStart = evt.videoTimestampSeconds ?? null;
+                }
+                // Sayı sonu: Bizim gol, rakip gol veya callahan
+                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
+                    if (currentPointStart !== null && evt.videoTimestampSeconds !== undefined) {
+                        pointDurations.push(Math.max(0, evt.videoTimestampSeconds - currentPointStart));
+                    } else {
+                        pointDurations.push(0);
+                    }
+                    currentPointStart = null; // Sonraki sayı için sıfırla
+                }
+            });
+        }
+
         if (match?.pointsArchive) {
-            match.pointsArchive.forEach(point => {
+            match.pointsArchive.forEach((point, pIndex) => {
+                const pointDuration = pointDurations[pIndex] || 0;
                 point.stats?.forEach(stat => {
                     const ps = statsMap[stat.playerId];
                     if (ps) {
@@ -203,6 +225,8 @@ export default function MatchDetail() {
                         ps.throwaways += stat.throwaway || 0;
                         ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
                         ps.pointsPlayed += stat.pointsPlayed || 0;
+                        // Oyuncu o sayıda oynadıysa sayı süresini ekle
+                        ps.totalTimePlayedSeconds += pointDuration;
                     }
                 });
             });
@@ -767,6 +791,9 @@ export default function MatchDetail() {
                                     <th onClick={() => requestSort('pointsPlayed')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                         <div className="flex items-center justify-center gap-1">Sayı {sortConfig.key === 'pointsPlayed' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                     </th>
+                                    <th onClick={() => requestSort('totalTimePlayedSeconds')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <div className="flex items-center justify-center gap-1">Süre {sortConfig.key === 'totalTimePlayedSeconds' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                    </th>
                                     <th onClick={() => requestSort('totalPasses')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                         <div className="flex items-center justify-center gap-1">Atılan {sortConfig.key === 'totalPasses' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                     </th>
@@ -817,6 +844,7 @@ export default function MatchDetail() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-slate-500 dark:text-slate-400">{ps.pointsPlayed}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-slate-500 dark:text-slate-400">{Math.floor((ps.totalTimePlayedSeconds || 0) / 60)}:{(Math.floor((ps.totalTimePlayedSeconds || 0) % 60)).toString().padStart(2, '0')}</td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-slate-900 dark:text-slate-200">{ps.totalPasses}</td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-emerald-600 dark:text-emerald-400">{ps.passes}</td>
                                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-500 dark:text-blue-400">%{ps.passPercentage}</td>

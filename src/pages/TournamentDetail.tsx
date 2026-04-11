@@ -136,11 +136,32 @@ const handleCreateMatch = async () => {
         drops: number,
         callahans: number,
         pointsPlayed: number, 
+        totalTimePlayedSeconds: number,
         matchIds: Set<string> 
     }> = {};
 
     matches.forEach(match => {
-        match.pointsArchive?.forEach(point => {
+        const pointDurations: number[] = [];
+        if (match?.events) {
+            const sortedEvents = [...match.events].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            let currentPointStart: number | null = null;
+            sortedEvents.forEach(evt => {
+                if ((evt.eventType.includes('Pull') || evt.eventType === 'Pickup') && currentPointStart === null) {
+                    currentPointStart = evt.videoTimestampSeconds ?? null;
+                }
+                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
+                    if (currentPointStart !== null && evt.videoTimestampSeconds !== undefined) {
+                        pointDurations.push(Math.max(0, evt.videoTimestampSeconds - currentPointStart));
+                    } else {
+                        pointDurations.push(0);
+                    }
+                    currentPointStart = null;
+                }
+            });
+        }
+
+        match.pointsArchive?.forEach((point, pIndex) => {
+            const pointDuration = pointDurations[pIndex] || 0;
             let pointHasOurGoal = false;
 
             point.stats?.forEach(stat => {
@@ -155,10 +176,11 @@ const handleCreateMatch = async () => {
                 if (!playerStatsMap[stat.playerId]) {
                     playerStatsMap[stat.playerId] = { 
                         goals: 0, assists: 0, blocks: 0, 
-                        passes: 0, turns: 0, throwaways: 0, drops: 0, callahans: 0, pointsPlayed: 0, 
+                        passes: 0, turns: 0, throwaways: 0, drops: 0, callahans: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0,
                         matchIds: new Set() 
                     };
                 }
+                playerStatsMap[stat.playerId].totalTimePlayedSeconds += pointDuration;
                 playerStatsMap[stat.playerId].goals += stat.goal || 0;
                 playerStatsMap[stat.playerId].assists += stat.assist || 0;
                 playerStatsMap[stat.playerId].blocks += stat.block || 0;
@@ -260,6 +282,7 @@ const handleCreateMatch = async () => {
                 passes: stats.passes,
                 turns: stats.turns,
                 pointsPlayed: stats.pointsPlayed,
+                totalTimePlayedSeconds: stats.totalTimePlayedSeconds,
                 matchesPlayed: stats.matchIds.size,
                 passPercentage: passPercentage,
                 catchPercentage: catchPercentage,
@@ -531,6 +554,9 @@ const handleCreateMatch = async () => {
                                             <th onClick={() => requestSort('pointsPlayed')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 <div className="flex items-center justify-center gap-1">Girdiği Sayı {sortConfig.key === 'pointsPlayed' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
+                                            <th onClick={() => requestSort('totalTimePlayedSeconds')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Süre {sortConfig.key === 'totalTimePlayedSeconds' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
                                             <th onClick={() => requestSort('totalPasses')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 <div className="flex items-center justify-center gap-1">Atılan Pas {sortConfig.key === 'totalPasses' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
@@ -585,6 +611,7 @@ const handleCreateMatch = async () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.matchesPlayed || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{player.pointsPlayed || 0}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-400">{Math.floor((player.totalTimePlayedSeconds || 0) / 60)}:{(Math.floor((player.totalTimePlayedSeconds || 0) % 60)).toString().padStart(2, '0')}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 dark:text-gray-200">{player.totalPasses || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-[#00C896]">{player.passes || 0}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-500 dark:text-blue-400">%{player.passPercentage}</td>
