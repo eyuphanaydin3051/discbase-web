@@ -427,14 +427,15 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
 
     const matchData = matchSnap.data();
 
-    // DÜZELTME: Gelen pointStats'ın direkt objelerini kullan. Eğer lineup'ta olan ama 
-    // pointStats'ta bulunmayan oyuncu varsa onları sıfırlarla ekle.
-    // Eski spread (...stat) mantığı iç içe objelerde (passDistribution) referans kayıplarına yol açıyordu.
-    const statsToArchive = lineup.map(playerId => {
+    // DÜZELTME: Sadece 'lineup' içindeki 7 oyuncuyu değil, o sayı içinde yer almış (pointStats içinde bulunan)
+    // tüm oyuncuları (oyundan sakatlık/değişiklik ile çıkanlar da dahil) hesaba katarak arşivle.
+    const allPlayerIds = Array.from(new Set([...lineup, ...pointStats.map(s => s.playerId)]));
+
+    const statsToArchive = allPlayerIds.map(playerId => {
         const pStat = pointStats.find(s => s.playerId === playerId);
         return {
             playerId: playerId,
-            pointsPlayed: 1, // Her halükarda kadrodaysa 1 puan oynadı
+            pointsPlayed: 1, // Her halükarda kadrodaysa veya girip çıktıysa 1 puan oynadı
             goal: pStat?.goal || 0,
             assist: pStat?.assist || 0,
             block: pStat?.block || 0,
@@ -455,7 +456,7 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
         id: Date.now().toString(),
         startMode,
         whoScored,
-        playerIds: lineup,
+        playerIds: allPlayerIds, // DÜZELTME: Giren ve çıkanlar dahil tüm oyuncuların ID'sini sakla
         stats: statsToArchive,
         durationSeconds: 0 
     };
