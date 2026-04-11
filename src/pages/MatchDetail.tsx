@@ -447,8 +447,12 @@ export default function MatchDetail() {
                         <span className="material-icons-outlined">arrow_back</span>
                     </button>
                     <div>
-                        <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                            {getTeamName(match, tournament)} <span className="text-violet-500 px-2">vs</span> {match.opponentName}
+                        <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center flex-wrap">
+                            {getTeamName(match, tournament)} 
+                            <span className="text-violet-600 ml-3">{match.scoreUs ?? match?.score?.[0] ?? 0}</span> 
+                            <span className="text-slate-400 px-3 text-2xl">vs</span> 
+                            <span className="text-rose-600 mr-3">{match.scoreThem ?? match?.score?.[1] ?? 0}</span> 
+                            {match.opponentName}
                         </h1>
                         <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
                             <span className="material-icons-outlined text-[18px]">event</span>

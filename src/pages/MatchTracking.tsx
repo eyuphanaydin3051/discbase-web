@@ -464,7 +464,9 @@ export default function MatchTracking() {
     // Uygulamadaki sıralama mantığı için pas sayısı hesaplama ve pozisyon ağırlığı
     const getPlayerTotalPasses = (playerId: string) => {
         let passes = 0;
-        // Önceki sayılardaki (arşiv) pasları topla
+        // SADECE önceki sayılardaki (arşiv) pasları topla.
+        // Canlı (current) sayının verilerini bilerek sildik, böylece sayı akarken
+        // oyuncuların kart konumları sabit kalır ve tıklama zorluğu yaşanmaz.
         if (match?.pointsArchive) {
             match.pointsArchive.forEach(point => {
                 const stat = point.stats?.find(s => s.playerId === playerId);
@@ -472,11 +474,6 @@ export default function MatchTracking() {
                     passes += (stat.successfulPass || 0) + (stat.assist || 0);
                 }
             });
-        }
-        // Mevcut (canlı) sayıdaki pasları ekle
-        const currentStat = currentPointStats.find(s => s.playerId === playerId);
-        if (currentStat) {
-            passes += (currentStat.successfulPass || 0) + (currentStat.assist || 0);
         }
         return passes;
     };
