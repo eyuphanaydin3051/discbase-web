@@ -239,7 +239,8 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
                     drops += pStat.drop || 0;
                     throwaways += pStat.throwaway || 0;
                     catches += pStat.catchStat || 0;
-                    passes += pStat.successfulPass || 0;
+                    // ASİSTİ BAŞARILI PAS OLARAK SAY (Android ile eşitleme)
+                    passes += (pStat.successfulPass || 0) + (pStat.assist || 0);
                     
                     // Pas dağılımını hesapla
                     if (pStat.passDistribution) {
@@ -334,8 +335,6 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
         // 1. Maçı alt koleksiyona kaydet
         await setDoc(newMatchDoc, newMatch);
 
-        // 2. KRİTİK: Ana turnuva belgesini güncelle ki Android'deki 'getTournaments' tetiklensin
-        // Android tarafı bu alanı dinleyerek verileri yeniler.
         await updateDoc(tournamentRef, {
             lastUpdated: Date.now()
         });
@@ -347,15 +346,15 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
     }
 };
 
-// YENİ EKLENEN: updateMatchData (Eksik olan fonksiyon eklendi)
-export const updateMatchData = async (teamId: string, tournamentId: string, data: Partial<Match> & { id: string }) => {
+// YENİ EKLENEN: updateMatchData (Eksik fonksiyon eklendi)
+export const updateMatchData = async (teamId: string, tournamentId: string, data: any) => {
     try {
         const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${data.id}`);
-        const { id, ...updateFields } = data; // Firebase id'yi döküman içinde ayrıca istemez, onu ayırıyoruz
+        const { id, ...updateFields } = data;
         await updateDoc(matchRef, updateFields);
         return true;
     } catch (error) {
-        console.error("Maç verisi güncellenirken hata:", error);
+        console.error("Maç güncellenirken hata:", error);
         return false;
     }
 };

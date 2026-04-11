@@ -197,7 +197,8 @@ export default function MatchDetail() {
                         ps.assists += stat.assist || 0;
                         ps.blocks += stat.block || 0;
                         ps.callahans += stat.callahan || 0;
-                        ps.passes += stat.successfulPass || 0;
+                        // ASİSTİ BAŞARILI PAS OLARAK SAY
+                        ps.passes += (stat.successfulPass || 0) + (stat.assist || 0);
                         ps.drops += stat.drop || 0;
                         ps.throwaways += stat.throwaway || 0;
                         ps.turns += (stat.drop || 0) + (stat.throwaway || 0);

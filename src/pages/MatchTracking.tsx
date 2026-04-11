@@ -341,10 +341,10 @@ export default function MatchTracking() {
         setCurrentPointStats(updatedStats);
 
         const passerId = activePasserId;
-        // Assist önce, Goal sonra yazılır ki MatchDetail'de sıralı yakalanıp birleşebilsin
         await fireEvent('Assist', passerId);
         await fireEvent('Goal', receiverId, passerId);
-        // DÜZELTME: React State asenkron olduğu için güncel stats verisini manuel olarak iletiyoruz (Veri kaybını engeller)
+        
+        // KRİTİK: State güncellenmeden önce hazırlanan 'updatedStats' verisini direkt gönderiyoruz
         await finishPoint('US', updatedStats);
     };
 
@@ -371,7 +371,6 @@ export default function MatchTracking() {
         });
         setCurrentPointStats(updatedStats);
         await fireEvent('Callahan', playerId);
-        // DÜZELTME: Manuel iletiyoruz.
         await finishPoint('US', updatedStats);
     };
 
@@ -383,13 +382,12 @@ export default function MatchTracking() {
 
     const handleOpponentScore = async () => {
         saveStateToHistory();
-        await fireEvent('OpponentGoal'); // RAKİP SAYISI AKORDİYONU İÇİN BURASI DEĞİŞTİ
+        await fireEvent('OpponentGoal');
         await finishPoint('THEM');
     };
 
     // --- SAYI BİTİRME (POINT END) ---
-    // DÜZELTME: overrideStats parametresi eklendi.
-    const finishPoint = async (whoScored: 'US' | 'THEM', overrideStats?: PlayerStats[]) => {
+    const finishPoint = async (whoScored: 'US' | 'THEM', overrideStats?: any[]) => {
         if (!matchId || !tournamentId) return;
         setIsTimerRunning(false);
 
@@ -403,10 +401,9 @@ export default function MatchTracking() {
             ]
         } : prev);
 
-        // İstatistiklerin çift sayılmasını önlemek için sadece o sayı içinde hesaplanan aktarılıyor.
-        // DÜZELTME: Eğer overrideStats gönderildiyse (Yani anlık güncel state) onu kullan, yoksa mevcudu kullan
-        const statsToSave = overrideStats || currentPointStats;
-        await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored, statsToSave);
+        // State gecikmesini önlemek için varsa overrideStats'ı kullanıyoruz
+        const finalStats = overrideStats || currentPointStats;
+        await archivePoint(tournamentId, matchId, selectedLineup, startMode!, whoScored, finalStats);
 
         setTrackingStep('roster');
         setStartMode(null);
