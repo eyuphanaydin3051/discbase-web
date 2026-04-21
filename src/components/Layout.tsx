@@ -45,7 +45,7 @@ export default function Layout() {
                                 <span className="material-icons-outlined text-[22px]">groups</span>
                                 <span>Kadro</span>
                             </NavLink>
-                            <NavLink to="/team-select" className={getLinkClass}>
+                            <NavLink to="/trainings" className={getLinkClass}>
                                 <span className="material-icons-outlined text-[22px]">fitness_center</span>
                                 <span>İdman</span>
                             </NavLink>
@@ -81,7 +81,7 @@ export default function Layout() {
                         <span className="material-icons-outlined">groups</span>
                         <span className="text-[10px] font-medium mt-1">Kadro</span>
                     </NavLink>
-                    <NavLink to="/team-select" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-[#5B4DBC]' : 'text-gray-400 hover:text-[#5B4DBC]'}`}>
+                    <NavLink to="/trainings" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-[#5B4DBC]' : 'text-gray-400 hover:text-[#5B4DBC]'}`}>
                         <span className="material-icons-outlined">fitness_center</span>
                         <span className="text-[10px] font-medium mt-1">İdman</span>
                     </NavLink>
