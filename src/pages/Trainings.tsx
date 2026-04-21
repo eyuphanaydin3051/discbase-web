@@ -70,6 +70,35 @@ export default function Trainings() {
     const [showRawData, setShowRawData] = useState(false);
     const [manualJsonInput, setManualJsonInput] = useState(''); // YENİ: Manuel veri girişi için
 
+    // --- YENİ: Ultiplays RSVP verisini antrenman yoklamasına (attendeeIds) aktarır ---
+    const handleUltiplaysToAttendance = async () => {
+        if (!teamId || !currentTraining || !ultiplaysEventData || !ultiplaysEventData.rsvps) {
+            alert("İşlenecek veri bulunamadı.");
+            return;
+        }
+
+        // Ultiplays'te "attending" olanların ID'lerini al
+        const attendingUserIds = ultiplaysEventData.rsvps
+            .filter((r: any) => r.status === 'attending')
+            .map((r: any) => r.userId);
+
+        // Kendi sistemindeki oyuncuların ID'leri ile eşleştir (Trim korumalı)
+        const newAttendeeIds = players
+            .filter(p => {
+                const uId = (p as any).ultiplaysId;
+                return uId && attendingUserIds.includes(uId.trim());
+            })
+            .map(p => p.id);
+
+        if (window.confirm(`${newAttendeeIds.length} oyuncu katılıyor olarak yoklamaya işlenecek. Mevcut yoklama listeniz güncellenecektir. Onaylıyor musunuz?`)) {
+            const updatedTraining = { ...currentTraining, attendeeIds: newAttendeeIds } as Training;
+            const success = await saveTraining(teamId, updatedTraining);
+            if (success) {
+                setCurrentTraining(updatedTraining);
+                alert("Yoklama listesi başarıyla güncellendi! Artık manuel düzenlemelerinizi yapabilirsiniz.");
+            }
+        }
+    };
     // --- Manuel JSON Verisini İşleme ---
     const handleManualJsonSubmit = () => {
         try {
@@ -564,9 +593,15 @@ export default function Trainings() {
                                     <span className="material-icons-outlined text-[#5B4DBC]">place</span>{currentTraining.location || 'Konum belirtilmedi'}
                                 </div>
                                 {(currentTraining as any).ultiplaysLink && (
-                                    <a href={(currentTraining as any).ultiplaysLink.replace('/api/', '/').replace('/events/', '/calendar/')} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#00C4B4] font-bold bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-colors">
-                                        <span className="material-icons-outlined">open_in_new</span>Ultiplays'te Aç
-                                    </a>
+                                    <div className="flex flex-wrap gap-2">
+                                        <a href={(currentTraining as any).ultiplaysLink.replace('/api/', '/').replace('/events/', '/calendar/')} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#00C4B4] font-bold bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-colors">
+                                            <span className="material-icons-outlined">open_in_new</span>Ultiplays'te Aç
+                                        </a>
+                                        {/* YENİ: API Linkine Yönlendirme Butonu */}
+                                        <a href={(currentTraining as any).ultiplaysLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-orange-600 font-bold bg-orange-50 px-4 py-2 rounded-xl hover:bg-orange-100 transition-colors">
+                                            <span className="material-icons-outlined">api</span>APİ'yi Aç
+                                        </a>
+                                    </div>
                                 )}
                             </div>
                             
@@ -582,14 +617,16 @@ export default function Trainings() {
                                         <span className="material-icons-outlined text-[#00C4B4]">fact_check</span>
                                         Ultiplays Event Yanıtları
                                     </h3>
-                                    {/* DEBUG BUTONU */}
-                                    <button 
-                                        onClick={() => setShowRawData(!showRawData)}
-                                        className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-[#5B4DBC] flex items-center gap-1 border border-gray-200 px-2 py-1 rounded-lg"
-                                    >
-                                        <span className="material-icons-outlined text-[14px]">{showRawData ? 'visibility_off' : 'bug_report'}</span>
-                                        {showRawData ? 'Veriyi Gizle' : 'Ham Veriyi Gör'}
-                                    </button>
+                                    {/* YENİ: Yoklamaya İşle Butonu (Veri Varsa Görünür) */}
+                                    {ultiplaysEventData && ultiplaysEventData.rsvps && (
+                                        <button 
+                                            onClick={handleUltiplaysToAttendance}
+                                            className="text-[10px] font-black uppercase tracking-widest text-white bg-[#00C4B4] hover:bg-[#00a396] flex items-center gap-2 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95"
+                                        >
+                                            <span className="material-icons-outlined text-[16px]">how_to_reg</span>
+                                            Ultiplays'i Yoklamaya İşle
+                                        </button>
+                                    )}
                                 </div>
                                 
                                 {isLoadingEvent ? (
