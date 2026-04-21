@@ -4,7 +4,7 @@ import { db } from '../services/firebase';
 import { getPlayers, getTrainings, saveTraining, deleteTraining } from '../services/repository';
 import type { Training, Player } from '../types';
 
-type ViewMode = 'list' | 'stats' | 'ultiplays'; // YENİ: ultiplays tabı eklendi
+type ViewMode = 'list' | 'stats' | 'ultiplays';
 
 const parseTrainingDate = (dateStr: string | undefined): Date => {
     if (!dateStr) return new Date();
@@ -37,6 +37,17 @@ const formatDateForSave = (inputVal: string): string => {
     return `${day}/${month}/${year}`;
 };
 
+// --- YENİ: Ultiplays URL Formatlayıcı ---
+// Standart takvim linkini API linkine dönüştürür
+const formatUltiplaysLink = (link: string) => {
+    if (!link) return '';
+    const match = link.match(/ultiplays\.com\/teams\/([^\/]+)\/calendar\/([^\/]+)/);
+    if (match) {
+        return `https://www.ultiplays.com/api/teams/${match[1]}/events/${match[2]}`;
+    }
+    return link;
+};
+
 export default function Trainings() {
     const [teamId, setTeamId] = useState<string | null>(null);
     const [trainings, setTrainings] = useState<Training[]>([]);
@@ -46,20 +57,90 @@ export default function Trainings() {
 
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
-    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false); // YENİ: Detay Modal State
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [currentTraining, setCurrentTraining] = useState<Partial<Training> | null>(null);
 
-    // YENİ: Oyuncu Ultiplays ID Kaydetme Fonksiyonu
+    // Ultiplays Event Verileri İçin State'ler
+    const [ultiplaysEventData, setUltiplaysEventData] = useState<any>(null);
+    const [isLoadingEvent, setIsLoadingEvent] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    // --- Ultiplays ID Kaydetme ---
     const handleSaveUltiplaysId = async (playerId: string, newId: string) => {
         if (!teamId) return;
         try {
             const playerRef = doc(db, `teams/${teamId}/players`, playerId);
             await setDoc(playerRef, { ultiplaysId: newId }, { merge: true });
-            
-            // UI'ı anında güncelle
             setPlayers(players.map(p => p.id === playerId ? { ...p, ultiplaysId: newId } as any : p));
         } catch (error) {
-            console.error("Ultiplays ID kaydedilirken hata oluştu:", error);
+            console.error("Ultiplays ID kaydedilirken hata:", error);
+        }
+    };
+
+    // --- Ultiplays Event Detaylarını Çekme ---
+    useEffect(() => {
+        if (isDetailModalOpen && (currentTraining as any)?.ultiplaysLink) {
+            setIsLoadingEvent(true);
+            fetch((currentTraining as any).ultiplaysLink)
+                .then(res => {
+                    if (!res.ok) throw new Error("Ağ hatası veya yetkisiz erişim");
+                    return res.json();
+                })
+                .then(data => setUltiplaysEventData(data))
+                .catch(err => {
+                    console.error("Ultiplays verisi çekilemedi:", err);
+                    setUltiplaysEventData(null);
+                })
+                .finally(() => setIsLoadingEvent(false));
+        } else {
+            setUltiplaysEventData(null);
+        }
+    }, [isDetailModalOpen, currentTraining]);
+
+    // --- YENİ: Toplu Ultiplays Eşitleme (Sync) Fonksiyonu ---
+    const syncUltiplaysEvents = async () => {
+        if (!teamId || trainings.length === 0) return;
+        setIsSyncing(true);
+        let updatedCount = 0;
+
+        try {
+            for (const t of trainings) {
+                const link = (t as any).ultiplaysLink;
+                if (link && link.includes('/api/teams/')) {
+                    try {
+                        const res = await fetch(link);
+                        if (res.ok) {
+                            const data = await res.json();
+                            
+                            // Attending (Katılıyor) olan kullanıcı ID'lerini bul
+                            const attendingUserIds = (data.rsvps || [])
+                                .filter((r: any) => r.status === 'attending')
+                                .map((r: any) => r.userId);
+                            
+                            // Local oyuncularla eşleşenlerin Discbase ID'lerini çıkar
+                            const newAttendeeIds = players
+                                .filter(p => attendingUserIds.includes((p as any).ultiplaysId))
+                                .map(p => p.id);
+                            
+                            // Sadece bir değişiklik varsa veritabanını güncelle
+                            const currentIds = [...(t.attendeeIds || [])].sort();
+                            const newlySorted = [...newAttendeeIds].sort();
+                            
+                            if (JSON.stringify(currentIds) !== JSON.stringify(newlySorted)) {
+                                await saveTraining(teamId, { ...t, attendeeIds: newAttendeeIds } as Training);
+                                updatedCount++;
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`Eşitleme hatası (${t.id}):`, e);
+                    }
+                }
+            }
+            alert(`Eşitleme Tamamlandı! ${updatedCount} antrenmanın yoklaması Ultiplays verilerine göre güncellendi.`);
+        } catch (error) {
+            alert("Eşitleme sırasında bir hata oluştu.");
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -72,12 +153,10 @@ export default function Trainings() {
                 const sorted = [...data].sort((a, b) => {
                     const dateA = parseTrainingDate(a.date);
                     const dateB = parseTrainingDate(b.date);
-                    
                     const timeA = a.time ? a.time.split(':') : ['0', '0'];
                     const timeB = b.time ? b.time.split(':') : ['0', '0'];
                     dateA.setHours(parseInt(timeA[0], 10), parseInt(timeA[1] || '0', 10));
                     dateB.setHours(parseInt(timeB[0], 10), parseInt(timeB[1] || '0', 10));
-
                     return dateB.getTime() - dateA.getTime();
                 });
                 setTrainings(sorted as Training[]);
@@ -89,17 +168,12 @@ export default function Trainings() {
 
     const getGroupedTrainings = () => {
         const groupsMap = new Map<string, Training[]>();
-        
         trainings.forEach(t => {
             const date = parseTrainingDate(t.date);
             const monthYear = date.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
-            
-            if (!groupsMap.has(monthYear)) {
-                groupsMap.set(monthYear, []);
-            }
+            if (!groupsMap.has(monthYear)) groupsMap.set(monthYear, []);
             groupsMap.get(monthYear)!.push(t);
         });
-
         return Array.from(groupsMap.entries()).map(([month, items]) => ({ month, items }));
     };
 
@@ -158,7 +232,7 @@ export default function Trainings() {
             date: defaultDate,
             time: '19:00',
             location: '', note: '', description: '', attendeeIds: [], isVisibleToMembers: true,
-            ultiplaysLink: '' as any // YENİ
+            ultiplaysLink: '' as any
         });
         setIsFormModalOpen(true);
     };
@@ -185,6 +259,15 @@ export default function Trainings() {
                     </h1>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    {/* YENİ: Eşitleme Butonu */}
+                    <button 
+                        onClick={syncUltiplaysEvents} 
+                        disabled={isSyncing}
+                        className="bg-white border border-blue-200 text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-50 flex items-center gap-2 transition-all disabled:opacity-50"
+                    >
+                        <span className={`material-icons-outlined text-blue-500 ${isSyncing ? 'animate-spin' : ''}`}>sync</span>
+                        {isSyncing ? 'Eşitleniyor...' : 'Ultiplays Eşitle'}
+                    </button>
                     <button onClick={exportAttendanceToCSV} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 flex items-center gap-2 transition-all">
                         <span className="material-icons-outlined text-green-600">file_download</span>
                         CSV Dışa Aktar
@@ -197,26 +280,9 @@ export default function Trainings() {
             </div>
 
             <div className="flex bg-gray-100 p-1 rounded-xl w-fit mb-8 overflow-x-auto max-w-full">
-                <button 
-                    onClick={() => setViewMode('list')}
-                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewMode === 'list' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    Antrenman Listesi
-                </button>
-                <button 
-                    onClick={() => setViewMode('stats')}
-                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewMode === 'stats' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    Katılım İstatistikleri
-                </button>
-                {/* YENİ: Ultiplays sekmesi */}
-                <button 
-                    onClick={() => setViewMode('ultiplays')}
-                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${viewMode === 'ultiplays' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <span className="material-icons-outlined text-[18px]">link</span>
-                    Ultiplays ID
-                </button>
+                <button onClick={() => setViewMode('list')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewMode === 'list' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Antrenman Listesi</button>
+                <button onClick={() => setViewMode('stats')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewMode === 'stats' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Katılım İstatistikleri</button>
+                <button onClick={() => setViewMode('ultiplays')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${viewMode === 'ultiplays' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><span className="material-icons-outlined text-[18px]">link</span>Ultiplays ID</button>
             </div>
 
             {/* ANTRENMAN LİSTESİ */}
@@ -231,15 +297,14 @@ export default function Trainings() {
                                 {items.map(training => {
                                     const parsedDate = parseTrainingDate(training.date);
                                     return (
-                                    // YENİ: Karta onClick tıklandığında Detay Modalı açılır
-                                    <div key={training.id} onClick={() => { setCurrentTraining(training); setIsDetailModalOpen(true); }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md hover:border-[#5B4DBC]/30 transition-all group cursor-pointer">
+                                    <div key={training.id} onClick={() => { setCurrentTraining(training); setIsDetailModalOpen(true); }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md hover:border-[#5B4DBC]/30 transition-all group cursor-pointer flex flex-col justify-between">
                                         <div className="p-6">
                                             <div className="flex justify-between items-start mb-4">
-                                                <div className="bg-purple-50 text-[#5B4DBC] px-3 py-1 rounded-lg text-xs font-bold uppercase">
+                                                <div className="bg-purple-50 text-[#5B4DBC] px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center gap-2">
                                                     {parsedDate.toLocaleDateString('tr-TR', { weekday: 'long' })}
+                                                    {(training as any).ultiplaysLink && <span className="material-icons-outlined text-[14px]">link</span>}
                                                 </div>
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    {/* YENİ: Butonlara e.stopPropagation() eklendi ki karta tıklamayı tetiklemesin */}
                                                     <button onClick={(e) => {e.stopPropagation(); setCurrentTraining(training); setIsFormModalOpen(true);}} className="p-1.5 text-gray-400 hover:text-[#5B4DBC] bg-gray-50 rounded-lg"><span className="material-icons-outlined text-sm">edit</span></button>
                                                     <button onClick={(e) => {e.stopPropagation(); if(window.confirm('Silinsin mi?')) deleteTraining(teamId!, training.id)}} className="p-1.5 text-gray-400 hover:text-red-500 bg-gray-50 rounded-lg"><span className="material-icons-outlined text-sm">delete</span></button>
                                                 </div>
@@ -251,7 +316,9 @@ export default function Trainings() {
                                                 <span className="material-icons-outlined text-sm">schedule</span>
                                                 {training.time} • {training.location || 'Konum yok'}
                                             </div>
-                                            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-50">
+                                        </div>
+                                        <div className="p-6 pt-0 mt-auto">
+                                            <div className="flex items-center justify-between pt-4 border-t border-gray-50">
                                                 <div className="flex -space-x-2">
                                                     {training.attendeeIds?.slice(0, 5).map(uid => {
                                                         const p = players.find(pl => pl.id === uid);
@@ -321,7 +388,7 @@ export default function Trainings() {
                 </div>
             )}
 
-            {/* YENİ: ULTIPLAYS ID GİRİŞ EKRANI */}
+            {/* ULTIPLAYS ID GİRİŞ EKRANI */}
             {viewMode === 'ultiplays' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden max-w-4xl mx-auto">
                     <div className="p-6 sm:p-8 border-b border-gray-100 bg-gray-50/50">
@@ -330,7 +397,7 @@ export default function Trainings() {
                             Ultiplays ID Eşleştirme
                         </h2>
                         <p className="text-sm text-gray-500 mt-2 font-medium">
-                            Oyuncuların isimlerinin yanındaki kutuya Ultiplays ID'sini yapıştırın. <strong className="text-gray-700">Kutudan çıktığınız an (veya sekmeyi değiştirdiğinizde) otomatik olarak kaydedilecektir.</strong> Başka bir butona basmanıza gerek yoktur.
+                            Oyuncuların isimlerinin yanındaki kutuya Ultiplays ID'sini yapıştırın. <strong className="text-gray-700">Kutudan çıktığınız an otomatik kaydedilir.</strong>
                         </p>
                     </div>
                     <div className="divide-y divide-gray-100">
@@ -379,9 +446,18 @@ export default function Trainings() {
                             <div><label className="text-xs font-bold text-gray-400 uppercase">Kısa Not</label>
                             <input type="text" value={currentTraining.note || ''} onChange={e => setCurrentTraining({...currentTraining, note: e.target.value})} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-[#5B4DBC] outline-none transition-all" /></div>
                             
-                            {/* YENİ: Ultiplays Link Alanı */}
-                            <div><label className="text-xs font-bold text-[#00C4B4] uppercase flex items-center gap-1"><span className="material-icons-outlined text-[14px]">link</span>Ultiplays Etkinlik Linki</label>
-                            <input type="text" placeholder="https://ultiplays.com/..." value={(currentTraining as any).ultiplaysLink || ''} onChange={e => setCurrentTraining({...currentTraining, ultiplaysLink: e.target.value})} className="w-full border-2 border-teal-100 bg-teal-50/30 rounded-xl p-3 focus:border-[#00C4B4] outline-none transition-all text-sm" /></div>
+                            {/* YENİ: URL OnBlur Formatlama */}
+                            <div>
+                                <label className="text-xs font-bold text-[#00C4B4] uppercase flex items-center gap-1"><span className="material-icons-outlined text-[14px]">link</span>Ultiplays Etkinlik Linki</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="https://ultiplays.com/..." 
+                                    value={(currentTraining as any).ultiplaysLink || ''} 
+                                    onChange={e => setCurrentTraining({...currentTraining, ultiplaysLink: e.target.value})} 
+                                    onBlur={e => setCurrentTraining({...currentTraining, ultiplaysLink: formatUltiplaysLink(e.target.value)})}
+                                    className="w-full border-2 border-teal-100 bg-teal-50/30 rounded-xl p-3 focus:border-[#00C4B4] outline-none transition-all text-sm" 
+                                />
+                            </div>
 
                             <div className="flex gap-3 mt-8">
                                 <button onClick={() => setIsFormModalOpen(false)} className="flex-1 py-3 text-gray-400 font-bold hover:text-gray-600 transition-colors">Vazgeç</button>
@@ -392,7 +468,7 @@ export default function Trainings() {
                 </div>
             )}
 
-            {/* YOKLAMA MODALI (Genişletilmiş Grid) */}
+            {/* YOKLAMA MODALI */}
             {isAttendanceModalOpen && currentTraining && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-300">
@@ -429,12 +505,10 @@ export default function Trainings() {
                 </div>
             )}
 
-            {/* YENİ: ANTRENMAN DETAY & ULTIPLAYS EVENT MODALI */}
+            {/* ANTRENMAN DETAY & ULTIPLAYS EVENT MODALI */}
             {isDetailModalOpen && currentTraining && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-300">
-                        
-                        {/* Üst Bilgi Alanı */}
                         <div className="p-8 border-b border-gray-50 flex justify-between items-start bg-gray-50/50 rounded-t-3xl">
                             <div>
                                 <div className="bg-purple-100 text-[#5B4DBC] px-4 py-1 rounded-lg text-xs font-bold uppercase tracking-wider w-fit mb-3">
@@ -447,57 +521,81 @@ export default function Trainings() {
                             <button onClick={() => setIsDetailModalOpen(false)} className="w-12 h-12 rounded-full bg-white shadow-sm border border-gray-100 text-gray-400 hover:text-gray-800 flex items-center justify-center transition-colors"><span className="material-icons-outlined">close</span></button>
                         </div>
                         
-                        {/* İçerik ve Ultiplays Alanı */}
                         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                            
-                            {/* Antrenman Temel Bilgileri */}
-                            <div className="flex flex-wrap gap-6 border-b border-gray-100 pb-6">
+                            <div className="flex flex-wrap gap-4 border-b border-gray-100 pb-6">
                                 <div className="flex items-center gap-2 text-gray-700 font-bold bg-gray-50 px-4 py-2 rounded-xl">
-                                    <span className="material-icons-outlined text-[#5B4DBC]">schedule</span>
-                                    {currentTraining.time}
+                                    <span className="material-icons-outlined text-[#5B4DBC]">schedule</span>{currentTraining.time}
                                 </div>
                                 <div className="flex items-center gap-2 text-gray-700 font-bold bg-gray-50 px-4 py-2 rounded-xl">
-                                    <span className="material-icons-outlined text-[#5B4DBC]">place</span>
-                                    {currentTraining.location || 'Konum belirtilmedi'}
+                                    <span className="material-icons-outlined text-[#5B4DBC]">place</span>{currentTraining.location || 'Konum belirtilmedi'}
                                 </div>
-                                {/* Girilen Link varsa burada gösterilir */}
                                 {(currentTraining as any).ultiplaysLink && (
-                                    <a href={(currentTraining as any).ultiplaysLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#00C4B4] font-bold bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-colors">
-                                        <span className="material-icons-outlined">link</span>
-                                        Ultiplays'te Aç
+                                    <a href={(currentTraining as any).ultiplaysLink.replace('/api/', '/').replace('/events/', '/calendar/')} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#00C4B4] font-bold bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-colors">
+                                        <span className="material-icons-outlined">open_in_new</span>Ultiplays'te Aç
                                     </a>
                                 )}
                             </div>
                             
                             {currentTraining.note && (
-                                <div>
-                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Antrenman Notu / Odak</h3>
-                                    <p className="text-gray-800 bg-purple-50/50 border border-purple-100 p-5 rounded-2xl font-medium text-lg leading-relaxed">{currentTraining.note}</p>
-                                </div>
-                            )}
-                            
-                            {currentTraining.description && (
-                                <div>
-                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Detaylı Açıklama</h3>
-                                    <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{currentTraining.description}</p>
-                                </div>
+                                <div><h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Kısa Not</h3><p className="text-gray-800 bg-purple-50/50 border border-purple-100 p-5 rounded-2xl font-medium text-lg leading-relaxed">{currentTraining.note}</p></div>
                             )}
 
-                            {/* ULTIPLAYS EVENT GELECEK İÇERİK ALANI */}
-                            <div className="pt-8">
+                            {/* --- YENİ: ULTIPLAYS EVENT LİSTESİ --- */}
+                            <div className="pt-4">
                                 <h3 className="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
-                                    <span className="material-icons-outlined text-[#00C4B4]">dashboard_customize</span>
-                                    Ultiplays Event
+                                    <span className="material-icons-outlined text-[#00C4B4]">fact_check</span>
+                                    Ultiplays Event Yanıtları
                                 </h3>
-                                <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-10 text-center min-h-[250px] flex flex-col items-center justify-center gap-3">
-                                    <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center mb-2">
-                                        <span className="material-icons-outlined text-3xl text-gray-400">construction</span>
+                                
+                                {isLoadingEvent ? (
+                                    <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00C4B4]"></div></div>
+                                ) : !ultiplaysEventData ? (
+                                    <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
+                                        <span className="material-icons-outlined text-4xl text-gray-300 mb-2">link_off</span>
+                                        <p className="text-gray-500 font-medium">Bu antrenmana tanımlı bir Ultiplays verisi bulunamadı.</p>
                                     </div>
-                                    <p className="text-lg font-bold text-gray-600">Ultiplays Event Gelecek</p>
-                                    <p className="text-sm text-gray-400 max-w-sm">Daha sonra eklenecek olan Ultiplays verileri, istatistikler ve event widget'ı bu güvenli ve kaydırılabilir alanda yer alacak.</p>
-                                </div>
-                            </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {/* Gelen rsvps dizisini ekrana basma */}
+                                        {ultiplaysEventData.rsvps?.map((rsvp: any) => {
+                                            // API'den gelen ID'yi bizim eşleştirdiğimiz oyuncularla karşılaştır
+                                            const matchedPlayer = players.find(p => (p as any).ultiplaysId === rsvp.userId);
+                                            
+                                            // Eğer eşleşme yoksa UI'da gösterme (veya İsimsiz Göster)
+                                            if (!matchedPlayer) return null;
 
+                                            const isAttending = rsvp.status === 'attending';
+                                            const dateMod = new Date(rsvp.dateModified).toLocaleString('tr-TR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+
+                                            return (
+                                                <div key={rsvp.userId} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors">
+                                                    <div className="flex items-center gap-3">
+                                                        {matchedPlayer.photoUrl ? (
+                                                            <img src={matchedPlayer.photoUrl} className="w-8 h-8 rounded-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 font-bold flex justify-center items-center text-xs">
+                                                                {matchedPlayer.name.charAt(0)}
+                                                            </div>
+                                                        )}
+                                                        <span className="font-bold text-gray-800">{matchedPlayer.name}</span>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="text-xs font-bold text-gray-400 hidden sm:block">{dateMod}</span>
+                                                        <span className={`px-3 py-1 rounded-lg text-xs font-bold w-24 text-center ${isAttending ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                            {isAttending ? 'Katılıyor' : 'Katılmıyor'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {/* Listede hiç eşleşen oyuncu yoksa uyarı */}
+                                        {ultiplaysEventData.rsvps?.length > 0 && !players.some(p => ultiplaysEventData.rsvps.find((r:any) => r.userId === (p as any).ultiplaysId)) && (
+                                            <p className="text-sm text-orange-500 text-center p-4">Event bulundu ancak ID'leri eşleşen oyuncu bulunamadı. Lütfen Ultiplays ID sekmesinden eşleştirmeleri yapın.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
