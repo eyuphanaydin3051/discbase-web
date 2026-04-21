@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import TeamSelect from './pages/TeamSelect';
 import Dashboard from './pages/Dashboard';
 import TournamentList from './pages/TournamentList';
+import Trainings from './pages/Trainings'; // YENİ EKLENDİ
 import TournamentDetail from './pages/TournamentDetail';
 import Roster from './pages/Roster'; // Yeni sayfayı import et
 import PlayerDetail from './pages/PlayerDetail';
@@ -24,7 +25,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/roster" element={<Roster />} />
           <Route path="/tournaments" element={<TournamentList />} />
-          {/* Detay sayfasında da sidebar görünmesi kullanıcı deneyimi için iyidir */}
+          <Route path="/trainings" element={<Trainings />} />
           <Route path="/tournament/:id" element={<TournamentDetail />} />
           <Route path="/player/:teamId/:playerId" element={<PlayerDetail />} />
           <Route path="/tournament/:tournamentId/match/:matchId" element={<MatchDetail />} />

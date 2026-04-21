@@ -561,3 +561,38 @@ export const deleteLastPoint = async (tournamentId: string, matchId: string) => 
         }
     }
 };
+// --- ANTRENMAN (TRAINING) FONKSİYONLARI ---
+
+export const getTrainings = (teamId: string, callback: (trainings: any[]) => void) => {
+    const trainingsRef = collection(db, `teams/${teamId}/trainings`);
+    return onSnapshot(trainingsRef, (snapshot) => {
+        const trainingsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        // Tarihe göre sırala (En yeni en üstte)
+        trainingsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        callback(trainingsData);
+    });
+};
+
+export const saveTraining = async (teamId: string, training: any) => {
+    try {
+        const trainingRef = doc(db, `teams/${teamId}/trainings`, training.id);
+        await setDoc(trainingRef, training, { merge: true });
+        return true;
+    } catch (error) {
+        console.error("Antrenman kaydedilirken hata:", error);
+        return false;
+    }
+};
+
+export const deleteTraining = async (teamId: string, trainingId: string) => {
+    try {
+        await deleteDoc(doc(db, `teams/${teamId}/trainings`, trainingId));
+        return true;
+    } catch (error) {
+        console.error("Antrenman silinirken hata:", error);
+        return false;
+    }
+};
