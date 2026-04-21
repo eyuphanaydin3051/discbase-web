@@ -569,7 +569,7 @@ export const getTrainings = (teamId: string, callback: (trainings: any[]) => voi
         const trainingsData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        }));
+        })) as any[];
         // Tarihe göre sırala (En yeni en üstte)
         trainingsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         callback(trainingsData);

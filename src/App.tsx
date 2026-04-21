@@ -1,12 +1,11 @@
 // src/App.tsx
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout'; // Layout'u import et
 import Login from './pages/Login';
 import TeamSelect from './pages/TeamSelect';
 import Dashboard from './pages/Dashboard';
 import TournamentList from './pages/TournamentList';
-import Trainings from './pages/Trainings'; // YENİ EKLENDİ
+import Trainings from './pages/Trainings';
 import TournamentDetail from './pages/TournamentDetail';
 import Roster from './pages/Roster'; // Yeni sayfayı import et
 import PlayerDetail from './pages/PlayerDetail';
