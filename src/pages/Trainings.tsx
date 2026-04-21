@@ -232,8 +232,8 @@ export default function Trainings() {
             date: defaultDate,
             time: '19:00',
             location: '', note: '', description: '', attendeeIds: [], isVisibleToMembers: true,
-            ultiplaysLink: '' as any
-        });
+            ultiplaysLink: ''
+        } as any);
         setIsFormModalOpen(true);
     };
 
@@ -453,8 +453,8 @@ export default function Trainings() {
                                     type="text" 
                                     placeholder="https://ultiplays.com/..." 
                                     value={(currentTraining as any).ultiplaysLink || ''} 
-                                    onChange={e => setCurrentTraining({...currentTraining, ultiplaysLink: e.target.value})} 
-                                    onBlur={e => setCurrentTraining({...currentTraining, ultiplaysLink: formatUltiplaysLink(e.target.value)})}
+                                    onChange={e => setCurrentTraining({...currentTraining, ultiplaysLink: e.target.value} as any)} 
+                                    onBlur={e => setCurrentTraining({...currentTraining, ultiplaysLink: formatUltiplaysLink(e.target.value)} as any)}
                                     className="w-full border-2 border-teal-100 bg-teal-50/30 rounded-xl p-3 focus:border-[#00C4B4] outline-none transition-all text-sm" 
                                 />
                             </div>
