@@ -67,8 +67,24 @@ export default function Trainings() {
     const [ultiplaysEventData, setUltiplaysEventData] = useState<any>(null);
     const [isLoadingEvent, setIsLoadingEvent] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
-    const [showRawData, setShowRawData] = useState(false); // DEBUG İÇİN YENİ
+    const [showRawData, setShowRawData] = useState(false);
+    const [manualJsonInput, setManualJsonInput] = useState(''); // YENİ: Manuel veri girişi için
 
+    // --- Manuel JSON Verisini İşleme ---
+    const handleManualJsonSubmit = () => {
+        try {
+            const data = JSON.parse(manualJsonInput);
+            if (data.rsvps) {
+                setUltiplaysEventData(data); // Veriyi sisteme yükle
+                setManualJsonInput(''); // Kutuyu temizle
+                alert('Veri başarıyla işlendi! Aşağıdan listeyi kontrol edebilirsiniz.');
+            } else {
+                alert('Geçersiz Veri: Kopyaladığınız metinde "rsvps" (katılımcı listesi) bulunamadı.');
+            }
+        } catch (e) {
+            alert('Hatalı Format. Lütfen tarayıcıdaki tüm metni (süslü parantezler dahil) eksiksiz kopyaladığınıza emin olun.');
+        }
+    };
     // --- Ultiplays ID Kaydetme ---
     const handleSaveUltiplaysId = async (playerId: string, newId: string) => {
         if (!teamId) return;
@@ -605,6 +621,34 @@ export default function Trainings() {
                                             <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
                                                 <span className="material-icons-outlined text-4xl text-gray-300 mb-2">link_off</span>
                                                 <p className="text-gray-500 font-medium">Ultiplays verisi çekilemedi. Lütfen Ham Veri kısmından API linkini tarayıcıda açarak kontrol edin.</p>
+                                            </div>
+                                        ) : ultiplaysEventData.code === 'UNAUTHORIZED' ? (
+                                            /* YENİ: YETKİSİZ ERİŞİM EKRANI VE MANUEL GİRİŞ KUTUSU */
+                                            <div className="bg-red-50 border border-red-200 rounded-3xl p-6 shadow-sm">
+                                                <div className="flex items-center gap-2 text-red-700 font-black text-lg mb-2">
+                                                    <span className="material-icons-outlined">lock</span>
+                                                    Erişim İzni Yok (Gizli Etkinlik)
+                                                </div>
+                                                <p className="text-sm text-red-600 mb-4 font-medium leading-relaxed">
+                                                    Bu etkinlik Ultiplays üzerinde gizli olduğu için otomatik olarak veri çekemiyoruz. Lütfen aşağıdaki 3 adımı izleyin:
+                                                </p>
+                                                <ol className="text-sm text-red-700 list-decimal pl-5 mb-5 space-y-2 font-medium">
+                                                    <li><a href={(currentTraining as any).ultiplaysLink} target="_blank" rel="noreferrer" className="underline font-bold text-red-800 hover:text-red-900 bg-red-100 px-1 rounded">Bu Linke Tıklayarak</a> ham veriyi tarayıcınızda açın (Oturumunuz açık olmalı).</li>
+                                                    <li>Açılan sayfadaki <strong>tüm metni</strong> (CTRL+A yapıp ardından CTRL+C yaparak) kopyalayın.</li>
+                                                    <li>Kopyaladığınız metni aşağıdaki kutuya yapıştırıp "Veriyi İşle" butonuna basın.</li>
+                                                </ol>
+                                                <textarea
+                                                    value={manualJsonInput}
+                                                    onChange={e => setManualJsonInput(e.target.value)}
+                                                    placeholder='{"_id": "...", "rsvps": [...]}'
+                                                    className="w-full border-2 border-red-200 bg-white rounded-xl p-3 text-xs font-mono h-24 mb-3 outline-none focus:border-red-400 focus:ring-4 focus:ring-red-100 transition-all shadow-inner"
+                                                />
+                                                <button 
+                                                    onClick={handleManualJsonSubmit} 
+                                                    className="w-full bg-red-600 text-white py-3 rounded-xl font-bold text-lg shadow-md hover:bg-red-700 active:scale-95 transition-all"
+                                                >
+                                                    Kopyaladığım Veriyi İşle
+                                                </button>
                                             </div>
                                         ) : ultiplaysEventData.rsvps && ultiplaysEventData.rsvps.length > 0 ? (
                                             <div className="space-y-2">
