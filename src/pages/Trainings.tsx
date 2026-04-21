@@ -66,10 +66,9 @@ export default function Trainings() {
     // Ultiplays Event Verileri İçin State'ler
     const [ultiplaysEventData, setUltiplaysEventData] = useState<any>(null);
     const [isLoadingEvent, setIsLoadingEvent] = useState(false);
-    const [isSyncing, setIsSyncing] = useState(false);
     const [showRawData, setShowRawData] = useState(false);
     const [manualJsonInput, setManualJsonInput] = useState(''); // YENİ: Manuel veri girişi için
-
+    const [isEditingRawData, setIsEditingRawData] = useState(false); // YENİ
     // --- YENİ: Ultiplays RSVP verisini antrenman yoklamasına (attendeeIds) aktarır ---
     const handleUltiplaysToAttendance = async () => {
         if (!teamId || !currentTraining || !ultiplaysEventData || !ultiplaysEventData.rsvps) {
@@ -99,19 +98,49 @@ export default function Trainings() {
             }
         }
     };
-    // --- Manuel JSON Verisini İşleme ---
-    const handleManualJsonSubmit = () => {
+    // --- Manuel JSON Verisini Kaydetme ve Düzenleme ---
+    const handleManualJsonSubmit = async () => {
+        if (!teamId || !currentTraining) return;
         try {
             const data = JSON.parse(manualJsonInput);
             if (data.rsvps) {
-                setUltiplaysEventData(data); // Veriyi sisteme yükle
-                setManualJsonInput(''); // Kutuyu temizle
-                alert('Veri başarıyla işlendi! Aşağıdan listeyi kontrol edebilirsiniz.');
+                const updatedTraining = { ...currentTraining, ultiplaysRawData: manualJsonInput } as any;
+                const success = await saveTraining(teamId, updatedTraining);
+                if (success) {
+                    setUltiplaysEventData(data);
+                    setCurrentTraining(updatedTraining);
+                    setIsEditingRawData(false);
+                    setManualJsonInput('');
+                    alert('Veri antrenmana kaydedildi!');
+                }
             } else {
-                alert('Geçersiz Veri: Kopyaladığınız metinde "rsvps" (katılımcı listesi) bulunamadı.');
+                alert('Geçersiz Veri: "rsvps" listesi bulunamadı.');
             }
         } catch (e) {
-            alert('Hatalı Format. Lütfen tarayıcıdaki tüm metni (süslü parantezler dahil) eksiksiz kopyaladığınıza emin olun.');
+            alert('Hatalı Format! Lütfen kopyaladığınız metnin tamamını yapıştırın.');
+        }
+    };
+
+    // --- Veriyi Yoklamaya Aktarma ---
+    const handleUltiplaysToAttendance = async () => {
+        if (!teamId || !currentTraining || !ultiplaysEventData?.rsvps) return;
+        
+        const attendingUserIds = ultiplaysEventData.rsvps
+            .filter((r: any) => r.status === 'attending')
+            .map((r: any) => r.userId);
+
+        const newAttendeeIds = players
+            .filter(p => {
+                const uId = (p as any).ultiplaysId;
+                return uId && attendingUserIds.includes(uId.trim());
+            })
+            .map(p => p.id);
+
+        if (window.confirm(`${newAttendeeIds.length} oyuncu yoklamaya eklenecek. Onaylıyor musunuz?`)) {
+            const updated = { ...currentTraining, attendeeIds: newAttendeeIds } as Training;
+            await saveTraining(teamId, updated);
+            setCurrentTraining(updated);
+            alert("Yoklama güncellendi!");
         }
     };
     // --- Ultiplays ID Kaydetme ---
@@ -127,85 +156,22 @@ export default function Trainings() {
         }
     };
 
-    // --- Ultiplays Event Detaylarını Çekme ---
+    // --- Kayıtlı Manuel Veriyi Yükleme ---
     useEffect(() => {
-        if (isDetailModalOpen && (currentTraining as any)?.ultiplaysLink) {
-            setIsLoadingEvent(true);
-            const rawUrl = (currentTraining as any).ultiplaysLink;
-            // CORS Tarayıcı engeline takılmamak için public proxy üzerinden istek atıyoruz
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
-            
-            fetch(proxyUrl)
-                .then(res => {
-                    if (!res.ok) throw new Error("Ağ hatası veya CORS engeli");
-                    return res.json();
-                })
-                .then(data => {
-                    console.log("Ultiplays Başarılı İstek:", data); // Eğer hata alırsan tarayıcı konsolunda veriyi görebilirsin
-                    setUltiplaysEventData(data);
-                })
-                .catch(err => {
-                    console.error("Ultiplays verisi çekilemedi (CORS hatası olabilir):", err);
-                    setUltiplaysEventData(null);
-                })
-                .finally(() => setIsLoadingEvent(false));
+        if (isDetailModalOpen && (currentTraining as any)?.ultiplaysRawData) {
+            try {
+                const data = JSON.parse((currentTraining as any).ultiplaysRawData);
+                setUltiplaysEventData(data);
+                setIsEditingRawData(false);
+            } catch (e) {
+                setUltiplaysEventData(null);
+                setIsEditingRawData(true);
+            }
         } else {
             setUltiplaysEventData(null);
+            setIsEditingRawData(true);
         }
     }, [isDetailModalOpen, currentTraining]);
-
-    // --- YENİ: Toplu Ultiplays Eşitleme (Sync) Fonksiyonu ---
-    const syncUltiplaysEvents = async () => {
-        if (!teamId || trainings.length === 0) return;
-        setIsSyncing(true);
-        let updatedCount = 0;
-
-        try {
-            for (const t of trainings) {
-                const link = (t as any).ultiplaysLink;
-                if (link && link.includes('/api/teams/')) {
-                    try {
-                        // CORS engeline takılmamak için public proxy kullanıyoruz
-                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(link)}`;
-                        const res = await fetch(proxyUrl);
-                        
-                        if (res.ok) {
-                            const data = await res.json();
-                            
-                            // Attending (Katılıyor) olan kullanıcı ID'lerini bul
-                            const attendingUserIds = (data.rsvps || [])
-                                .filter((r: any) => r.status === 'attending')
-                                .map((r: any) => r.userId);
-                            
-                            // Local oyuncularla eşleşenlerin Discbase ID'lerini çıkar (Trim korumalı)
-                            const newAttendeeIds = players
-                                .filter(p => {
-                                    const uId = (p as any).ultiplaysId;
-                                    return uId && attendingUserIds.includes(uId.trim());
-                                })
-                                .map(p => p.id);
-                            
-                            // Sadece bir değişiklik varsa veritabanını güncelle
-                            const currentIds = [...(t.attendeeIds || [])].sort();
-                            const newlySorted = [...newAttendeeIds].sort();
-                            
-                            if (JSON.stringify(currentIds) !== JSON.stringify(newlySorted)) {
-                                await saveTraining(teamId, { ...t, attendeeIds: newAttendeeIds } as Training);
-                                updatedCount++;
-                            }
-                        }
-                    } catch (e) {
-                        console.error(`Eşitleme hatası (${t.id}):`, e);
-                    }
-                }
-            }
-            alert(`Eşitleme Tamamlandı! ${updatedCount} antrenmanın yoklaması Ultiplays verilerine göre güncellendi.`);
-        } catch (error) {
-            alert("Eşitleme sırasında bir hata oluştu.");
-        } finally {
-            setIsSyncing(false);
-        }
-    };
 
     useEffect(() => {
         const storedTeamId = localStorage.getItem('selectedTeamId');
@@ -322,15 +288,7 @@ export default function Trainings() {
                     </h1>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {/* YENİ: Eşitleme Butonu */}
-                    <button 
-                        onClick={syncUltiplaysEvents} 
-                        disabled={isSyncing}
-                        className="bg-white border border-blue-200 text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-50 flex items-center gap-2 transition-all disabled:opacity-50"
-                    >
-                        <span className={`material-icons-outlined text-blue-500 ${isSyncing ? 'animate-spin' : ''}`}>sync</span>
-                        {isSyncing ? 'Eşitleniyor...' : 'Ultiplays Eşitle'}
-                    </button>
+                    
                     <button onClick={exportAttendanceToCSV} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 flex items-center gap-2 transition-all">
                         <span className="material-icons-outlined text-green-600">file_download</span>
                         CSV Dışa Aktar
@@ -610,23 +568,23 @@ export default function Trainings() {
                             )}
 
                             {/* --- YENİ: ULTIPLAYS EVENT LİSTESİ --- */}
-                            {/* --- YENİ: ULTIPLAYS EVENT LİSTESİ --- */}
+                            
                             <div className="pt-4">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                                         <span className="material-icons-outlined text-[#00C4B4]">fact_check</span>
                                         Ultiplays Event Yanıtları
                                     </h3>
-                                    {/* YENİ: Yoklamaya İşle Butonu (Veri Varsa Görünür) */}
-                                    {ultiplaysEventData && ultiplaysEventData.rsvps && (
+                                    {/* YOKLAMAYA İŞLE BUTONU */}
+                                    {ultiplaysEventData && !isEditingRawData && (
                                         <button 
                                             onClick={handleUltiplaysToAttendance}
-                                            className="text-[10px] font-black uppercase tracking-widest text-white bg-[#00C4B4] hover:bg-[#00a396] flex items-center gap-2 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95"
+                                            className="text-[10px] font-black uppercase text-white bg-[#00C4B4] px-3 py-2 rounded-xl shadow-sm hover:bg-[#00a396]"
                                         >
-                                            <span className="material-icons-outlined text-[16px]">how_to_reg</span>
                                             Ultiplays'i Yoklamaya İşle
                                         </button>
                                     )}
+                                   
                                 </div>
                                 
                                 {isLoadingEvent ? (
