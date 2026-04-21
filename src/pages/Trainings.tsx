@@ -37,13 +37,9 @@ const formatDateForSave = (inputVal: string): string => {
     return `${day}/${month}/${year}`;
 };
 
-// --- YENİ: Ultiplays URL Formatlayıcı ---
-// Standart takvim linkini API linkine dönüştürür
 const formatUltiplaysLink = (link: string) => {
     if (!link) return '';
-    // Eğer direkt API linki kopyalanmışsa olduğu gibi bırak
     if (link.includes('/api/teams/')) return link;
-    
     const match = link.match(/ultiplays\.com\/teams\/([^\/]+)\/calendar\/([^\/]+)/);
     if (match) {
         return `https://www.ultiplays.com/api/teams/${match[1]}/events/${match[2]}`;
@@ -63,91 +59,15 @@ export default function Trainings() {
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [currentTraining, setCurrentTraining] = useState<Partial<Training> | null>(null);
 
-    // Ultiplays Event Verileri İçin State'ler
     const [ultiplaysEventData, setUltiplaysEventData] = useState<any>(null);
-    const [isLoadingEvent, setIsLoadingEvent] = useState(false);
-    const [showRawData, setShowRawData] = useState(false);
-    const [manualJsonInput, setManualJsonInput] = useState(''); // YENİ: Manuel veri girişi için
-    const [isEditingRawData, setIsEditingRawData] = useState(false); // YENİ
-    // --- YENİ: Ultiplays RSVP verisini antrenman yoklamasına (attendeeIds) aktarır ---
-    const handleUltiplaysToAttendance = async () => {
-        if (!teamId || !currentTraining || !ultiplaysEventData || !ultiplaysEventData.rsvps) {
-            alert("İşlenecek veri bulunamadı.");
-            return;
-        }
+    const [manualJsonInput, setManualJsonInput] = useState('');
+    const [isEditingRawData, setIsEditingRawData] = useState(false);
 
-        // Ultiplays'te "attending" olanların ID'lerini al
-        const attendingUserIds = ultiplaysEventData.rsvps
-            .filter((r: any) => r.status === 'attending')
-            .map((r: any) => r.userId);
-
-        // Kendi sistemindeki oyuncuların ID'leri ile eşleştir (Trim korumalı)
-        const newAttendeeIds = players
-            .filter(p => {
-                const uId = (p as any).ultiplaysId;
-                return uId && attendingUserIds.includes(uId.trim());
-            })
-            .map(p => p.id);
-
-        if (window.confirm(`${newAttendeeIds.length} oyuncu katılıyor olarak yoklamaya işlenecek. Mevcut yoklama listeniz güncellenecektir. Onaylıyor musunuz?`)) {
-            const updatedTraining = { ...currentTraining, attendeeIds: newAttendeeIds } as Training;
-            const success = await saveTraining(teamId, updatedTraining);
-            if (success) {
-                setCurrentTraining(updatedTraining);
-                alert("Yoklama listesi başarıyla güncellendi! Artık manuel düzenlemelerinizi yapabilirsiniz.");
-            }
-        }
-    };
-    // --- Manuel JSON Verisini Kaydetme ve Düzenleme ---
-    const handleManualJsonSubmit = async () => {
-        if (!teamId || !currentTraining) return;
-        try {
-            const data = JSON.parse(manualJsonInput);
-            if (data.rsvps) {
-                const updatedTraining = { ...currentTraining, ultiplaysRawData: manualJsonInput } as any;
-                const success = await saveTraining(teamId, updatedTraining);
-                if (success) {
-                    setUltiplaysEventData(data);
-                    setCurrentTraining(updatedTraining);
-                    setIsEditingRawData(false);
-                    setManualJsonInput('');
-                    alert('Veri antrenmana kaydedildi!');
-                }
-            } else {
-                alert('Geçersiz Veri: "rsvps" listesi bulunamadı.');
-            }
-        } catch (e) {
-            alert('Hatalı Format! Lütfen kopyaladığınız metnin tamamını yapıştırın.');
-        }
-    };
-
-    // --- Veriyi Yoklamaya Aktarma ---
-    const handleUltiplaysToAttendance = async () => {
-        if (!teamId || !currentTraining || !ultiplaysEventData?.rsvps) return;
-        
-        const attendingUserIds = ultiplaysEventData.rsvps
-            .filter((r: any) => r.status === 'attending')
-            .map((r: any) => r.userId);
-
-        const newAttendeeIds = players
-            .filter(p => {
-                const uId = (p as any).ultiplaysId;
-                return uId && attendingUserIds.includes(uId.trim());
-            })
-            .map(p => p.id);
-
-        if (window.confirm(`${newAttendeeIds.length} oyuncu yoklamaya eklenecek. Onaylıyor musunuz?`)) {
-            const updated = { ...currentTraining, attendeeIds: newAttendeeIds } as Training;
-            await saveTraining(teamId, updated);
-            setCurrentTraining(updated);
-            alert("Yoklama güncellendi!");
-        }
-    };
     // --- Ultiplays ID Kaydetme ---
     const handleSaveUltiplaysId = async (playerId: string, newId: string) => {
         if (!teamId) return;
         try {
-            const cleanId = newId.trim(); // YENİ: Boşlukları temizle
+            const cleanId = newId.trim();
             const playerRef = doc(db, `teams/${teamId}/players`, playerId);
             await setDoc(playerRef, { ultiplaysId: cleanId }, { merge: true });
             setPlayers(players.map(p => p.id === playerId ? { ...p, ultiplaysId: cleanId } as any : p));
@@ -173,6 +93,7 @@ export default function Trainings() {
         }
     }, [isDetailModalOpen, currentTraining]);
 
+    // --- Başlangıç Verilerini Çekme ---
     useEffect(() => {
         const storedTeamId = localStorage.getItem('selectedTeamId');
         if (storedTeamId) {
@@ -194,6 +115,57 @@ export default function Trainings() {
             return () => { unsubPlayers(); unsubTrainings(); };
         }
     }, []);
+
+    // --- Manuel JSON Verisini Kaydetme ---
+    const handleManualJsonSubmit = async () => {
+        if (!teamId || !currentTraining) return;
+        try {
+            const data = JSON.parse(manualJsonInput);
+            if (data.rsvps) {
+                const updatedTraining = { ...currentTraining, ultiplaysRawData: manualJsonInput } as any;
+                const success = await saveTraining(teamId, updatedTraining);
+                if (success) {
+                    setUltiplaysEventData(data);
+                    setCurrentTraining(updatedTraining);
+                    setIsEditingRawData(false);
+                    setManualJsonInput('');
+                    alert('Veri antrenmana kaydedildi!');
+                }
+            } else {
+                alert('Geçersiz Veri: "rsvps" listesi bulunamadı.');
+            }
+        } catch (e) {
+            alert('Hatalı Format! Lütfen kopyaladığınız metnin tamamını yapıştırın.');
+        }
+    };
+
+    // --- Ultiplays'i Yoklamaya Aktarma ---
+    const handleUltiplaysToAttendance = async () => {
+        if (!teamId || !currentTraining || !ultiplaysEventData?.rsvps) {
+            alert("İşlenecek veri bulunamadı.");
+            return;
+        }
+        
+        const attendingUserIds = ultiplaysEventData.rsvps
+            .filter((r: any) => r.status === 'attending')
+            .map((r: any) => r.userId);
+
+        const newAttendeeIds = players
+            .filter(p => {
+                const uId = (p as any).ultiplaysId;
+                return uId && attendingUserIds.includes(uId.trim());
+            })
+            .map(p => p.id);
+
+        if (window.confirm(`${newAttendeeIds.length} oyuncu yoklamaya eklenecek. Mevcut yoklama listeniz güncellenecektir. Onaylıyor musunuz?`)) {
+            const updated = { ...currentTraining, attendeeIds: newAttendeeIds } as Training;
+            const success = await saveTraining(teamId, updated);
+            if (success) {
+                setCurrentTraining(updated);
+                alert("Yoklama listesi başarıyla güncellendi!");
+            }
+        }
+    };
 
     const getGroupedTrainings = () => {
         const groupsMap = new Map<string, Training[]>();
@@ -288,7 +260,6 @@ export default function Trainings() {
                     </h1>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    
                     <button onClick={exportAttendanceToCSV} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 flex items-center gap-2 transition-all">
                         <span className="material-icons-outlined text-green-600">file_download</span>
                         CSV Dışa Aktar
@@ -318,7 +289,7 @@ export default function Trainings() {
                                 {items.map(training => {
                                     const parsedDate = parseTrainingDate(training.date);
                                     return (
-                                    <div key={training.id} onClick={() => { setCurrentTraining(training); setIsDetailModalOpen(true); setShowRawData(false); }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md hover:border-[#5B4DBC]/30 transition-all group cursor-pointer flex flex-col justify-between">
+                                    <div key={training.id} onClick={() => { setCurrentTraining(training); setIsDetailModalOpen(true); }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md hover:border-[#5B4DBC]/30 transition-all group cursor-pointer flex flex-col justify-between">
                                         <div className="p-6">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="bg-purple-50 text-[#5B4DBC] px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center gap-2">
@@ -467,7 +438,6 @@ export default function Trainings() {
                             <div><label className="text-xs font-bold text-gray-400 uppercase">Kısa Not</label>
                             <input type="text" value={currentTraining.note || ''} onChange={e => setCurrentTraining({...currentTraining, note: e.target.value})} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-[#5B4DBC] outline-none transition-all" /></div>
                             
-                            {/* YENİ: URL OnBlur Formatlama */}
                             <div>
                                 <label className="text-xs font-bold text-[#00C4B4] uppercase flex items-center gap-1"><span className="material-icons-outlined text-[14px]">link</span>Ultiplays Etkinlik Linki</label>
                                 <input 
@@ -555,7 +525,6 @@ export default function Trainings() {
                                         <a href={(currentTraining as any).ultiplaysLink.replace('/api/', '/').replace('/events/', '/calendar/')} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#00C4B4] font-bold bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-colors">
                                             <span className="material-icons-outlined">open_in_new</span>Ultiplays'te Aç
                                         </a>
-                                        {/* YENİ: API Linkine Yönlendirme Butonu */}
                                         <a href={(currentTraining as any).ultiplaysLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-orange-600 font-bold bg-orange-50 px-4 py-2 rounded-xl hover:bg-orange-100 transition-colors">
                                             <span className="material-icons-outlined">api</span>APİ'yi Aç
                                         </a>
@@ -567,85 +536,56 @@ export default function Trainings() {
                                 <div><h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Kısa Not</h3><p className="text-gray-800 bg-purple-50/50 border border-purple-100 p-5 rounded-2xl font-medium text-lg leading-relaxed">{currentTraining.note}</p></div>
                             )}
 
-                            {/* --- YENİ: ULTIPLAYS EVENT LİSTESİ --- */}
-                            
                             <div className="pt-4">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                                         <span className="material-icons-outlined text-[#00C4B4]">fact_check</span>
                                         Ultiplays Event Yanıtları
                                     </h3>
-                                    {/* YOKLAMAYA İŞLE BUTONU */}
                                     {ultiplaysEventData && !isEditingRawData && (
                                         <button 
                                             onClick={handleUltiplaysToAttendance}
-                                            className="text-[10px] font-black uppercase text-white bg-[#00C4B4] px-3 py-2 rounded-xl shadow-sm hover:bg-[#00a396]"
+                                            className="text-[10px] font-black uppercase tracking-widest text-white bg-[#00C4B4] hover:bg-[#00a396] flex items-center gap-2 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95"
                                         >
-                                            Ultiplays'i Yoklamaya İşle
+                                            <span className="material-icons-outlined text-[16px]">how_to_reg</span>
+                                            Yoklamaya İşle
                                         </button>
                                     )}
-                                   
                                 </div>
                                 
-                                {isLoadingEvent ? (
-                                    <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00C4B4]"></div></div>
-                                ) : (
+                                {isEditingRawData ? (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-3xl p-6">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="text-blue-700 font-black">Veri Girişi (JSON)</div>
+                                            {ultiplaysEventData && (
+                                                <button onClick={() => setIsEditingRawData(false)} className="text-xs text-blue-600 font-bold underline hover:text-blue-800">İptal</button>
+                                            )}
+                                        </div>
+                                        <textarea
+                                            value={manualJsonInput}
+                                            onChange={e => setManualJsonInput(e.target.value)}
+                                            placeholder='API sayfasındaki metni buraya yapıştırın...'
+                                            className="w-full border-2 border-blue-200 rounded-xl p-3 text-xs font-mono h-32 mb-3 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                                        />
+                                        <button onClick={handleManualJsonSubmit} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-blue-700">
+                                            Veriyi Kaydet ve İşle
+                                        </button>
+                                    </div>
+                                ) : ultiplaysEventData ? (
                                     <div className="space-y-4">
-                                        {/* HAM VERİ GÖRÜNÜMÜ (DEBUG) */}
-                                        {showRawData && (
-                                            <div className="bg-gray-900 rounded-2xl p-4 overflow-hidden relative group">
-                                                <div className="flex justify-between items-center mb-2 border-b border-gray-800 pb-2">
-                                                    <span className="text-teal-400 text-[10px] font-mono">API Link: {(currentTraining as any).ultiplaysLink}</span>
-                                                    <button 
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText((currentTraining as any).ultiplaysLink);
-                                                            alert('Link kopyalandı! Tarayıcıda açıp kontrol edebilirsiniz.');
-                                                        }}
-                                                        className="text-white bg-gray-800 px-2 py-1 rounded text-[10px] hover:bg-teal-600"
-                                                    >
-                                                        Linki Kopyala
-                                                    </button>
-                                                </div>
-                                                <pre className="text-green-500 text-[11px] font-mono overflow-auto max-h-[300px] whitespace-pre-wrap">
-                                                    {ultiplaysEventData ? JSON.stringify(ultiplaysEventData, null, 2) : 'Veri henüz yüklenmedi veya link hatalı.'}
-                                                </pre>
-                                            </div>
-                                        )}
-
-                                        {!ultiplaysEventData ? (
-                                            <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
-                                                <span className="material-icons-outlined text-4xl text-gray-300 mb-2">link_off</span>
-                                                <p className="text-gray-500 font-medium">Ultiplays verisi çekilemedi. Lütfen Ham Veri kısmından API linkini tarayıcıda açarak kontrol edin.</p>
-                                            </div>
-                                        ) : ultiplaysEventData.code === 'UNAUTHORIZED' ? (
-                                            /* YENİ: YETKİSİZ ERİŞİM EKRANI VE MANUEL GİRİŞ KUTUSU */
-                                            <div className="bg-red-50 border border-red-200 rounded-3xl p-6 shadow-sm">
-                                                <div className="flex items-center gap-2 text-red-700 font-black text-lg mb-2">
-                                                    <span className="material-icons-outlined">lock</span>
-                                                    Erişim İzni Yok (Gizli Etkinlik)
-                                                </div>
-                                                <p className="text-sm text-red-600 mb-4 font-medium leading-relaxed">
-                                                    Bu etkinlik Ultiplays üzerinde gizli olduğu için otomatik olarak veri çekemiyoruz. Lütfen aşağıdaki 3 adımı izleyin:
-                                                </p>
-                                                <ol className="text-sm text-red-700 list-decimal pl-5 mb-5 space-y-2 font-medium">
-                                                    <li><a href={(currentTraining as any).ultiplaysLink} target="_blank" rel="noreferrer" className="underline font-bold text-red-800 hover:text-red-900 bg-red-100 px-1 rounded">Bu Linke Tıklayarak</a> ham veriyi tarayıcınızda açın (Oturumunuz açık olmalı).</li>
-                                                    <li>Açılan sayfadaki <strong>tüm metni</strong> (CTRL+A yapıp ardından CTRL+C yaparak) kopyalayın.</li>
-                                                    <li>Kopyaladığınız metni aşağıdaki kutuya yapıştırıp "Veriyi İşle" butonuna basın.</li>
-                                                </ol>
-                                                <textarea
-                                                    value={manualJsonInput}
-                                                    onChange={e => setManualJsonInput(e.target.value)}
-                                                    placeholder='{"_id": "...", "rsvps": [...]}'
-                                                    className="w-full border-2 border-red-200 bg-white rounded-xl p-3 text-xs font-mono h-24 mb-3 outline-none focus:border-red-400 focus:ring-4 focus:ring-red-100 transition-all shadow-inner"
-                                                />
-                                                <button 
-                                                    onClick={handleManualJsonSubmit} 
-                                                    className="w-full bg-red-600 text-white py-3 rounded-xl font-bold text-lg shadow-md hover:bg-red-700 active:scale-95 transition-all"
-                                                >
-                                                    Kopyaladığım Veriyi İşle
-                                                </button>
-                                            </div>
-                                        ) : ultiplaysEventData.rsvps && ultiplaysEventData.rsvps.length > 0 ? (
+                                        <div className="flex justify-end">
+                                            <button 
+                                                onClick={() => {
+                                                    setManualJsonInput((currentTraining as any).ultiplaysRawData || '');
+                                                    setIsEditingRawData(true);
+                                                }}
+                                                className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-[#5B4DBC] flex items-center gap-1 border border-gray-200 px-2 py-1 rounded-lg"
+                                            >
+                                                <span className="material-icons-outlined text-[14px]">edit</span>
+                                                Veriyi Düzenle
+                                            </button>
+                                        </div>
+                                        {ultiplaysEventData.rsvps && ultiplaysEventData.rsvps.length > 0 ? (
                                             <div className="space-y-2">
                                                 {ultiplaysEventData.rsvps.map((rsvp: any) => {
                                                     const matchedPlayer = players.find(p => {
@@ -685,7 +625,7 @@ export default function Trainings() {
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                ) : null}
                             </div>
                         </div>
                     </div>
