@@ -587,7 +587,8 @@ export default function Trainings() {
                                         </div>
                                         {ultiplaysEventData.rsvps && ultiplaysEventData.rsvps.length > 0 ? (
                                             <div className="space-y-2">
-                                                {ultiplaysEventData.rsvps.map((rsvp: any) => {
+                                                {/* YENİ: dateModified değerine göre en yeniden en eskiye sıralama eklendi */}
+                                                {[...ultiplaysEventData.rsvps].sort((a: any, b: any) => new Date(b.dateModified).getTime() - new Date(a.dateModified).getTime()).map((rsvp: any) => {
                                                     const matchedPlayer = players.find(p => {
                                                         const uId = (p as any).ultiplaysId;
                                                         return uId && uId.trim() === rsvp.userId.trim();
