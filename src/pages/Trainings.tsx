@@ -67,6 +67,7 @@ export default function Trainings() {
     const [ultiplaysEventData, setUltiplaysEventData] = useState<any>(null);
     const [isLoadingEvent, setIsLoadingEvent] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [showRawData, setShowRawData] = useState(false); // DEBUG İÇİN YENİ
 
     // --- Ultiplays ID Kaydetme ---
     const handleSaveUltiplaysId = async (playerId: string, newId: string) => {
@@ -314,7 +315,7 @@ export default function Trainings() {
                                 {items.map(training => {
                                     const parsedDate = parseTrainingDate(training.date);
                                     return (
-                                    <div key={training.id} onClick={() => { setCurrentTraining(training); setIsDetailModalOpen(true); }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md hover:border-[#5B4DBC]/30 transition-all group cursor-pointer flex flex-col justify-between">
+                                    <div key={training.id} onClick={() => { setCurrentTraining(training); setIsDetailModalOpen(true); setShowRawData(false); }} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md hover:border-[#5B4DBC]/30 transition-all group cursor-pointer flex flex-col justify-between">
                                         <div className="p-6">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="bg-purple-50 text-[#5B4DBC] px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center gap-2">
@@ -558,73 +559,92 @@ export default function Trainings() {
                             )}
 
                             {/* --- YENİ: ULTIPLAYS EVENT LİSTESİ --- */}
+                            {/* --- YENİ: ULTIPLAYS EVENT LİSTESİ --- */}
                             <div className="pt-4">
-                                <h3 className="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
-                                    <span className="material-icons-outlined text-[#00C4B4]">fact_check</span>
-                                    Ultiplays Event Yanıtları
-                                </h3>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                                        <span className="material-icons-outlined text-[#00C4B4]">fact_check</span>
+                                        Ultiplays Event Yanıtları
+                                    </h3>
+                                    {/* DEBUG BUTONU */}
+                                    <button 
+                                        onClick={() => setShowRawData(!showRawData)}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-[#5B4DBC] flex items-center gap-1 border border-gray-200 px-2 py-1 rounded-lg"
+                                    >
+                                        <span className="material-icons-outlined text-[14px]">{showRawData ? 'visibility_off' : 'bug_report'}</span>
+                                        {showRawData ? 'Veriyi Gizle' : 'Ham Veriyi Gör'}
+                                    </button>
+                                </div>
                                 
                                 {isLoadingEvent ? (
                                     <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00C4B4]"></div></div>
-                                ) : !ultiplaysEventData ? (
-                                    <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
-                                        <span className="material-icons-outlined text-4xl text-gray-300 mb-2">link_off</span>
-                                        <p className="text-gray-500 font-medium">Bu antrenmana tanımlı bir Ultiplays verisi bulunamadı veya bağlantı hatalı.</p>
-                                    </div>
-                                ) : ultiplaysEventData.rsvps && ultiplaysEventData.rsvps.length > 0 ? (
-                                    <div className="space-y-2">
-                                        {ultiplaysEventData.rsvps.map((rsvp: any) => {
-                                            // ID Eşleştirmesi (Güvenli Trim)
-                                            const matchedPlayer = players.find(p => {
-                                                const uId = (p as any).ultiplaysId;
-                                                return uId && uId.trim() === rsvp.userId.trim();
-                                            });
-                                            
-                                            const isAttending = rsvp.status === 'attending';
-                                            const dateMod = new Date(rsvp.dateModified).toLocaleString('tr-TR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* HAM VERİ GÖRÜNÜMÜ (DEBUG) */}
+                                        {showRawData && (
+                                            <div className="bg-gray-900 rounded-2xl p-4 overflow-hidden relative group">
+                                                <div className="flex justify-between items-center mb-2 border-b border-gray-800 pb-2">
+                                                    <span className="text-teal-400 text-[10px] font-mono">API Link: {(currentTraining as any).ultiplaysLink}</span>
+                                                    <button 
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText((currentTraining as any).ultiplaysLink);
+                                                            alert('Link kopyalandı! Tarayıcıda açıp kontrol edebilirsiniz.');
+                                                        }}
+                                                        className="text-white bg-gray-800 px-2 py-1 rounded text-[10px] hover:bg-teal-600"
+                                                    >
+                                                        Linki Kopyala
+                                                    </button>
+                                                </div>
+                                                <pre className="text-green-500 text-[11px] font-mono overflow-auto max-h-[300px] whitespace-pre-wrap">
+                                                    {ultiplaysEventData ? JSON.stringify(ultiplaysEventData, null, 2) : 'Veri henüz yüklenmedi veya link hatalı.'}
+                                                </pre>
+                                            </div>
+                                        )}
 
-                                            return (
-                                                <div key={rsvp.userId} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors shadow-sm">
-                                                    
-                                                    {matchedPlayer ? (
-                                                        <div className="flex items-center gap-3">
-                                                            {matchedPlayer.photoUrl ? (
-                                                                <img src={matchedPlayer.photoUrl} className="w-10 h-10 rounded-full object-cover" />
+                                        {!ultiplaysEventData ? (
+                                            <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
+                                                <span className="material-icons-outlined text-4xl text-gray-300 mb-2">link_off</span>
+                                                <p className="text-gray-500 font-medium">Ultiplays verisi çekilemedi. Lütfen Ham Veri kısmından API linkini tarayıcıda açarak kontrol edin.</p>
+                                            </div>
+                                        ) : ultiplaysEventData.rsvps && ultiplaysEventData.rsvps.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {ultiplaysEventData.rsvps.map((rsvp: any) => {
+                                                    const matchedPlayer = players.find(p => {
+                                                        const uId = (p as any).ultiplaysId;
+                                                        return uId && uId.trim() === rsvp.userId.trim();
+                                                    });
+                                                    const isAttending = rsvp.status === 'attending';
+                                                    const dateMod = new Date(rsvp.dateModified).toLocaleString('tr-TR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+                                                    return (
+                                                        <div key={rsvp.userId} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors shadow-sm">
+                                                            {matchedPlayer ? (
+                                                                <div className="flex items-center gap-3">
+                                                                    {matchedPlayer.photoUrl ? <img src={matchedPlayer.photoUrl} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 font-bold flex justify-center items-center text-sm">{matchedPlayer.name.charAt(0)}</div>}
+                                                                    <span className="font-bold text-gray-800 text-lg">{matchedPlayer.name}</span>
+                                                                </div>
                                                             ) : (
-                                                                <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 font-bold flex justify-center items-center text-sm">
-                                                                    {matchedPlayer.name.charAt(0)}
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-500 font-bold flex justify-center items-center text-xl">?</div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-bold text-gray-800">Eşleşmeyen Oyuncu</span>
+                                                                        <span className="text-[10px] text-gray-400 font-mono select-all">ID: {rsvp.userId}</span>
+                                                                    </div>
                                                                 </div>
                                                             )}
-                                                            <span className="font-bold text-gray-800 text-lg">{matchedPlayer.name}</span>
-                                                        </div>
-                                                    ) : (
-                                                        // EŞLEŞMEYEN OYUNCU ARAYÜZÜ
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-500 font-bold flex justify-center items-center text-xl">
-                                                                ?
-                                                            </div>
-                                                            <div className="flex flex-col">
-                                                                <span className="font-bold text-gray-800">Eşleşmeyen Oyuncu</span>
-                                                                <span className="text-[10px] text-gray-400 font-mono select-all" title="Bu ID'yi kopyalayın">ID: {rsvp.userId}</span>
+                                                            <div className="flex items-center gap-4">
+                                                                <span className="text-xs font-bold text-gray-400 hidden sm:block">{dateMod}</span>
+                                                                <span className={`px-3 py-1 rounded-lg text-xs font-bold w-24 text-center ${isAttending ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{isAttending ? 'Katılıyor' : 'Katılmıyor'}</span>
                                                             </div>
                                                         </div>
-                                                    )}
-                                                    
-                                                    <div className="flex items-center gap-4">
-                                                        <span className="text-xs font-bold text-gray-400 hidden sm:block">{dateMod}</span>
-                                                        <span className={`px-3 py-1 rounded-lg text-xs font-bold w-24 text-center ${isAttending ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                            {isAttending ? 'Katılıyor' : 'Katılmıyor'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
-                                    // VERİ VAR AMA RSVPS LİSTESİ YOK VEYA BOŞ
-                                    <div className="bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl p-8 text-center">
-                                        <span className="material-icons-outlined text-4xl text-orange-300 mb-2">warning</span>
-                                        <p className="text-orange-700 font-medium">Ultiplays'e bağlanıldı ancak etkinlikte kimse yok veya etkinlik gizli (Private).</p>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl p-8 text-center">
+                                                <span className="material-icons-outlined text-4xl text-orange-300 mb-2">warning</span>
+                                                <p className="text-orange-700 font-medium">Bağlantı başarılı ancak RSVPS listesi boş geliyor.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
