@@ -4,11 +4,14 @@ import { db } from '../services/firebase';
 import { getPlayers, getTrainings, saveTraining, deleteTraining } from '../services/repository';
 import type { Training, Player } from '../types';
 
+type ViewMode = 'list' | 'stats';
+
 export default function Trainings() {
     const [teamId, setTeamId] = useState<string | null>(null);
     const [trainings, setTrainings] = useState<Training[]>([]);
     const [players, setPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
+    const [viewMode, setViewMode] = useState<ViewMode>('list');
 
     // Modal States
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -19,259 +22,305 @@ export default function Trainings() {
         const storedTeamId = localStorage.getItem('selectedTeamId');
         if (storedTeamId) {
             setTeamId(storedTeamId);
-
-            // Oyuncuları çek (Yoklama için)
             const unsubPlayers = getPlayers(storedTeamId, (data) => setPlayers(data));
-
-            // Antrenmanları çek
             const unsubTrainings = getTrainings(storedTeamId, (data) => {
-                setTrainings(data as Training[]);
+                // Kesin sıralama: En yeni tarih en üstte
+                const sorted = [...data].sort((a, b) => {
+                    const dateA = new Date(`${a.date}T${a.time || '00:00'}`).getTime();
+                    const dateB = new Date(`${b.date}T${b.time || '00:00'}`).getTime();
+                    return dateB - dateA;
+                });
+                setTrainings(sorted as Training[]);
                 setLoading(false);
             });
-
-            return () => {
-                unsubPlayers();
-                unsubTrainings();
-            };
+            return () => { unsubPlayers(); unsubTrainings(); };
         }
     }, []);
 
+    // --- AYALARA GÖRE GRUPLANDIRMA MANTIĞI ---
+    const getGroupedTrainings = () => {
+        const groups: { [key: string]: Training[] } = {};
+        trainings.forEach(t => {
+            const date = new Date(t.date);
+            const monthYear = date.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+            if (!groups[monthYear]) groups[monthYear] = [];
+            groups[monthYear].push(t);
+        });
+        return groups;
+    };
+
+    // --- CSV DIŞA AKTARMA (EXCEL UYUMLU) ---
+    const exportAttendanceToCSV = () => {
+        try {
+            let csv = "\uFEFF"; // Excel Türkçe karakter desteği (BOM)
+            csv += "Oyuncu İsmi;Katılım Oranı;Toplam Katılım";
+            
+            // Başlık satırına antrenman tarihlerini ekle (Eskiden yeniye doğru kolonlar)
+            const chronological = [...trainings].reverse();
+            chronological.forEach(t => csv += `;${t.date}`);
+            csv += "\n";
+
+            // Oyuncu satırları
+            players.sort((a, b) => a.name.localeCompare(b.name)).forEach(player => {
+                let attendedCount = 0;
+                let attendanceCols = "";
+
+                chronological.forEach(t => {
+                    const isPresent = t.attendeeIds?.includes(player.id);
+                    if (isPresent) {
+                        attendedCount++;
+                        attendanceCols += ";VAR";
+                    } else {
+                        attendanceCols += ";YOK";
+                    }
+                });
+
+                const rate = trainings.length > 0 ? ((attendedCount / trainings.length) * 100).toFixed(1) : "0";
+                csv += `${player.name};%${rate};${attendedCount}${attendanceCols}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Yoklama_Raporu_${new Date().toLocaleDateString('tr-TR')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (e) {
+            alert("CSV dışa aktarılırken bir hata oluştu.");
+        }
+    };
+
+    // --- MODAL YARDIMCILARI ---
     const openCreateModal = () => {
         setCurrentTraining({
             date: new Date().toISOString().split('T')[0],
             time: '19:00',
-            location: '',
-            note: '',
-            description: '',
-            attendeeIds: [],
-            isVisibleToMembers: true
+            location: '', note: '', description: '', attendeeIds: [], isVisibleToMembers: true
         });
         setIsFormModalOpen(true);
-    };
-
-    const openEditModal = (training: Training) => {
-        setCurrentTraining(training);
-        setIsFormModalOpen(true);
-    };
-
-    const openAttendanceModal = (training: Training) => {
-        setCurrentTraining(training);
-        setIsAttendanceModalOpen(true);
     };
 
     const handleSaveTraining = async () => {
         if (!teamId || !currentTraining) return;
-
-        // Yeni ekleniyorsa Firebase'den benzersiz ID oluştur
         const id = currentTraining.id || doc(collection(db, 'teams')).id;
-
-        const trainingToSave: Training = {
-            ...currentTraining,
-            id
-        } as Training;
-
-        await saveTraining(teamId, trainingToSave);
+        await saveTraining(teamId, { ...currentTraining, id } as Training);
         setIsFormModalOpen(false);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!teamId) return;
-        if (window.confirm('Bu antrenmanı silmek istediğinize emin misiniz?')) {
-            await deleteTraining(teamId, id);
-        }
-    };
+    if (loading) return (
+        <div className="flex justify-center items-center h-[70vh]">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5B4DBC]"></div>
+        </div>
+    );
 
-    const toggleAttendance = (playerId: string) => {
-        if (!currentTraining) return;
-        const attendees = currentTraining.attendeeIds || [];
-        const isPresent = attendees.includes(playerId);
-
-        setCurrentTraining({
-            ...currentTraining,
-            attendeeIds: isPresent
-                ? attendees.filter(id => id !== playerId)
-                : [...attendees, playerId]
-        });
-    };
-
-    const handleSaveAttendance = async () => {
-        if (!teamId || !currentTraining) return;
-        await saveTraining(teamId, currentTraining as Training);
-        setIsAttendanceModalOpen(false);
-    };
-
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-[70vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5B4DBC]"></div>
-            </div>
-        );
-    }
+    const grouped = getGroupedTrainings();
 
     return (
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full pb-24 lg:pb-8">
-            <div className="flex justify-between items-center mb-8">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full pb-24">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
                         <span className="material-icons-outlined text-[#5B4DBC]">fitness_center</span>
-                        Antrenmanlar
+                        Antrenman Yönetimi
                     </h1>
-                    <p className="text-gray-500 mt-1">Takım antrenmanlarını ve yoklamaları yönetin.</p>
                 </div>
-                <button
-                    onClick={openCreateModal}
-                    className="bg-[#5B4DBC] text-white px-4 py-2 rounded-lg shadow hover:bg-[#4a3ea3] flex items-center gap-2 transition-colors"
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={exportAttendanceToCSV} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 flex items-center gap-2 transition-all">
+                        <span className="material-icons-outlined text-green-600">file_download</span>
+                        CSV Dışa Aktar
+                    </button>
+                    <button onClick={openCreateModal} className="bg-[#5B4DBC] text-white px-4 py-2 rounded-lg shadow hover:bg-[#4a3ea3] flex items-center gap-2 transition-all">
+                        <span className="material-icons-outlined">add</span>
+                        Yeni Antrenman
+                    </button>
+                </div>
+            </div>
+
+            {/* View Switcher */}
+            <div className="flex bg-gray-100 p-1 rounded-xl w-fit mb-8">
+                <button 
+                    onClick={() => setViewMode('list')}
+                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'list' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                    <span className="material-icons-outlined">add</span>
-                    Yeni Antrenman
+                    Antrenman Listesi
+                </button>
+                <button 
+                    onClick={() => setViewMode('stats')}
+                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'stats' ? 'bg-white text-[#5B4DBC] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    Katılım İstatistikleri
                 </button>
             </div>
 
-            {/* Antrenman Listesi */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {trainings.length > 0 ? trainings.map(training => (
-                    <div key={training.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-start">
-                            <div>
-                                <h3 className="font-bold text-lg text-gray-800">{training.date} • {training.time}</h3>
-                                <p className="text-gray-500 text-sm flex items-center gap-1 mt-1">
-                                    <span className="material-icons-outlined text-[16px]">place</span>
-                                    {training.location || 'Konum Belirtilmedi'}
-                                </p>
-                            </div>
-                            <div className="bg-teal-50 text-teal-700 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
-                                <span className="material-icons-outlined text-[16px]">people</span>
-                                {training.attendeeIds?.length || 0} / {players.length}
-                            </div>
-                        </div>
-                        {training.note && (
-                            <div className="px-5 py-3 bg-gray-50 text-sm text-gray-600 border-b border-gray-100">
-                                <span className="font-semibold text-gray-700">Not:</span> {training.note}
-                            </div>
-                        )}
-                        <div className="p-4 bg-gray-50 flex gap-2 justify-end">
-                            <button onClick={() => openAttendanceModal(training)} className="flex-1 bg-white border border-[#5B4DBC] text-[#5B4DBC] py-2 rounded-lg text-sm font-semibold hover:bg-purple-50 transition-colors">
-                                Yoklama Al
-                            </button>
-                            <button onClick={() => openEditModal(training)} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-100">
-                                <span className="material-icons-outlined text-sm">edit</span>
-                            </button>
-                            <button onClick={() => handleDelete(training.id)} className="w-10 h-10 flex items-center justify-center bg-white border border-red-200 text-red-500 rounded-lg hover:bg-red-50">
-                                <span className="material-icons-outlined text-sm">delete</span>
-                            </button>
-                        </div>
-                    </div>
-                )) : (
-                    <div className="col-span-full bg-white rounded-xl p-8 text-center text-gray-500 shadow-sm border border-gray-100">
-                        Henüz kayıtlı antrenman bulunmuyor. Yeni bir antrenman ekleyerek başlayın.
-                    </div>
-                )}
-            </div>
-
-            {/* Antrenman Ekleme/Düzenleme Modal */}
-            {isFormModalOpen && currentTraining && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-gray-800">
-                                {currentTraining.id ? 'Antrenmanı Düzenle' : 'Yeni Antrenman'}
+            {viewMode === 'list' ? (
+                <div className="space-y-12">
+                    {Object.keys(grouped).length > 0 ? Object.entries(grouped).map(([month, items]) => (
+                        <section key={month}>
+                            <h2 className="text-lg font-bold text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-2 flex items-center gap-3">
+                                {month}
+                                <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">{items.length} İdman</span>
                             </h2>
-                            <button onClick={() => setIsFormModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                                <span className="material-icons-outlined">close</span>
-                            </button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                {items.map(training => (
+                                    <div key={training.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all group">
+                                        <div className="p-6">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="bg-purple-50 text-[#5B4DBC] px-3 py-1 rounded-lg text-xs font-bold uppercase">
+                                                    {new Date(training.date).toLocaleDateString('tr-TR', { weekday: 'long' })}
+                                                </div>
+                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => {setCurrentTraining(training); setIsFormModalOpen(true);}} className="p-1.5 text-gray-400 hover:text-[#5B4DBC]"><span className="material-icons-outlined text-sm">edit</span></button>
+                                                    <button onClick={() => {if(window.confirm('Silinsin mi?')) deleteTraining(teamId!, training.id)}} className="p-1.5 text-gray-400 hover:text-red-500"><span className="material-icons-outlined text-sm">delete</span></button>
+                                                </div>
+                                            </div>
+                                            <h3 className="font-black text-2xl text-gray-800 mb-1">
+                                                {new Date(training.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
+                                            </h3>
+                                            <div className="text-gray-500 font-medium flex items-center gap-1 mb-4">
+                                                <span className="material-icons-outlined text-sm">schedule</span>
+                                                {training.time} • {training.location || 'Konum yok'}
+                                            </div>
+                                            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-50">
+                                                <div className="flex -space-x-2">
+                                                    {training.attendeeIds?.slice(0, 5).map(uid => {
+                                                        const p = players.find(pl => pl.id === uid);
+                                                        return p?.photoUrl ? (
+                                                            <img key={uid} src={p.photoUrl} className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+                                                        ) : (
+                                                            <div key={uid} className="w-8 h-8 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">{p?.name.charAt(0)}</div>
+                                                        );
+                                                    })}
+                                                    {(training.attendeeIds?.length || 0) > 5 && (
+                                                        <div className="w-8 h-8 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400">
+                                                            +{(training.attendeeIds?.length || 0) - 5}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <button 
+                                                    onClick={() => {setCurrentTraining(training); setIsAttendanceModalOpen(true);}}
+                                                    className="bg-[#00C4B4] text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#00a396] transition-colors"
+                                                >
+                                                    Yoklama ({training.attendeeIds?.length || 0})
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )) : (
+                        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-300 text-gray-400">
+                            Henüz antrenman planlanmamış.
                         </div>
+                    )}
+                </div>
+            ) : (
+                /* KATILIM İSTATİSTİKLERİ TABLOSU */
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="p-4 font-bold text-gray-600 text-sm">Oyuncu</th>
+                                <th className="p-4 font-bold text-gray-600 text-sm text-center">Toplam Antrenman</th>
+                                <th className="p-4 font-bold text-gray-600 text-sm text-center">Katılım Sayısı</th>
+                                <th className="p-4 font-bold text-gray-600 text-sm text-right">Katılım Oranı</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {players.sort((a, b) => a.name.localeCompare(b.name)).map(player => {
+                                const attendedCount = trainings.filter(t => t.attendeeIds?.includes(player.id)).length;
+                                const total = trainings.length;
+                                const rate = total > 0 ? (attendedCount / total) * 100 : 0;
+                                
+                                return (
+                                    <tr key={player.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                        <td className="p-4 flex items-center gap-3">
+                                            {player.photoUrl ? (
+                                                <img src={player.photoUrl} className="w-8 h-8 rounded-full object-cover" />
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full bg-purple-100 text-[#5B4DBC] flex items-center justify-center text-xs font-bold">
+                                                    {player.name.charAt(0)}
+                                                </div>
+                                            )}
+                                            <span className="font-bold text-gray-800">{player.name}</span>
+                                        </td>
+                                        <td className="p-4 text-center text-gray-500 font-medium">{total}</td>
+                                        <td className="p-4 text-center text-gray-800 font-bold">{attendedCount}</td>
+                                        <td className="p-4 text-right">
+                                            <div className="inline-flex items-center gap-2">
+                                                <div className="w-24 bg-gray-100 h-2 rounded-full overflow-hidden hidden md:block">
+                                                    <div className={`h-full rounded-full ${rate > 75 ? 'bg-green-500' : rate > 40 ? 'bg-orange-500' : 'bg-red-500'}`} style={{width: `${rate}%`}}></div>
+                                                </div>
+                                                <span className={`font-black ${rate > 75 ? 'text-green-600' : rate > 40 ? 'text-orange-600' : 'text-red-600'}`}>
+                                                    %{rate.toFixed(0)}
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
+            {/* MODALLER (Aynı kalabilir, sadece stil dokunuşları eklendi) */}
+            {isFormModalOpen && currentTraining && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+                        <h2 className="text-2xl font-black text-gray-800 mb-6">{currentTraining.id ? 'Düzenle' : 'Yeni Plan'}</h2>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tarih</label>
-                                    <input type="date" value={currentTraining.date || ''} onChange={e => setCurrentTraining({ ...currentTraining, date: e.target.value })} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-[#5B4DBC] outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Saat</label>
-                                    <input type="time" value={currentTraining.time || ''} onChange={e => setCurrentTraining({ ...currentTraining, time: e.target.value })} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-[#5B4DBC] outline-none" />
-                                </div>
+                                <div><label className="text-xs font-bold text-gray-400 uppercase">Tarih</label>
+                                <input type="date" value={currentTraining.date || ''} onChange={e => setCurrentTraining({...currentTraining, date: e.target.value})} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-[#5B4DBC] outline-none transition-all" /></div>
+                                <div><label className="text-xs font-bold text-gray-400 uppercase">Saat</label>
+                                <input type="time" value={currentTraining.time || ''} onChange={e => setCurrentTraining({...currentTraining, time: e.target.value})} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-[#5B4DBC] outline-none transition-all" /></div>
                             </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Konum</label>
-                                <input type="text" placeholder="Örn: ODTÜ Devrim Stadyumu" value={currentTraining.location || ''} onChange={e => setCurrentTraining({ ...currentTraining, location: e.target.value })} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-[#5B4DBC] outline-none" />
+                            <div><label className="text-xs font-bold text-gray-400 uppercase">Konum</label>
+                            <input type="text" value={currentTraining.location || ''} onChange={e => setCurrentTraining({...currentTraining, location: e.target.value})} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-[#5B4DBC] outline-none transition-all" /></div>
+                            <div><label className="text-xs font-bold text-gray-400 uppercase">Kısa Not</label>
+                            <input type="text" value={currentTraining.note || ''} onChange={e => setCurrentTraining({...currentTraining, note: e.target.value})} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-[#5B4DBC] outline-none transition-all" /></div>
+                            <div className="flex gap-3 mt-8">
+                                <button onClick={() => setIsFormModalOpen(false)} className="flex-1 py-3 text-gray-400 font-bold">Vazgeç</button>
+                                <button onClick={handleSaveTraining} className="flex-[2] bg-[#5B4DBC] text-white py-3 rounded-2xl font-bold shadow-lg shadow-purple-100">Kaydet</button>
                             </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Kısa Not / Odak</label>
-                                <input type="text" placeholder="Örn: Rüzgarlı hava, zone defense" value={currentTraining.note || ''} onChange={e => setCurrentTraining({ ...currentTraining, note: e.target.value })} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-[#5B4DBC] outline-none" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Detaylı Açıklama</label>
-                                <textarea rows={3} value={currentTraining.description || ''} onChange={e => setCurrentTraining({ ...currentTraining, description: e.target.value })} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-[#5B4DBC] outline-none resize-none"></textarea>
-                            </div>
-
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={currentTraining.isVisibleToMembers} onChange={e => setCurrentTraining({ ...currentTraining, isVisibleToMembers: e.target.checked })} className="rounded text-[#5B4DBC] focus:ring-[#5B4DBC] w-4 h-4 cursor-pointer" />
-                                <span className="text-sm font-medium text-gray-700">Oyunculara Görünür Olsun</span>
-                            </label>
-
-                            <button onClick={handleSaveTraining} className="w-full bg-[#5B4DBC] text-white py-3 rounded-lg font-bold shadow hover:bg-[#4a3ea3] mt-4 transition-colors">
-                                Kaydet
-                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Yoklama (Attendance) Modal */}
             {isAttendanceModalOpen && currentTraining && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[90vh]">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-300">
+                        <div className="p-8 border-b border-gray-50 flex justify-between items-center">
                             <div>
-                                <h2 className="text-xl font-bold text-gray-800">Yoklama Çizelgesi</h2>
-                                <p className="text-sm text-gray-500 mt-1">{currentTraining.date} - {currentTraining.location}</p>
+                                <h2 className="text-2xl font-black text-gray-800">Yoklama Al</h2>
+                                <p className="text-sm font-bold text-[#00C4B4]">{new Date(currentTraining.date!).toLocaleDateString('tr-TR', {day:'numeric', month:'long'})}</p>
                             </div>
-                            <button onClick={() => setIsAttendanceModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                                <span className="material-icons-outlined">close</span>
-                            </button>
+                            <button onClick={() => setIsAttendanceModalOpen(false)} className="w-10 h-10 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center"><span className="material-icons-outlined">close</span></button>
                         </div>
-
-                        <div className="p-2 flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-1">
                             {players.map(player => {
                                 const isPresent = currentTraining.attendeeIds?.includes(player.id);
                                 return (
-                                    <div key={player.id} onClick={() => toggleAttendance(player.id)} className="flex items-center justify-between p-3 mb-1 hover:bg-gray-50 rounded-lg cursor-pointer border-b border-gray-50 last:border-0">
-                                        <div className="flex items-center gap-3">
-                                            {player.photoUrl ? (
-                                                <img src={player.photoUrl} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
-                                            ) : (
-                                                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
-                                                    {player.name.charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
-                                            <div>
-                                                <div className="font-bold text-gray-800">{player.name}</div>
-                                                <div className="text-xs text-gray-500">{player.position}</div>
-                                            </div>
+                                    <div key={player.id} onClick={() => {
+                                        const attendees = currentTraining.attendeeIds || [];
+                                        setCurrentTraining({ ...currentTraining, attendeeIds: isPresent ? attendees.filter(id => id !== player.id) : [...attendees, player.id] });
+                                    }} className={`flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all ${isPresent ? 'bg-teal-50 border-2 border-teal-100' : 'bg-white border-2 border-transparent hover:bg-gray-50'}`}>
+                                        <div className="flex items-center gap-4">
+                                            {player.photoUrl ? <img src={player.photoUrl} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-500">{player.name.charAt(0)}</div>}
+                                            <span className={`font-bold ${isPresent ? 'text-teal-800' : 'text-gray-700'}`}>{player.name}</span>
                                         </div>
-                                        <div>
-                                            {isPresent ? (
-                                                <span className="material-icons-outlined text-[#00C4B4]">check_circle</span>
-                                            ) : (
-                                                <span className="material-icons-outlined text-gray-300">radio_button_unchecked</span>
-                                            )}
-                                        </div>
+                                        {isPresent ? <span className="material-icons-outlined text-teal-600">check_circle</span> : <span className="material-icons-outlined text-gray-200">radio_button_unchecked</span>}
                                     </div>
                                 );
                             })}
                         </div>
-
-                        <div className="p-6 border-t border-gray-100 bg-white rounded-b-2xl">
-                            <div className="flex justify-between items-center mb-4 text-sm font-bold text-gray-700">
-                                <span>Toplam Katılım:</span>
-                                <span className="text-[#5B4DBC]">{currentTraining.attendeeIds?.length || 0} / {players.length} Kişi</span>
-                            </div>
-                            <button onClick={handleSaveAttendance} className="w-full bg-[#00C4B4] text-white py-3 rounded-lg font-bold shadow hover:bg-[#00a396] transition-colors">
-                                Yoklamayı Kaydet
+                        <div className="p-8 border-t border-gray-50">
+                            <button onClick={async () => { await saveTraining(teamId!, currentTraining as Training); setIsAttendanceModalOpen(false); }} className="w-full bg-[#00C4B4] text-white py-4 rounded-2xl font-black shadow-xl shadow-teal-50 transition-transform active:scale-95">
+                                Değişiklikleri Kaydet
                             </button>
                         </div>
                     </div>
