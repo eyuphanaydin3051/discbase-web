@@ -72,9 +72,10 @@ export default function Trainings() {
     const handleSaveUltiplaysId = async (playerId: string, newId: string) => {
         if (!teamId) return;
         try {
+            const cleanId = newId.trim(); // YENİ: Boşlukları temizle
             const playerRef = doc(db, `teams/${teamId}/players`, playerId);
-            await setDoc(playerRef, { ultiplaysId: newId }, { merge: true });
-            setPlayers(players.map(p => p.id === playerId ? { ...p, ultiplaysId: newId } as any : p));
+            await setDoc(playerRef, { ultiplaysId: cleanId }, { merge: true });
+            setPlayers(players.map(p => p.id === playerId ? { ...p, ultiplaysId: cleanId } as any : p));
         } catch (error) {
             console.error("Ultiplays ID kaydedilirken hata:", error);
         }
@@ -130,9 +131,12 @@ export default function Trainings() {
                                 .filter((r: any) => r.status === 'attending')
                                 .map((r: any) => r.userId);
                             
-                            // Local oyuncularla eşleşenlerin Discbase ID'lerini çıkar
+                            // Local oyuncularla eşleşenlerin Discbase ID'lerini çıkar (Trim korumalı)
                             const newAttendeeIds = players
-                                .filter(p => attendingUserIds.includes((p as any).ultiplaysId))
+                                .filter(p => {
+                                    const uId = (p as any).ultiplaysId;
+                                    return uId && attendingUserIds.includes(uId.trim());
+                                })
                                 .map(p => p.id);
                             
                             // Sadece bir değişiklik varsa veritabanını güncelle
@@ -565,33 +569,46 @@ export default function Trainings() {
                                 ) : !ultiplaysEventData ? (
                                     <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 text-center">
                                         <span className="material-icons-outlined text-4xl text-gray-300 mb-2">link_off</span>
-                                        <p className="text-gray-500 font-medium">Bu antrenmana tanımlı bir Ultiplays verisi bulunamadı.</p>
+                                        <p className="text-gray-500 font-medium">Bu antrenmana tanımlı bir Ultiplays verisi bulunamadı veya bağlantı hatalı.</p>
                                     </div>
-                                ) : (
+                                ) : ultiplaysEventData.rsvps && ultiplaysEventData.rsvps.length > 0 ? (
                                     <div className="space-y-2">
-                                        {/* Gelen rsvps dizisini ekrana basma */}
-                                        {ultiplaysEventData.rsvps?.map((rsvp: any) => {
-                                            // API'den gelen ID'yi bizim eşleştirdiğimiz oyuncularla karşılaştır
-                                            const matchedPlayer = players.find(p => (p as any).ultiplaysId === rsvp.userId);
+                                        {ultiplaysEventData.rsvps.map((rsvp: any) => {
+                                            // ID Eşleştirmesi (Güvenli Trim)
+                                            const matchedPlayer = players.find(p => {
+                                                const uId = (p as any).ultiplaysId;
+                                                return uId && uId.trim() === rsvp.userId.trim();
+                                            });
                                             
-                                            // Eğer eşleşme yoksa UI'da gösterme (veya İsimsiz Göster)
-                                            if (!matchedPlayer) return null;
-
                                             const isAttending = rsvp.status === 'attending';
                                             const dateMod = new Date(rsvp.dateModified).toLocaleString('tr-TR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
 
                                             return (
-                                                <div key={rsvp.userId} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors">
-                                                    <div className="flex items-center gap-3">
-                                                        {matchedPlayer.photoUrl ? (
-                                                            <img src={matchedPlayer.photoUrl} className="w-8 h-8 rounded-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 font-bold flex justify-center items-center text-xs">
-                                                                {matchedPlayer.name.charAt(0)}
+                                                <div key={rsvp.userId} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors shadow-sm">
+                                                    
+                                                    {matchedPlayer ? (
+                                                        <div className="flex items-center gap-3">
+                                                            {matchedPlayer.photoUrl ? (
+                                                                <img src={matchedPlayer.photoUrl} className="w-10 h-10 rounded-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 font-bold flex justify-center items-center text-sm">
+                                                                    {matchedPlayer.name.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                            <span className="font-bold text-gray-800 text-lg">{matchedPlayer.name}</span>
+                                                        </div>
+                                                    ) : (
+                                                        // EŞLEŞMEYEN OYUNCU ARAYÜZÜ
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-500 font-bold flex justify-center items-center text-xl">
+                                                                ?
                                                             </div>
-                                                        )}
-                                                        <span className="font-bold text-gray-800">{matchedPlayer.name}</span>
-                                                    </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-gray-800">Eşleşmeyen Oyuncu</span>
+                                                                <span className="text-[10px] text-gray-400 font-mono select-all" title="Bu ID'yi kopyalayın">ID: {rsvp.userId}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                     
                                                     <div className="flex items-center gap-4">
                                                         <span className="text-xs font-bold text-gray-400 hidden sm:block">{dateMod}</span>
@@ -602,10 +619,12 @@ export default function Trainings() {
                                                 </div>
                                             );
                                         })}
-                                        {/* Listede hiç eşleşen oyuncu yoksa uyarı */}
-                                        {ultiplaysEventData.rsvps?.length > 0 && !players.some(p => ultiplaysEventData.rsvps.find((r:any) => r.userId === (p as any).ultiplaysId)) && (
-                                            <p className="text-sm text-orange-500 text-center p-4">Event bulundu ancak ID'leri eşleşen oyuncu bulunamadı. Lütfen Ultiplays ID sekmesinden eşleştirmeleri yapın.</p>
-                                        )}
+                                    </div>
+                                ) : (
+                                    // VERİ VAR AMA RSVPS LİSTESİ YOK VEYA BOŞ
+                                    <div className="bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl p-8 text-center">
+                                        <span className="material-icons-outlined text-4xl text-orange-300 mb-2">warning</span>
+                                        <p className="text-orange-700 font-medium">Ultiplays'e bağlanıldı ancak etkinlikte kimse yok veya etkinlik gizli (Private).</p>
                                     </div>
                                 )}
                             </div>
