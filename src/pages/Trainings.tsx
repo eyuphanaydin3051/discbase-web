@@ -41,6 +41,9 @@ const formatDateForSave = (inputVal: string): string => {
 // Standart takvim linkini API linkine dönüştürür
 const formatUltiplaysLink = (link: string) => {
     if (!link) return '';
+    // Eğer direkt API linki kopyalanmışsa olduğu gibi bırak
+    if (link.includes('/api/teams/')) return link;
+    
     const match = link.match(/ultiplays\.com\/teams\/([^\/]+)\/calendar\/([^\/]+)/);
     if (match) {
         return `https://www.ultiplays.com/api/teams/${match[1]}/events/${match[2]}`;
@@ -81,14 +84,21 @@ export default function Trainings() {
     useEffect(() => {
         if (isDetailModalOpen && (currentTraining as any)?.ultiplaysLink) {
             setIsLoadingEvent(true);
-            fetch((currentTraining as any).ultiplaysLink)
+            const rawUrl = (currentTraining as any).ultiplaysLink;
+            // CORS Tarayıcı engeline takılmamak için public proxy üzerinden istek atıyoruz
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+            
+            fetch(proxyUrl)
                 .then(res => {
-                    if (!res.ok) throw new Error("Ağ hatası veya yetkisiz erişim");
+                    if (!res.ok) throw new Error("Ağ hatası veya CORS engeli");
                     return res.json();
                 })
-                .then(data => setUltiplaysEventData(data))
+                .then(data => {
+                    console.log("Ultiplays Başarılı İstek:", data); // Eğer hata alırsan tarayıcı konsolunda veriyi görebilirsin
+                    setUltiplaysEventData(data);
+                })
                 .catch(err => {
-                    console.error("Ultiplays verisi çekilemedi:", err);
+                    console.error("Ultiplays verisi çekilemedi (CORS hatası olabilir):", err);
                     setUltiplaysEventData(null);
                 })
                 .finally(() => setIsLoadingEvent(false));
@@ -108,7 +118,10 @@ export default function Trainings() {
                 const link = (t as any).ultiplaysLink;
                 if (link && link.includes('/api/teams/')) {
                     try {
-                        const res = await fetch(link);
+                        // CORS engeline takılmamak için public proxy kullanıyoruz
+                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(link)}`;
+                        const res = await fetch(proxyUrl);
+                        
                         if (res.ok) {
                             const data = await res.json();
                             
