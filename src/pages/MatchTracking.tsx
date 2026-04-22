@@ -101,13 +101,13 @@ export default function MatchTracking() {
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
         
-        // YENİ: Firebase onSnapshot olmadığı için UI'ı anında güncellemek adına lokal state'ten son olayı siliyoruz (Optimistic Update)
+        // Optimistic Update: API'yi beklemeden UI'dan anında sil (Donmayı engeller)
         setMatch(prev => prev ? {
             ...prev,
             events: prev.events ? prev.events.slice(0, -1) : []
         } : prev);
 
-        // Arka planda Backend API'den sil
+        // Arka planda Backend'den sil
         await undoLastEvent(tournamentId, matchId);
     
         if (historyStack.length > 0) {
@@ -281,13 +281,13 @@ export default function MatchTracking() {
             videoTimestampSeconds: currentVideoTime
         } as MatchEvent;
         
-        // YENİ: Firebase canlı bağlantısı (onSnapshot) olmadığı için UI'daki 'Canlı Olay Geçmişi' panelini anında güncelliyoruz
+        // Optimistic Update: API'yi beklemeden Canlı Olay Geçmişine anında yansıt
         setMatch(prev => prev ? {
             ...prev,
             events: [...(prev.events || []), event]
         } : prev);
 
-        // Sonra Backend API'ye gönder (Arka planda çalışır, UI'ı dondurmaz)
+        // Arka planda Backend'e gönder
         await addMatchEvent(tournamentId, matchId, event);
         setTimeout(() => setLastAction(null), 300);
     };

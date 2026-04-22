@@ -33,17 +33,23 @@ export default function PlayerDetail() {
     useEffect(() => {
         if (!teamId || !playerId) return;
 
-        // Oyuncu Listesini Canlı Dinle (Pas ağı isimleri için)
-        const unsubscribe = getPlayers(teamId, (fetchedPlayers) => {
+        const fetchAllData = async () => {
+            setLoading(true);
+            
+            // Backend API üzerinden oyuncuları çek
+            const API_URL = "http://localhost:3000/api";
+            const playersRes = await fetch(`${API_URL}/teams/${teamId}/players`);
+            const fetchedPlayers = await playersRes.json();
+            
             setAllPlayers(fetchedPlayers);
-            const foundPlayer = fetchedPlayers.find(p => p.id === playerId);
+            const foundPlayer = fetchedPlayers.find((p: any) => p.id === playerId);
             setPlayer(foundPlayer || null);
+            
+            await refreshData();
             setLoading(false);
-        });
+        };
 
-        refreshData();
-
-        return () => unsubscribe();
+        fetchAllData();
     }, [teamId, playerId]);
 
     if (loading || !player) {

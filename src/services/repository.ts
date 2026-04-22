@@ -289,3 +289,32 @@ export const getMatchStats = async (tournamentId: string, matchId: string) => {
         return null;
     }
 };
+export const getLeaderboard = async (teamId: string) => {
+    try {
+        const response = await fetch(`${API_BASE}/teams/${teamId}/leaderboard`);
+        return response.ok ? await response.json() : [];
+    } catch (err) {
+        console.error("Leaderboard çekilemedi:", err);
+        return [];
+    }
+};
+
+export const getPlayersAsync = async (teamId: string) => {
+    try {
+        const response = await fetch(`${API_BASE}/teams/${teamId}/players`);
+        return response.ok ? await response.json() : [];
+    } catch (err) {
+        console.error("Oyuncular çekilemedi:", err);
+        return [];
+    }
+};
+
+export const getUserTeamsAsync = async (userId: string) => {
+    try {
+        const response = await fetch(`${API_BASE}/teams?userId=${userId}`);
+        return response.ok ? await response.json() : [];
+    } catch (err) {
+        console.error("Takımlar çekilemedi:", err);
+        return [];
+    }
+};

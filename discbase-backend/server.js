@@ -363,7 +363,64 @@ app.delete('/api/teams/:teamId/trainings/:trainingId', async (req, res) => {
     }
 });
 // --- YENİ: TÜM OKUMA (READ) API ENDPOINT'LERİ ---
+// --- 13. API Endpoint: LEADERBOARD (TÜM OYUNCULARIN İSTATİSTİKLERİ) ---
+app.get('/api/teams/:teamId/leaderboard', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        
+        const playersSnapshot = await db.collection(`teams/${teamId}/players`).get();
+        const players = playersSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        const tourSnapshot = await db.collection(`teams/${teamId}/tournaments`).get();
+        let allMatches = [];
+        
+        for (const tourDoc of tourSnapshot.docs) {
+            const matchesSnapshot = await db.collection(`teams/${teamId}/tournaments/${tourDoc.id}/matches`).get();
+            const matchesData = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            allMatches = [...allMatches, ...matchesData];
+        }
 
+        const statsMap = {};
+        players.forEach(p => {
+            statsMap[p.id] = {
+                id: p.id, name: p.name, jerseyNumber: p.jerseyNumber, photoUrl: p.photoUrl,
+                goals: 0, assists: 0, blocks: 0, callahans: 0, passes: 0,
+                drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0,
+                totalTimePlayedSeconds: 0 // WEB ÖZEL SÜRE İSTATİSTİĞİ
+            };
+        });
+
+        allMatches.forEach(match => {
+            if (!match.pointsArchive) return;
+            match.pointsArchive.forEach(point => {
+                point.stats?.forEach(stat => {
+                    const ps = statsMap[stat.playerId];
+                    if (ps) {
+                        ps.goals += stat.goal || 0;
+                        ps.assists += stat.assist || 0;
+                        ps.blocks += stat.block || 0;
+                        ps.callahans += stat.callahan || 0;
+                        ps.passes += (stat.successfulPass || 0) + (stat.assist || 0);
+                        ps.drops += stat.drop || 0;
+                        ps.throwaways += stat.throwaway || 0;
+                        ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
+                        ps.pointsPlayed += 1;
+                        ps.totalTimePlayedSeconds += stat.totalTimePlayedSeconds || stat.totalPullTimeSeconds || 0; 
+                    }
+                });
+            });
+        });
+
+        const leaderboard = Object.values(statsMap).map(s => {
+            const efficiency = ((s.goals - s.callahans) * 1.0) + (s.assists * 1.0) + ((s.blocks - s.callahans) * 1.5) + (s.callahans * 3.5) - (s.turns * 1.0) + (s.passes * 0.05);
+            return { ...s, efficiency: parseFloat(efficiency.toFixed(2)) };
+        });
+
+        res.json(leaderboard.sort((a, b) => b.efficiency - a.efficiency));
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 // Kullanıcının dahil olduğu takımları getir
 app.get('/api/teams', async (req, res) => {
     try {
