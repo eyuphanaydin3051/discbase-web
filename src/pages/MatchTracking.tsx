@@ -49,14 +49,16 @@ export default function MatchTracking() {
 
     
 
-    // 1. Veri Çekme ve Timer Kurulumu
+    // 1. Veri Çekme ve Timer Kurulumu (Tamamen API tabanlı)
     useEffect(() => {
         const teamId = localStorage.getItem('selectedTeamId');
         if (matchId && tournamentId && teamId) {
-            // DÜZELTME: getMatch bir Promise (.then) değil, callback fonksiyonu bekler.
-            const unsubMatch = getMatch(tournamentId, matchId, (m: Match | null) => {
-                setMatch(m);
-            });
+            
+            const fetchMatchData = async () => {
+                const matchData = await getMatch(tournamentId, matchId);
+                setMatch(matchData);
+            };
+            fetchMatchData();
             
             const unsubPlayers = getPlayers(teamId, setRoster);
             const unsubTournaments = getTournaments(teamId, (tours) => {
@@ -65,7 +67,6 @@ export default function MatchTracking() {
             });
 
             return () => {
-                if (unsubMatch) unsubMatch(); // Dinleyiciyi temizle
                 unsubPlayers();
                 unsubTournaments();
             };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPlayers, getTeamAggregates } from '../services/repository';
-import type { Player, Match } from '../types';
+import type { Player } from '../types';
 
 export default function Dashboard() {
     const navigate = useNavigate();

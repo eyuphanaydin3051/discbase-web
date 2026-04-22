@@ -1,5 +1,4 @@
-import { db } from './firebase';
-import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
+import type { TeamProfile, Player, Tournament, TournamentPlayer } from '../types';
 const API_BASE = "http://localhost:3000/api";
 
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
@@ -110,43 +109,34 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
     }
 };
 
-export const getMatch = (tournamentId: string, matchId: string, callback: (match: Match | null) => void) => {
+export const getMatch = async (tournamentId: string, matchId: string) => {
     const activeTeamId = localStorage.getItem('selectedTeamId');
-    if (!activeTeamId) {
-        callback(null);
-        return () => {};
-    }
+    if (!activeTeamId) return null;
 
-    fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}`)
-        .then(res => res.json())
-        .then(data => callback(data))
-        .catch(err => {
-            console.error("Maç detayı çekilemedi:", err);
-            callback(null);
-        });
-    return () => {};
+    try {
+        const response = await fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (err) {
+        console.error("Maç detayı çekilemedi:", err);
+        return null;
+    }
 };
 
-export const getMatchEvents = (tournamentId: string, matchId: string, callback: (events: MatchEvent[]) => void) => {
+export const getMatchEvents = async (tournamentId: string, matchId: string) => {
     const activeTeamId = localStorage.getItem('selectedTeamId');
-    if (!activeTeamId) {
-        callback([]);
-        return () => {};
+    if (!activeTeamId) return [];
+
+    try {
+        const response = await fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        const events = data.events || [];
+        return events.sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+    } catch (err) {
+        console.error("Maç olayları çekilemedi:", err);
+        return [];
     }
-
-    // Match detayı içinden events dizisini okuyoruz
-    fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}`)
-        .then(res => res.json())
-        .then(data => {
-            const events = data.events || [];
-            callback(events.sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
-        })
-        .catch(err => {
-            console.error("Maç olayları çekilemedi:", err);
-            callback([]);
-        });
-
-    return () => {};
 };
 
 export const createMatch = async (teamId: string, tournamentId: string, opponentName: string, ourTeamName: string) => {

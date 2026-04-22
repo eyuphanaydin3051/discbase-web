@@ -403,15 +403,34 @@ app.get('/api/teams/:teamId/tournaments', async (req, res) => {
     }
 });
 
-// Turnuvanın maçlarını getir
 app.get('/api/teams/:teamId/tournaments/:tournamentId/matches', async (req, res) => {
     try {
         const { teamId, tournamentId } = req.params;
-        const snapshot = await db.collection(`teams/${teamId}/tournaments/${tournamentId}/matches`).get();
-        const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const matchesSnapshot = await db.collection('teams').doc(teamId)
+            .collection('tournaments').doc(tournamentId)
+            .collection('matches').get();
+        const matches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.json(matches);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// YENİ: Tekil Maç Detayı ve Olaylarını Getir
+app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const matchDoc = await db.collection('teams').doc(teamId)
+            .collection('tournaments').doc(tournamentId)
+            .collection('matches').doc(matchId).get();
+        
+        if (!matchDoc.exists) {
+            return res.status(404).json({ error: "Maç bulunamadı" });
+        }
+        
+        res.json({ id: matchDoc.id, ...matchDoc.data() });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
