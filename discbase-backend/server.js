@@ -1,0 +1,172 @@
+const express = require('express');
+const cors = require('cors');
+const admin = require('firebase-admin');
+
+// Firebase Admin SDK'yı başlat
+const serviceAccount = require('./serviceAccountKey.json');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+const db = admin.firestore();
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// 1. API Endpoint: TAKIM ORTALAMALARI
+app.get('/api/teams/:teamId/aggregates', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const tourSnapshot = await db.collection(`teams/${teamId}/tournaments`).get();
+        let allMatches = [];
+        
+        for (const tourDoc of tourSnapshot.docs) {
+            const matchesSnapshot = await db.collection(`teams/${teamId}/tournaments/${tourDoc.id}/matches`).get();
+            const matchesData = matchesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            allMatches = [...allMatches, ...matchesData];
+        }
+
+        let totalGoals = 0, totalAssists = 0, totalBlocks = 0, totalTurns = 0, totalDrops = 0;
+        let totalSuccessfulPass = 0;
+        let oPoints = 0, oHolds = 0, cleanHolds = 0;
+        let dPoints = 0, dBreaks = 0;
+        let totalPointsPlayed = 0, totalBlockPoints = 0, blocksConvertedToGoals = 0;
+        let uniquePlayerIds = new Set();
+
+        const totalMatches = allMatches.length;
+
+        allMatches.forEach(match => {
+            if(!match.pointsArchive) return;
+            match.pointsArchive.forEach(point => {
+                totalPointsPlayed++;
+                let pointHasOurGoal = false;
+                let pointTurnovers = 0;
+                let pointBlocks = 0;
+
+                point.stats?.forEach(stat => {
+                    uniquePlayerIds.add(stat.playerId);
+                    totalGoals += stat.goal || 0;
+                    totalAssists += stat.assist || 0;
+                    totalBlocks += stat.block || 0;
+                    totalTurns += stat.throwaway || 0;
+                    totalDrops += stat.drop || 0;
+                    totalSuccessfulPass += stat.successfulPass || 0;
+                    
+                    pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
+                    pointBlocks += stat.block || 0;
+
+                    if (stat.goal && stat.goal > 0) pointHasOurGoal = true; 
+                });
+
+                if (pointBlocks > 0) {
+                    totalBlockPoints++;
+                    if (pointHasOurGoal) blocksConvertedToGoals++;
+                }
+
+                if (point.startMode === 'OFFENSE') {
+                    oPoints++;
+                    if (pointHasOurGoal) {
+                        oHolds++;
+                        if (pointTurnovers === 0) cleanHolds++;
+                    }
+                } else if (point.startMode === 'DEFENSE') {
+                    dPoints++;
+                    if (pointHasOurGoal) dBreaks++;
+                }
+            });
+        });
+
+        const playerCount = uniquePlayerIds.size || 1;
+        const absoluteTurnovers = totalTurns + totalDrops;
+        const totalPassesCompleted = totalSuccessfulPass + totalAssists;
+        const totalPassAttempts = totalPassesCompleted + totalTurns;
+        const totalPossessions = totalGoals + totalTurns + totalDrops;
+
+        const result = {
+            totalMatches,
+            totalPointsPlayed,
+            avgGoals: parseFloat((totalGoals / playerCount).toFixed(1)),
+            avgAssists: parseFloat((totalAssists / playerCount).toFixed(1)),
+            avgBlocks: parseFloat((totalBlocks / playerCount).toFixed(1)),
+            avgTurns: parseFloat((absoluteTurnovers / playerCount).toFixed(1)),
+            holdPercentage: oPoints > 0 ? ((oHolds / oPoints) * 100).toFixed(1) : 0,
+            breakPercentage: dPoints > 0 ? ((dBreaks / dPoints) * 100).toFixed(1) : 0,
+            passSuccess: totalPassAttempts > 0 ? ((totalPassesCompleted / totalPassAttempts) * 100).toFixed(1) : 0,
+            conversionRate: totalPossessions > 0 ? ((totalGoals / totalPossessions) * 100).toFixed(1) : 0,
+            blockConversionRate: totalBlockPoints > 0 ? ((blocksConvertedToGoals / totalBlockPoints) * 100).toFixed(1) : 0,
+            totalPassAttempts, totalPassesCompleted, totalTurnovers: absoluteTurnovers,
+            totalPossessions, totalGoals, cleanHolds, totalBlockPoints,
+            blocksConvertedToGoals, oHolds, oPoints, dBreaks, dPoints
+        };
+
+        res.json(result);
+    } catch (e) {
+        console.error("Takım ortalamaları hatası:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 2. API Endpoint: OYUNCU KARİYER İSTATİSTİKLERİ
+app.get('/api/teams/:teamId/players/:playerId/careerStats', async (req, res) => {
+    try {
+        const { teamId, playerId } = req.params;
+        const tourSnapshot = await db.collection(`teams/${teamId}/tournaments`).get();
+        
+        let allMatches = [];
+        let passDistribution = {};
+        
+        for (const tourDoc of tourSnapshot.docs) {
+            const matchesSnapshot = await db.collection(`teams/${teamId}/tournaments/${tourDoc.id}/matches`).get();
+            const matchesData = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            allMatches = [...allMatches, ...matchesData];
+        }
+
+        let goals = 0, assists = 0, blocks = 0, drops = 0, throwaways = 0;
+        let catches = 0, passes = 0, oPoints = 0, dPoints = 0, pointsPlayed = 0;
+
+        allMatches.forEach(match => {
+            if (!match.pointsArchive) return;
+            
+            match.pointsArchive.forEach(point => {
+                const pStat = point.stats?.find(s => s.playerId === playerId);
+                if (pStat) {
+                    pointsPlayed++;
+                    if (point.startMode === 'OFFENSE') oPoints++;
+                    if (point.startMode === 'DEFENSE') dPoints++;
+
+                    goals += pStat.goal || 0;
+                    assists += pStat.assist || 0;
+                    blocks += pStat.block || 0;
+                    drops += pStat.drop || 0;
+                    throwaways += pStat.throwaway || 0;
+                    catches += pStat.catchStat || 0;
+                    passes += (pStat.successfulPass || 0) + (pStat.assist || 0);
+                    
+                    if (pStat.passDistribution) {
+                        Object.entries(pStat.passDistribution).forEach(([targetName, count]) => {
+                            passDistribution[targetName] = (passDistribution[targetName] || 0) + count;
+                        });
+                    }
+                }
+            });
+        });
+
+        const plusMinus = (goals + assists + blocks) - (throwaways + drops);
+        const catchRate = (catches + drops) > 0 ? Math.round((catches / (catches + drops)) * 100) : 0;
+        const passRate = (passes + throwaways) > 0 ? Math.round((passes / (passes + throwaways)) * 100) : 0;
+
+        res.json({
+            goals, assists, blocks, drops, throwaways, catches, passes,
+            oPoints, dPoints, pointsPlayed, plusMinus, catchRate, passRate, passDistribution
+        });
+    } catch (error) {
+        console.error("İstatistikler çekilirken hata oluştu:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Backend sunucusu ${PORT} portunda çalışıyor...`);
+});
