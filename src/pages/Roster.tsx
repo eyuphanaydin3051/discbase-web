@@ -15,13 +15,14 @@ export default function Roster() {
     const activeTeamId = localStorage.getItem('selectedTeamId');
 
     const [players, setPlayers] = useState<Player[]>([]);
-    const [leaderboard, setLeaderboard] = useState<any[]>([]); // Leaderboard Data
+    const [rawLeaderboard, setRawLeaderboard] = useState<any[]>([]); // Backend'den gelen ham veri
+    const [leaderboard, setLeaderboard] = useState<any[]>([]); // Ekrana çizilecek sıralı veri
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
     const [viewMode, setViewMode] = useState<'roster' | 'leaderboard'>('roster');
 
-    // --- FİLTRE VE HESAPLAMA STATE'LERİ (ANDROİD UYARLAMASI) ---
+    // --- FİLTRE VE HESAPLAMA STATE'LERİ ---
     const [selectedStatType, setSelectedStatType] = useState('PLUS_MINUS');
     const [calculationMode, setCalculationMode] = useState('TOTAL');
     const [selectedTournamentId, setSelectedTournamentId] = useState('GENEL');
@@ -39,7 +40,6 @@ export default function Roster() {
             const fetchedPlayers = await getPlayersAsync(activeTeamId);
             setPlayers(fetchedPlayers.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
 
-            // Turnuva ve Maçları Filtre Seçimi İçin Çek (Tamamen Backend'den)
             try {
                 const API_URL = "http://localhost:3000/api";
                 const tourRes = await fetch(`${API_URL}/teams/${activeTeamId}/tournaments`);
@@ -56,19 +56,17 @@ export default function Roster() {
         fetchInitialData();
     }, [user, activeTeamId, navigate]);
 
-    // İstatistik, Mod, Turnuva veya Maç Filtresi Değiştiğinde Veriyi Backend'den Yenile
+    // SADECE Turnuva veya Maç Değiştiğinde Veriyi Backend'den Yenile (Ağ İsteği)
     useEffect(() => {
         if (!activeTeamId || viewMode !== 'leaderboard') return;
         const fetchLeaderboard = async () => {
             setLoading(true);
-            const fetchedLeaderboard = await getLeaderboard(
-                activeTeamId, selectedTournamentId, selectedMatchId || undefined, selectedStatType, calculationMode
-            );
-            setLeaderboard(fetchedLeaderboard);
+            const rawData = await getLeaderboard(activeTeamId, selectedTournamentId, selectedMatchId || undefined);
+            setRawLeaderboard(rawData);
             setLoading(false);
         };
         fetchLeaderboard();
-    }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId, selectedStatType, calculationMode]);
+    }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId]);
 
     // Süreyi Saniye -> Dakika:Saniye
     const formatTime = (seconds: number) => {
@@ -76,6 +74,67 @@ export default function Roster() {
         const s = Math.floor(seconds % 60);
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
+
+    // İstatistik Tipi veya Hesaplama Modu Değiştiğinde ANINDA Güncelle (Ağ İsteği Yok)
+    useEffect(() => {
+        const rankedPlayers: any[] = [];
+        const sType = selectedStatType || 'PLUS_MINUS';
+
+        rawLeaderboard.forEach(ps => {
+            const passes = ps.successfulPass + ps.assist + ps.throwaway;
+            const completedPasses = ps.successfulPass + ps.assist;
+            const turns = ps.drop + ps.throwaway;
+            const plusMinus = ((ps.goal - ps.callahan) * 1.0) + (ps.assist * 1.0) + ((ps.block - ps.callahan) * 1.5) + (ps.callahan * 3.5) - (turns * 1.0) + (completedPasses * 0.05);
+
+            let rawValue = 0;
+            if (sType === 'GOAL') rawValue = ps.goal;
+            else if (sType === 'ASSIST') rawValue = ps.assist;
+            else if (sType === 'BLOCK') rawValue = ps.block;
+            else if (sType === 'CALLAHAN') rawValue = ps.callahan;
+            else if (sType === 'THROWAWAY') rawValue = ps.throwaway;
+            else if (sType === 'DROP') rawValue = ps.drop;
+            else if (sType === 'PLUS_MINUS') rawValue = plusMinus;
+            else if (sType === 'PASS_COUNT') rawValue = passes;
+            else if (sType === 'POINTS_PLAYED') rawValue = ps.pointsPlayed;
+            else if (sType === 'PLAYTIME') rawValue = ps.secondsPlayed;
+            else if (sType === 'CATCH_RATE') {
+                const catches = completedPasses + ps.goal;
+                const attempts = catches + ps.drop;
+                rawValue = attempts > 0 ? (catches / attempts) * 100 : 0;
+            }
+            else if (sType === 'PASS_RATE') rawValue = passes > 0 ? (completedPasses / passes) * 100 : 0;
+            else if (sType === 'AVG_PULL_TIME') rawValue = ps.pullAttempts > 0 ? ps.totalPullTimeSeconds / ps.pullAttempts : 0;
+            else if (sType === 'AVG_PLAYTIME') rawValue = ps.pointsPlayed > 0 ? ps.secondsPlayed / ps.pointsPlayed : 0;
+
+            const isAlreadyAverage = ['CATCH_RATE', 'PASS_RATE', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(sType);
+            let finalValue = rawValue;
+
+            if (!isAlreadyAverage) {
+                if (calculationMode === 'PER_MATCH') {
+                    const mCount = ps.matchesPlayedSet.length;
+                    finalValue = mCount > 0 ? rawValue / mCount : 0;
+                } else if (calculationMode === 'PER_POINT') {
+                    if (ps.pointsPlayed > 0) {
+                        finalValue = sType === 'PLUS_MINUS' ? (rawValue / ps.pointsPlayed) * 10.0 : rawValue / ps.pointsPlayed;
+                    } else finalValue = 0;
+                }
+            }
+
+            if (finalValue > 0 || (sType === 'PLUS_MINUS' && finalValue !== 0)) {
+                rankedPlayers.push({
+                    player: { id: ps.id, name: ps.name, photoUrl: ps.photoUrl, jerseyNumber: ps.jerseyNumber },
+                    value: finalValue,
+                    formattedValue: ['CATCH_RATE', 'PASS_RATE'].includes(sType) ? `${finalValue.toFixed(1)}%` :
+                                    ['PLAYTIME', 'AVG_PLAYTIME'].includes(sType) ? formatTime(finalValue) :
+                                    sType === 'AVG_PULL_TIME' ? `${finalValue.toFixed(1)} sn` :
+                                    finalValue.toFixed(2).replace(/\.00$/, ''),
+                    stats: ps
+                });
+            }
+        });
+
+        setLeaderboard(rankedPlayers.sort((a, b) => b.value - a.value));
+    }, [rawLeaderboard, selectedStatType, calculationMode]);
 
     const filteredPlayers = players.filter(player => (player.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -168,7 +227,7 @@ export default function Roster() {
                     </div>
 
                     {/* 2. HESAPLAMA MODU */}
-                    {!['CATCH_RATE', 'PASS_RATE', 'TEMPO', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(selectedStatType) && (
+                    {!['CATCH_RATE', 'PASS_RATE', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(selectedStatType) && (
                         <div className="flex bg-gray-200 p-1 rounded-full animate-fade-in">
                             {[{ id: 'TOTAL', label: 'Toplam' }, { id: 'PER_MATCH', label: 'Maç Başına' }, { id: 'PER_POINT', label: 'Sayı Başına' }].map(mode => (
                                 <button
@@ -189,7 +248,7 @@ export default function Roster() {
                             { id: 'BLOCK', label: 'Blok' }, { id: 'CALLAHAN', label: 'Callahan' }, { id: 'THROWAWAY', label: 'Hatalı Pas' },
                             { id: 'DROP', label: 'Drop' }, { id: 'PASS_COUNT', label: 'Pas Sayısı' }, { id: 'POINTS_PLAYED', label: 'Oynanan Sayı' },
                             { id: 'PLAYTIME', label: 'Süre (Web Özel)' }, { id: 'CATCH_RATE', label: 'Yakalama %' }, { id: 'PASS_RATE', label: 'Pas %' },
-                            { id: 'TEMPO', label: 'Tempo' }, { id: 'AVG_PLAYTIME', label: 'Ort. Süre' }
+                            { id: 'AVG_PLAYTIME', label: 'Ort. Süre' }, { id: 'AVG_PULL_TIME', label: 'Ort. Pull Süresi' }
                         ].map(stat => (
                             <button
                                 key={stat.id}
@@ -222,9 +281,7 @@ export default function Roster() {
                                         </div>
                                         <div className="text-right">
                                             <div className="font-black text-2xl text-gray-800">
-                                                {['PLAYTIME', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(selectedStatType) 
-                                                    ? formatTime(item.value) 
-                                                    : item.formattedValue}
+                                                {item.formattedValue}
                                             </div>
                                         </div>
                                     </div>

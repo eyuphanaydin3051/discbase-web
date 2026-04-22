@@ -289,13 +289,11 @@ export const getMatchStats = async (tournamentId: string, matchId: string) => {
         return null;
     }
 };
-export const getLeaderboard = async (teamId: string, tournamentId?: string, matchId?: string, statType?: string, calcMode?: string) => {
+export const getLeaderboard = async (teamId: string, tournamentId?: string, matchId?: string) => {
     try {
         const params = new URLSearchParams();
         if (tournamentId) params.append('tournamentId', tournamentId);
         if (matchId) params.append('matchId', matchId);
-        if (statType) params.append('statType', statType);
-        if (calcMode) params.append('calcMode', calcMode);
 
         const response = await fetch(`${API_BASE}/teams/${teamId}/leaderboard?${params.toString()}`);
         return response.ok ? await response.json() : [];
@@ -304,7 +302,6 @@ export const getLeaderboard = async (teamId: string, tournamentId?: string, matc
         return [];
     }
 };
-
 export const getPlayersAsync = async (teamId: string) => {
     try {
         const response = await fetch(`${API_BASE}/teams/${teamId}/players`);
