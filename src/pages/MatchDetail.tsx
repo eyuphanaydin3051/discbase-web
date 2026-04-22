@@ -1,11 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getPlayers, updateMatchData, getTournaments, deleteLastPoint } from '../services/repository';
+import { getPlayers, updateMatchData, getTournaments, deleteLastPoint, getMatch, getMatchStats } from '../services/repository';
 import type { Match, MatchEvent, Player, Tournament } from '../types';
 import YouTube from 'react-youtube';
-import { getMatch } from '../services/repository';
-// Takım adını güvenli şekilde çeken yardımcı fonksiyon
-// src/pages/MatchDetail.tsx - getTeamName güncellemesi
+
 const getTeamName = (match: Match | null, tournament: any | null) =>
     match?.ourTeamName || tournament?.ourTeamName || match?.teamNames?.[0] || 'BİZİM TAKIM';
 
@@ -14,16 +12,22 @@ export default function MatchDetail() {
     const navigate = useNavigate();
     const activeTeamId = localStorage.getItem('selectedTeamId');
 
-    
-    const [events, setEvents] = useState<MatchEvent[]>([]);
     const [rosterPlayers, setRosterPlayers] = useState<Player[]>([]);
-    
     const [match, setMatch] = useState<Match | null>(null);
     const [tournament, setTournament] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    
+    // Backend'den gelecek veriler
     const [playerStats, setPlayerStats] = useState<any[]>([]);
-    const [teamStats, setTeamStats] = useState<any>(null);
     const [groupedEvents, setGroupedEvents] = useState<any[][]>([]);
+    // UI'ın çökmemesi için boş varsayılan değerler
+    const [teamStats, setTeamStats] = useState<any>({
+        totalPointsPlayed: 0, totalGoals: 0, totalAssists: 0, totalBlocks: 0,
+        totalTurnovers: 0, totalPassesCompleted: 0, totalPassesAttempted: 0, totalPossessions: 0,
+        offensiveHolds: 0, totalOffensePoints: 0, cleanHolds: 0, breakPointsScored: 0, totalDefensePoints: 0,
+        totalBlockPoints: 0, blocksConvertedToGoals: 0,
+        holdPercent: 0, cleanHoldPercent: 0, breakPercent: 0, passSuccess: 0, conversionRate: 0, blockConversionRate: 0
+    });
 
     const [videoUrl, setVideoUrl] = useState('');
     const [ytPlayer, setYtPlayer] = useState<any>(null);
@@ -80,51 +84,6 @@ export default function MatchDetail() {
 
         return () => unsubscribeTour();
     }, [activeTeamId, tournamentId]);
-    // 3. Olayları Zenginleştir
-    const enrichedEvents = useMemo(() => {
-        return events.map(event => {
-            const p = rosterPlayers.find(rp => rp.id === event.playerId);
-            const sp = rosterPlayers.find(rp => rp.id === event.secondaryPlayerId);
-            const player = p ? { ...p, jerseyNumber: p.jerseyNumber ?? undefined } : undefined;
-            const secondaryPlayer = sp ? { ...sp, jerseyNumber: sp.jerseyNumber ?? undefined } : undefined;
-            return { ...event, player, secondaryPlayer } as MatchEvent;
-        });
-    }, [events, rosterPlayers]);
-
-    // --- YENİ: Olayları Sayılara (Point) Göre Gruplama ---
-    // (enrichedEvents yukarıda tanımlandıktan sonra çalıştığı için hata vermeyecek)
-    // --- Olayları Sayılara (Point) Göre Gruplama (Asist/Gol Birleştirme Mantığı Dahil) ---
-    const groupedEventsByPoint = useMemo(() => {
-        if (!enrichedEvents || enrichedEvents.length === 0) return [];
-        const sorted = [...enrichedEvents].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        const points: MatchEvent[][] = [];
-        let currentPointEvents: MatchEvent[] = [];
-
-        sorted.forEach((evt) => {
-            // Eğer bu bir 'Goal' ise ve hemen öncesinde aynı sayı içinde bir 'Assist' varsa, 
-            // asisti bu golün içine gömüp ayrı bir satır olarak göstermeyeceğiz.
-            if (evt.eventType === 'Goal') {
-                const lastEvt = currentPointEvents[currentPointEvents.length - 1];
-                if (lastEvt && lastEvt.eventType === 'Assist') {
-                    // Gol olayını zenginleştir: asisti yapanı secondaryPlayer olarak ata
-                    evt.secondaryPlayer = lastEvt.player;
-                    // Asist olayını listeden çıkar (çünkü golle birleşti)
-                    currentPointEvents.pop();
-                }
-            }
-            
-            currentPointEvents.push(evt);
-
-            if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
-                points.push([...currentPointEvents]);
-                currentPointEvents = [];
-            }
-        });
-
-        if (currentPointEvents.length > 0) points.push(currentPointEvents);
-        return points;
-    }, [enrichedEvents]);
-
     // Olayları okunaklı Türkçe metne çevirme fonksiyonu
     const getEventDescriptionText = (evt: MatchEvent) => {
         const playerName = evt.player?.name || 'Bilinmeyen oyuncu';
@@ -166,216 +125,13 @@ export default function MatchDetail() {
         }
     };
 
-    // 4. İstatistik Hesaplama (Oyuncular için - Kapsamlı Mod)
-    const computePlayerStats = () => {
-        const statsMap: { [key: string]: any } = {};
-
-        rosterPlayers.forEach(player => {
-            statsMap[player.id] = {
-                id: player.id,
-                name: player.name,
-                jerseyNumber: player.jerseyNumber ?? undefined,
-                photoUrl: player.photoUrl ?? undefined,
-                goals: 0, assists: 0, blocks: 0, callahans: 0,
-                passes: 0, drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0
-            };
-        });
-
-        // A. Önce Arşivdeki İstatistikleri Topla
-        const pointDurationsByPlayer: Record<string, number>[] = [];
-        if (match?.events) {
-            const sortedEvents = [...match.events].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-            let currentPointStart: number | null = null;
-            let lastEventTime: number | null = null;
-            let activePlayers = new Set<string>();
-            let currentPointTimes: Record<string, number> = {};
-            let pointIndex = 0;
-
-            sortedEvents.forEach((evt, idx) => {
-                const vTime = evt.videoTimestampSeconds;
-
-                if ((evt.eventType.includes('Pull') || evt.eventType === 'Pickup') && currentPointStart === null) {
-                    currentPointStart = vTime ?? null;
-                    lastEventTime = vTime ?? null;
-                    currentPointTimes = {};
-                    
-                    const archivePoint = match.pointsArchive?.[pointIndex];
-                    if (archivePoint) {
-                        // O sayının içinde sonradan girenleri bulup başlarken aktif saymamak için filtreliyoruz
-                        const subbedIn = new Set<string>();
-                        for (let i = idx; i < sortedEvents.length; i++) {
-                            const e = sortedEvents[i];
-                            if (e.eventType === 'Substitute' && e.secondaryPlayerId) subbedIn.add(e.secondaryPlayerId);
-                            if (e.eventType === 'Goal' || e.eventType === 'Callahan' || e.eventType === 'OpponentGoal') break;
-                        }
-                        archivePoint.stats?.forEach(s => {
-                            if (!subbedIn.has(s.playerId)) activePlayers.add(s.playerId);
-                        });
-                    }
-                }
-
-                // Olayın olduğu saniyeye kadar sahadaki aktif oyunculara süre yaz
-                if (currentPointStart !== null && vTime !== undefined && lastEventTime !== null) {
-                    const delta = Math.max(0, vTime - lastEventTime);
-                    activePlayers.forEach(pid => {
-                        currentPointTimes[pid] = (currentPointTimes[pid] || 0) + delta;
-                    });
-                    lastEventTime = vTime;
-                }
-
-                // Sakatlık/Değişiklik aksiyonu
-                if (evt.eventType === 'Substitute') {
-                    if (evt.playerId) activePlayers.delete(evt.playerId); // Çıkan oyuncunun süre sayacını durdur
-                    if (evt.secondaryPlayerId) activePlayers.add(evt.secondaryPlayerId); // Giren oyuncunun süre sayacını başlat
-                }
-
-                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
-                    pointDurationsByPlayer.push(currentPointTimes);
-                    currentPointStart = null;
-                    lastEventTime = null;
-                    activePlayers.clear();
-                    pointIndex++;
-                }
-            });
-        }
-
-        if (match?.pointsArchive) {
-            match.pointsArchive.forEach((point, pIndex) => {
-                const playerTimes = pointDurationsByPlayer[pIndex] || {};
-                point.stats?.forEach(stat => {
-                    const ps = statsMap[stat.playerId];
-                    if (ps) {
-                        ps.goals += stat.goal || 0;
-                        ps.assists += stat.assist || 0;
-                        ps.blocks += stat.block || 0;
-                        ps.callahans += stat.callahan || 0;
-                        ps.passes += (stat.successfulPass || 0) + (stat.assist || 0);
-                        ps.drops += stat.drop || 0;
-                        ps.throwaways += stat.throwaway || 0;
-                        ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
-                        ps.pointsPlayed += stat.pointsPlayed || 0;
-                        // Tam olarak sahada kaldığı saniyeyi ekle
-                        ps.totalTimePlayedSeconds += (playerTimes[stat.playerId] || 0);
-                    }
-                });
-            });
-        }
-
-        
-
-        // Hesaplamaları yap
-        return Object.values(statsMap).map((stats: any) => {
-            const totalPassAttempts = stats.passes + stats.throwaways;
-            const passPercentage = totalPassAttempts > 0
-                ? parseFloat(((stats.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
-
-            const catches = totalPassAttempts + stats.goals;
-            const totalCatchOpportunities = catches + stats.drops;
-            const catchPercentage = totalCatchOpportunities > 0
-                ? parseFloat(((catches / totalCatchOpportunities) * 100).toFixed(1)) : 0;
-
-            // Verimlilik formülü (App Utils.kt ile birebir)
-            const efficiencyScore =
-                ((stats.goals - stats.callahans) * 1.0) +
-                (stats.assists * 1.0) +
-                ((stats.blocks - stats.callahans) * 1.5) +
-                (stats.callahans * 3.5) -
-                (stats.turns * 1.0) +
-                (stats.passes * 0.05);
-
-            return {
-                ...stats,
-                totalPasses: stats.passes + stats.throwaways, // Yeni eklenen alan: Toplam Atılan Pas
-                passPercentage,
-                catchPercentage,
-                efficiency: efficiencyScore.toFixed(2)
-            };
-        });
-    };
-
-
-    // --- Takım Dinamik İstatistikleri (Mobil App ile Birebir Mantık) ---
-    const computeTeamStats = () => {
-        let totalPointsPlayed = 0;
-        let totalGoals = 0, totalAssists = 0, totalSuccessfulPass = 0;
-        let totalThrowaways = 0, totalDrops = 0, totalBlocks = 0;
-        let totalOffensePoints = 0, offensiveHolds = 0, cleanHolds = 0;
-        let totalDefensePoints = 0, breakPointsScored = 0;
-        let totalBlockPoints = 0, blocksConvertedToGoals = 0;
-
-        // A. Arşivdeki (Bitmiş) Sayıları İşle
-        if (match?.pointsArchive && match.pointsArchive.length > 0) {
-            totalPointsPlayed = match.pointsArchive.length;
-
-            match.pointsArchive.forEach(point => {
-                const isOurPoint = point.whoScored === 'US' || point.whoScored === 'OURS'; // Geriye dönük uyumluluk
-                let pointTurnovers = 0;
-                let pointBlocks = 0;
-
-                if (point.startMode === 'OFFENSE') {
-                    totalOffensePoints++;
-                    if (isOurPoint) offensiveHolds++;
-                } else if (point.startMode === 'DEFENSE') {
-                    totalDefensePoints++;
-                    if (isOurPoint) breakPointsScored++;
-                }
-
-                point.stats?.forEach(stat => {
-                    totalGoals += stat.goal || 0;
-                    totalAssists += stat.assist || 0;
-                    totalSuccessfulPass += stat.successfulPass || 0;
-                    totalThrowaways += stat.throwaway || 0;
-                    totalDrops += stat.drop || 0;
-                    totalBlocks += stat.block || 0;
-
-                    pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
-                    pointBlocks += stat.block || 0;
-                });
-
-                if (point.startMode === 'OFFENSE' && isOurPoint && pointTurnovers === 0) {
-                    cleanHolds++;
-                }
-
-                if (pointBlocks > 0) {
-                    totalBlockPoints++;
-                    if (isOurPoint) blocksConvertedToGoals++;
-                }
-            });
-        }
-
-        
-
-        const totalPassesCompleted = totalSuccessfulPass + totalAssists;
-        const totalPassesAttempted = totalPassesCompleted + totalThrowaways + totalDrops;
-        const totalPossessions = totalGoals + totalThrowaways + totalDrops;
-
-        const holdPercent = totalOffensePoints > 0 ? Math.round((offensiveHolds / totalOffensePoints) * 100) : 0;
-        const cleanHoldPercent = totalOffensePoints > 0 ? Math.round((cleanHolds / totalOffensePoints) * 100) : 0;
-        const breakPercent = totalDefensePoints > 0 ? Math.round((breakPointsScored / totalDefensePoints) * 100) : 0;
-        const passSuccess = totalPassesAttempted > 0 ? Math.round((totalPassesCompleted / totalPassesAttempted) * 100) : 0;
-        const conversionRate = totalPossessions > 0 ? Math.round((totalGoals / totalPossessions) * 100) : 0;
-        const blockConversionRate = totalBlockPoints > 0 ? Math.round((blocksConvertedToGoals / totalBlockPoints) * 100) : 0;
-
-        return {
-            totalPointsPlayed, totalGoals, totalAssists, totalBlocks,
-            totalTurnovers: totalThrowaways + totalDrops,
-            totalPassesCompleted, totalPassesAttempted, totalPossessions,
-            offensiveHolds, totalOffensePoints, cleanHolds, breakPointsScored, totalDefensePoints,
-            totalBlockPoints, blocksConvertedToGoals,
-            holdPercent, cleanHoldPercent, breakPercent, passSuccess, conversionRate, blockConversionRate
-        };
-    };
-
-    const teamStats = computeTeamStats();
-    const computedStats = computePlayerStats();
-
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'desc';
         if (sortConfig.key === key && sortConfig.direction === 'desc') { direction = 'asc'; }
         setSortConfig({ key, direction });
     };
 
-    const sortedComputedStats = [...computedStats].sort((a: any, b: any) => {
+    const sortedComputedStats = [...playerStats].sort((a: any, b: any) => {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
         if (sortConfig.key === 'efficiency') {
@@ -545,11 +301,11 @@ export default function MatchDetail() {
                                 <span className="text-[10px] text-slate-400">Detay için sayıya tıklayın</span>
                             </div>
                             <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-slate-50/50 dark:bg-slate-900/50 rounded-b-xl border border-t-0 border-slate-100 dark:border-slate-800">
-                                {groupedEventsByPoint.length === 0 ? (
+                                {groupedEvents.length === 0 ? (
                                     <div className="text-center py-10 text-slate-400 text-sm">Bu maçta henüz olay kaydedilmedi.</div>
                                 ) : (
-                                    groupedEventsByPoint.slice().reverse().map((eventsGroup, reverseIdx) => {
-                                        const actualPointNumber = groupedEventsByPoint.length - reverseIdx;
+                                    groupedEvents.slice().reverse().map((eventsGroup, reverseIdx) => {
+                                        const actualPointNumber = groupedEvents.length - reverseIdx;
                                         const isExpanded = expandedPointIndex === actualPointNumber;
                                         
                                         // Grubun son olayından o anki skoru bulalım
