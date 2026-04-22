@@ -204,3 +204,22 @@ export interface TournamentPlayer {
     matchesPlayed?: number;
     gender?: string;
 }
+export interface EfficiencyCriterion {
+    id: string;
+    name: string;
+    statType: 'GOAL' | 'ASSIST' | 'BLOCK' | 'THROWAWAY' | 'DROP' | 'CALLAHAN' | 'PASS_COUNT' | 'POINTS_PLAYED' | 'CATCH_COUNT';
+    points: number;
+}
+
+export enum NameFormat {
+    FULL_NAME = 'FULL_NAME',
+    FIRST_NAME_LAST_INITIAL = 'FIRST_NAME_LAST_INITIAL',
+    INITIAL_LAST_NAME = 'INITIAL_LAST_NAME'
+}
+
+export interface UserSettings {
+    theme: 'light' | 'dark' | 'system';
+    language: 'tr' | 'en';
+    nameFormat: NameFormat;
+    efficiencyCriteria: EfficiencyCriterion[];
+}

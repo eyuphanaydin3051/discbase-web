@@ -18,6 +18,7 @@ function App() {
         {/* Sidebar OLMAYAN sayfalar (Public / Giriş) */}
         <Route path="/" element={<Login />} />
         <Route path="/teams" element={<TeamSelect />} />
+        <Route path="/settings" element={<Settings />} />
 
         {/* Sidebar OLAN sayfalar (Layout içinde) */}
         <Route element={<Layout />}>
