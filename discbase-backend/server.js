@@ -364,60 +364,130 @@ app.delete('/api/teams/:teamId/trainings/:trainingId', async (req, res) => {
 });
 // --- YENİ: TÜM OKUMA (READ) API ENDPOINT'LERİ ---
 // --- 13. API Endpoint: LEADERBOARD (TÜM OYUNCULARIN İSTATİSTİKLERİ) ---
+// --- 13. API Endpoint: LEADERBOARD (TÜM OYUNCULARIN İSTATİSTİKLERİ - DİNAMİK) ---
 app.get('/api/teams/:teamId/leaderboard', async (req, res) => {
     try {
         const { teamId } = req.params;
-        
+        const { tournamentId, matchId, statType, calcMode } = req.query;
+
+        // Oyuncuları Çek
         const playersSnapshot = await db.collection(`teams/${teamId}/players`).get();
         const players = playersSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        const tourSnapshot = await db.collection(`teams/${teamId}/tournaments`).get();
-        let allMatches = [];
-        
-        for (const tourDoc of tourSnapshot.docs) {
-            const matchesSnapshot = await db.collection(`teams/${teamId}/tournaments/${tourDoc.id}/matches`).get();
-            const matchesData = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            allMatches = [...allMatches, ...matchesData];
+
+        // Filtrelere Göre Maçları Bul
+        let matchesToProcess = [];
+        if (tournamentId && tournamentId !== 'GENEL') {
+            if (matchId) {
+                const mDoc = await db.collection(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`).get();
+                if (mDoc.exists) matchesToProcess.push({ id: mDoc.id, tournamentId, ...mDoc.data() });
+            } else {
+                const mSnap = await db.collection(`teams/${teamId}/tournaments/${tournamentId}/matches`).get();
+                matchesToProcess = mSnap.docs.map(d => ({ id: d.id, tournamentId, ...d.data() }));
+            }
+        } else {
+            const tourSnapshot = await db.collection(`teams/${teamId}/tournaments`).get();
+            for (const tourDoc of tourSnapshot.docs) {
+                const mSnap = await db.collection(`teams/${teamId}/tournaments/${tourDoc.id}/matches`).get();
+                matchesToProcess.push(...mSnap.docs.map(d => ({ id: d.id, tournamentId: tourDoc.id, ...d.data() })));
+            }
         }
 
+        // İstatistikleri Toplama (Aggregation)
         const statsMap = {};
         players.forEach(p => {
             statsMap[p.id] = {
-                id: p.id, name: p.name, jerseyNumber: p.jerseyNumber, photoUrl: p.photoUrl,
-                goals: 0, assists: 0, blocks: 0, callahans: 0, passes: 0,
-                drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0,
-                totalTimePlayedSeconds: 0 // WEB ÖZEL SÜRE İSTATİSTİĞİ
+                id: p.id, name: p.name, photoUrl: p.photoUrl, jerseyNumber: p.jerseyNumber,
+                goal: 0, assist: 0, block: 0, callahan: 0, successfulPass: 0,
+                drop: 0, throwaway: 0, pointsPlayed: 0, secondsPlayed: 0,
+                matchesPlayedSet: new Set(), totalTempoSeconds: 0, pullAttempts: 0, totalPullTimeSeconds: 0
             };
         });
 
-        allMatches.forEach(match => {
+        matchesToProcess.forEach(match => {
             if (!match.pointsArchive) return;
             match.pointsArchive.forEach(point => {
                 point.stats?.forEach(stat => {
                     const ps = statsMap[stat.playerId];
                     if (ps) {
-                        ps.goals += stat.goal || 0;
-                        ps.assists += stat.assist || 0;
-                        ps.blocks += stat.block || 0;
-                        ps.callahans += stat.callahan || 0;
-                        ps.passes += (stat.successfulPass || 0) + (stat.assist || 0);
-                        ps.drops += stat.drop || 0;
-                        ps.throwaways += stat.throwaway || 0;
-                        ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
+                        ps.goal += stat.goal || 0;
+                        ps.assist += stat.assist || 0;
+                        ps.block += stat.block || 0;
+                        ps.callahan += stat.callahan || 0;
+                        ps.successfulPass += stat.successfulPass || 0;
+                        ps.drop += stat.drop || 0;
+                        ps.throwaway += stat.throwaway || 0;
                         ps.pointsPlayed += 1;
-                        ps.totalTimePlayedSeconds += stat.totalTimePlayedSeconds || stat.totalPullTimeSeconds || 0; 
+                        ps.secondsPlayed += stat.totalTimePlayedSeconds || stat.totalPullTimeSeconds || 0;
+                        ps.matchesPlayedSet.add(match.id);
+                        ps.totalTempoSeconds += stat.totalTempoSeconds || 0;
+                        ps.pullAttempts += stat.pullAttempts || 0;
+                        ps.totalPullTimeSeconds += stat.totalPullTimeSeconds || 0;
                     }
                 });
             });
         });
 
-        const leaderboard = Object.values(statsMap).map(s => {
-            const efficiency = ((s.goals - s.callahans) * 1.0) + (s.assists * 1.0) + ((s.blocks - s.callahans) * 1.5) + (s.callahans * 3.5) - (s.turns * 1.0) + (s.passes * 0.05);
-            return { ...s, efficiency: parseFloat(efficiency.toFixed(2)) };
+        // İstenen Stat Tipine ve Moduna Göre Hesaplama
+        const rankedPlayers = [];
+        const sType = statType || 'PLUS_MINUS';
+
+        Object.values(statsMap).forEach(ps => {
+            const passes = ps.successfulPass + ps.assist + ps.throwaway;
+            const completedPasses = ps.successfulPass + ps.assist;
+            const turns = ps.drop + ps.throwaway;
+            const plusMinus = ((ps.goal - ps.callahan) * 1.0) + (ps.assist * 1.0) + ((ps.block - ps.callahan) * 1.5) + (ps.callahan * 3.5) - (turns * 1.0) + (completedPasses * 0.05);
+
+            let rawValue = 0;
+            if (sType === 'GOAL') rawValue = ps.goal;
+            else if (sType === 'ASSIST') rawValue = ps.assist;
+            else if (sType === 'BLOCK') rawValue = ps.block;
+            else if (sType === 'CALLAHAN') rawValue = ps.callahan;
+            else if (sType === 'THROWAWAY') rawValue = ps.throwaway;
+            else if (sType === 'DROP') rawValue = ps.drop;
+            else if (sType === 'PLUS_MINUS') rawValue = plusMinus;
+            else if (sType === 'PASS_COUNT') rawValue = passes;
+            else if (sType === 'POINTS_PLAYED') rawValue = ps.pointsPlayed;
+            else if (sType === 'PLAYTIME') rawValue = ps.secondsPlayed;
+            else if (sType === 'CATCH_RATE') {
+                const catches = completedPasses + ps.goal;
+                const attempts = catches + ps.drop;
+                rawValue = attempts > 0 ? (catches / attempts) * 100 : 0;
+            }
+            else if (sType === 'PASS_RATE') rawValue = passes > 0 ? (completedPasses / passes) * 100 : 0;
+            else if (sType === 'TEMPO') rawValue = passes > 0 ? ps.totalTempoSeconds / passes : 0;
+            else if (sType === 'AVG_PULL_TIME') rawValue = ps.pullAttempts > 0 ? ps.totalPullTimeSeconds / ps.pullAttempts : 0;
+            else if (sType === 'AVG_PLAYTIME') rawValue = ps.pointsPlayed > 0 ? ps.secondsPlayed / ps.pointsPlayed : 0;
+
+            const isAlreadyAverage = ['CATCH_RATE', 'PASS_RATE', 'TEMPO', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(sType);
+            let finalValue = rawValue;
+
+            if (!isAlreadyAverage) {
+                if (calcMode === 'PER_MATCH') {
+                    const mCount = ps.matchesPlayedSet.size;
+                    finalValue = mCount > 0 ? rawValue / mCount : 0;
+                } else if (calcMode === 'PER_POINT') {
+                    if (ps.pointsPlayed > 0) {
+                        finalValue = sType === 'PLUS_MINUS' ? (rawValue / ps.pointsPlayed) * 10.0 : rawValue / ps.pointsPlayed;
+                    } else finalValue = 0;
+                }
+            }
+
+            // Sıfırdan büyükleri (Veya Verimlilik ekside de olsa) listeye ekle
+            if (finalValue > 0 || (sType === 'PLUS_MINUS' && finalValue !== 0)) {
+                rankedPlayers.push({
+                    player: { id: ps.id, name: ps.name, photoUrl: ps.photoUrl, jerseyNumber: ps.jerseyNumber },
+                    value: finalValue,
+                    formattedValue: ['CATCH_RATE', 'PASS_RATE'].includes(sType) ? `${finalValue.toFixed(1)}%` :
+                                    ['PLAYTIME', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(sType) ? finalValue :
+                                    finalValue.toFixed(2).replace(/\.00$/, ''),
+                    stats: ps
+                });
+            }
         });
 
-        res.json(leaderboard.sort((a, b) => b.efficiency - a.efficiency));
+        res.json(rankedPlayers.sort((a, b) => b.value - a.value));
     } catch (error) {
+        console.error("Leaderboard Error:", error);
         res.status(500).json({ error: error.message });
     }
 });

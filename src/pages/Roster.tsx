@@ -19,14 +19,17 @@ export default function Roster() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-    const [viewMode, setViewMode] = useState<'roster' | 'leaderboard'>('roster'); // Görünüm Modu
+    const [viewMode, setViewMode] = useState<'roster' | 'leaderboard'>('roster');
+
+    // --- FİLTRE VE HESAPLAMA STATE'LERİ (ANDROİD UYARLAMASI) ---
+    const [selectedStatType, setSelectedStatType] = useState('PLUS_MINUS');
+    const [calculationMode, setCalculationMode] = useState('TOTAL');
+    const [selectedTournamentId, setSelectedTournamentId] = useState('GENEL');
+    const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+    const [tournaments, setTournaments] = useState<any[]>([]);
 
     useEffect(() => {
-        if (!user) return;
-        if (!activeTeamId) {
-            navigate('/teams');
-            return;
-        }
+        if (!user || !activeTeamId) return;
 
         const fetchInitialData = async () => {
             setLoading(true);
@@ -34,19 +37,40 @@ export default function Roster() {
             setTeams(fetchedTeams);
 
             const fetchedPlayers = await getPlayersAsync(activeTeamId);
-            const sortedPlayers = fetchedPlayers.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
-            setPlayers(sortedPlayers);
+            setPlayers(fetchedPlayers.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
 
-            // Backend'den Leaderboard verisini çek
-            const fetchedLeaderboard = await getLeaderboard(activeTeamId);
-            setLeaderboard(fetchedLeaderboard);
+            // Turnuva ve Maçları Filtre Seçimi İçin Çek (Tamamen Backend'den)
+            try {
+                const API_URL = "http://localhost:3000/api";
+                const tourRes = await fetch(`${API_URL}/teams/${activeTeamId}/tournaments`);
+                const fetchedTours = await tourRes.json();
+                for (let t of fetchedTours) {
+                    const matchRes = await fetch(`${API_URL}/teams/${activeTeamId}/tournaments/${t.id}/matches`);
+                    t.matches = await matchRes.json();
+                }
+                setTournaments(fetchedTours);
+            } catch (err) {}
+
             setLoading(false);
         };
-
         fetchInitialData();
     }, [user, activeTeamId, navigate]);
 
-    // Süreyi (Saniye) Dakika:Saniye formatına çeviren yardımcı fonksiyon
+    // İstatistik, Mod, Turnuva veya Maç Filtresi Değiştiğinde Veriyi Backend'den Yenile
+    useEffect(() => {
+        if (!activeTeamId || viewMode !== 'leaderboard') return;
+        const fetchLeaderboard = async () => {
+            setLoading(true);
+            const fetchedLeaderboard = await getLeaderboard(
+                activeTeamId, selectedTournamentId, selectedMatchId || undefined, selectedStatType, calculationMode
+            );
+            setLeaderboard(fetchedLeaderboard);
+            setLoading(false);
+        };
+        fetchLeaderboard();
+    }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId, selectedStatType, calculationMode]);
+
+    // Süreyi Saniye -> Dakika:Saniye
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
@@ -116,49 +140,102 @@ export default function Roster() {
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5B4DBC]"></div>
                 </div>
             ) : viewMode === 'leaderboard' ? (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full min-w-[700px]">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sıra</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Oyuncu</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-[#5B4DBC] uppercase tracking-wider">Verimlilik</th>
-                                    <th className="px-4 py-4 text-center text-xs font-bold text-emerald-600 uppercase tracking-wider">Gol</th>
-                                    <th className="px-4 py-4 text-center text-xs font-bold text-indigo-600 uppercase tracking-wider">Asist</th>
-                                    <th className="px-4 py-4 text-center text-xs font-bold text-purple-600 uppercase tracking-wider">Blok</th>
-                                    <th className="px-4 py-4 text-center text-xs font-bold text-rose-600 uppercase tracking-wider">Turn</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">Süre (Web Özel)</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {leaderboard.map((stat, idx) => (
-                                    <tr key={stat.id} onClick={() => navigate(`/player/${activeTeamId}/${stat.id}`)} className="hover:bg-gray-50 cursor-pointer transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-400">#{idx + 1}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-xs text-gray-600 overflow-hidden border border-gray-300">
-                                                {stat.photoUrl ? <img src={stat.photoUrl} className="w-full h-full object-cover" /> : getInitials(stat.name)}
-                                            </div>
-                                            <span className="font-bold text-gray-900">{stat.name}</span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-black text-[#5B4DBC] bg-[#5B4DBC]/5">{stat.efficiency}</td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-bold text-gray-700">{stat.goals}</td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-bold text-gray-700">{stat.assists}</td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-bold text-gray-700">{stat.blocks}</td>
-                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-bold text-gray-700">{stat.turns}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-amber-700 bg-amber-50/50">{formatTime(stat.totalTimePlayedSeconds)}</td>
-                                    </tr>
+                ) : viewMode === 'leaderboard' ? (
+                <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full">
+                    
+                    {/* 1. FİLTRELER (TURNUVA / MAÇ) */}
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <select 
+                            className="flex-1 bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-[#5B4DBC] focus:border-[#5B4DBC] block p-3 outline-none"
+                            value={selectedTournamentId}
+                            onChange={(e) => { setSelectedTournamentId(e.target.value); setSelectedMatchId(null); }}
+                        >
+                            <option value="GENEL">Tüm Sezon (Genel)</option>
+                            {tournaments.map(t => <option key={t.id} value={t.id}>{t.tournamentName}</option>)}
+                        </select>
+
+                        {selectedTournamentId !== 'GENEL' && (
+                            <select 
+                                className="flex-1 bg-white border border-gray-300 text-gray-900 text-sm rounded-xl focus:ring-[#5B4DBC] focus:border-[#5B4DBC] block p-3 outline-none animate-fade-in"
+                                value={selectedMatchId || ''}
+                                onChange={(e) => setSelectedMatchId(e.target.value === '' ? null : e.target.value)}
+                            >
+                                <option value="">Tüm Maçlar</option>
+                                {tournaments.find(t => t.id === selectedTournamentId)?.matches?.map((m: any) => (
+                                    <option key={m.id} value={m.id}>vs {m.opponentName}</option>
                                 ))}
-                                {leaderboard.length === 0 && (
-                                    <tr>
-                                        <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">Henüz oynanmış maç veya istatistik bulunmuyor.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                            </select>
+                        )}
+                    </div>
+
+                    {/* 2. HESAPLAMA MODU */}
+                    {!['CATCH_RATE', 'PASS_RATE', 'TEMPO', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(selectedStatType) && (
+                        <div className="flex bg-gray-200 p-1 rounded-full animate-fade-in">
+                            {[{ id: 'TOTAL', label: 'Toplam' }, { id: 'PER_MATCH', label: 'Maç Başına' }, { id: 'PER_POINT', label: 'Sayı Başına' }].map(mode => (
+                                <button
+                                    key={mode.id}
+                                    onClick={() => setCalculationMode(mode.id)}
+                                    className={`flex-1 py-2.5 text-xs font-bold rounded-full transition-all duration-300 ${calculationMode === mode.id ? 'bg-[#5B4DBC] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    {mode.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* 3. İSTATİSTİK TİPLERİ (YATAY SCROLL CHIPLER) */}
+                    <div className="flex overflow-x-auto gap-2 pb-3 custom-scrollbar">
+                        {[
+                            { id: 'PLUS_MINUS', label: 'Verimlilik' }, { id: 'GOAL', label: 'Gol' }, { id: 'ASSIST', label: 'Asist' },
+                            { id: 'BLOCK', label: 'Blok' }, { id: 'CALLAHAN', label: 'Callahan' }, { id: 'THROWAWAY', label: 'Hatalı Pas' },
+                            { id: 'DROP', label: 'Drop' }, { id: 'PASS_COUNT', label: 'Pas Sayısı' }, { id: 'POINTS_PLAYED', label: 'Oynanan Sayı' },
+                            { id: 'PLAYTIME', label: 'Süre (Web Özel)' }, { id: 'CATCH_RATE', label: 'Yakalama %' }, { id: 'PASS_RATE', label: 'Pas %' },
+                            { id: 'TEMPO', label: 'Tempo' }, { id: 'AVG_PLAYTIME', label: 'Ort. Süre' }
+                        ].map(stat => (
+                            <button
+                                key={stat.id}
+                                onClick={() => setSelectedStatType(stat.id)}
+                                className={`whitespace-nowrap px-4 py-2 rounded-full border text-sm font-bold transition-colors ${selectedStatType === stat.id ? 'bg-[#5B4DBC] text-white border-[#5B4DBC]' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'}`}
+                            >
+                                {stat.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* 4. SIRALAMA LİSTESİ */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                        {leaderboard.length === 0 ? (
+                            <div className="p-10 text-center text-gray-500 font-medium flex flex-col items-center">
+                                <span className="material-icons-outlined text-4xl text-gray-300 mb-2">sentiment_dissatisfied</span>
+                                Bu kriterlere uygun istatistik bulunamadı.
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-gray-100">
+                                {leaderboard.map((item, idx) => (
+                                    <div key={item.player.id} onClick={() => navigate(`/player/${activeTeamId}/${item.player.id}`)} className="flex items-center p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                                        <div className="w-8 text-center font-bold text-gray-400 text-lg mr-2">#{idx + 1}</div>
+                                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-bold text-sm text-gray-600 overflow-hidden border border-gray-300 mr-4">
+                                            {item.player.photoUrl ? <img src={item.player.photoUrl} className="w-full h-full object-cover" /> : getInitials(item.player.name)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="font-extrabold text-gray-900 text-base">{item.player.name}</div>
+                                            {item.player.jerseyNumber && <div className="text-xs font-bold text-[#5B4DBC]">#{item.player.jerseyNumber}</div>}
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="font-black text-2xl text-gray-800">
+                                                {['PLAYTIME', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(selectedStatType) 
+                                                    ? formatTime(item.value) 
+                                                    : item.formattedValue}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredPlayers.map((player) => (
                         <div key={player.id}

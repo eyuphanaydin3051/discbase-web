@@ -289,9 +289,15 @@ export const getMatchStats = async (tournamentId: string, matchId: string) => {
         return null;
     }
 };
-export const getLeaderboard = async (teamId: string) => {
+export const getLeaderboard = async (teamId: string, tournamentId?: string, matchId?: string, statType?: string, calcMode?: string) => {
     try {
-        const response = await fetch(`${API_BASE}/teams/${teamId}/leaderboard`);
+        const params = new URLSearchParams();
+        if (tournamentId) params.append('tournamentId', tournamentId);
+        if (matchId) params.append('matchId', matchId);
+        if (statType) params.append('statType', statType);
+        if (calcMode) params.append('calcMode', calcMode);
+
+        const response = await fetch(`${API_BASE}/teams/${teamId}/leaderboard?${params.toString()}`);
         return response.ok ? await response.json() : [];
     } catch (err) {
         console.error("Leaderboard çekilemedi:", err);
