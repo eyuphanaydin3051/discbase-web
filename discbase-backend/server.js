@@ -501,3 +501,14 @@ app.post('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/archive-
         res.status(500).json({ error: error.message });
     }
 });
+// Turnuva oyuncularını getir
+app.get('/api/teams/:teamId/tournaments/:tournamentId/players', async (req, res) => {
+    try {
+        const { teamId, tournamentId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/tournaments/${tournamentId}/players`).get();
+        const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(players);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});

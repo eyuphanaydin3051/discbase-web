@@ -52,14 +52,11 @@ export const getTrainings = (teamId: string, callback: (trainings: any[]) => voi
 
 
 export const getTournamentPlayers = (teamId: string, tournamentId: string, callback: (players: TournamentPlayer[]) => void) => {
-    const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/players`));
-    return onSnapshot(q, (snapshot: any) => {
-        const playersData = snapshot.docs.map((doc: any) => ({
-            id: doc.id,
-            ...doc.data()
-        } as TournamentPlayer));
-        callback(playersData);
-    });
+    fetch(`${API_BASE}/teams/${teamId}/tournaments/${tournamentId}/players`)
+        .then(res => res.json())
+        .then(data => callback(data))
+        .catch(err => console.error("Turnuva oyuncuları çekilemedi:", err));
+    return () => {};
 };
 
 // --- YENİ EKLENEN: OYUNCU GÜNCELLEME (BACKEND API) ---
@@ -109,7 +106,6 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
         return null;
     }
 };
-const API_URL = "http://localhost:3000";
 
 export const getMatch = (tournamentId: string, matchId: string, callback: (match: Match | null) => void) => {
     const activeTeamId = localStorage.getItem('selectedTeamId');
@@ -135,30 +131,20 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
         return () => {};
     }
 
-    const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
-    
-    // Backend API artık event'leri subcollection yerine maç dökümanı içinde 'events' array'i olarak tutuyor.
-    const unsubscribe = onSnapshot(matchDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
+    fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}`)
+        .then(res => res.json())
+        .then(data => {
             const events = data.events || [];
             callback(events.sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
-        } else {
+        })
+        .catch(err => {
+            console.error("Maç olayları çekilemedi:", err);
             callback([]);
-        }
-    });
+        });
 
-    return unsubscribe;
+    return () => {};
 };
-// src/services/repository.ts dosyasına eklenecek:
 
-
-// ... (diğer importlar aynı)
-
-// createMatch fonksiyonunu revize ediyoruz
-// src/services/repository.ts içindeki ilgili fonksiyonları bu şekilde revize edin
-
-// --- GÜNCELLENEN: createMatch (BACKEND API) ---
 export const createMatch = async (teamId: string, tournamentId: string, opponentName: string, ourTeamName: string) => {
     try {
         const API_URL = "http://localhost:3000";
