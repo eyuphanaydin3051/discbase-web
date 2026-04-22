@@ -170,3 +170,125 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Backend sunucusu ${PORT} portunda çalışıyor...`);
 });
+// --- 3. API Endpoint: OYUNCU GÜNCELLEME ---
+app.put('/api/teams/:teamId/players/:playerId', async (req, res) => {
+    try {
+        const { teamId, playerId } = req.params;
+        const playerData = req.body;
+        
+        await db.doc(`teams/${teamId}/players/${playerId}`).update({
+            name: playerData.name,
+            jerseyNumber: playerData.jerseyNumber,
+            position: playerData.position,
+            isCaptain: playerData.isCaptain,
+            photoUrl: playerData.photoUrl
+        });
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Oyuncu güncellenirken hata:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- 4. API Endpoint: MAÇ OLUŞTURMA ---
+app.post('/api/teams/:teamId/tournaments/:tournamentId/matches', async (req, res) => {
+    try {
+        const { teamId, tournamentId } = req.params;
+        const { opponentName, ourTeamName } = req.body;
+        
+        const tournamentRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}`);
+        const matchesRef = tournamentRef.collection('matches');
+        
+        const newMatchRef = matchesRef.doc(); // Otomatik ID oluşturur
+        const newMatch = {
+            id: newMatchRef.id,
+            opponentName,
+            ourTeamName, 
+            scoreUs: 0,
+            scoreThem: 0,
+            pointsArchive: [],
+            matchDurationSeconds: 0,
+            isProMode: false, 
+            date: new Date().toISOString(),
+            tournamentId,
+            teamNames: [ourTeamName, opponentName],
+            score: [0, 0],
+            finished: false
+        };
+        
+        await newMatchRef.set(newMatch);
+        await tournamentRef.update({ lastUpdated: Date.now() });
+        
+        res.json({ matchId: newMatchRef.id });
+    } catch (error) {
+        console.error("Maç oluşturulurken hata:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- 5. API Endpoint: SAYI (POINT) ARŞİVLEME ---
+app.post('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/archive-point', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const { lineup, startMode, whoScored, pointStats } = req.body;
+
+        const matchRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        const matchSnap = await matchRef.get();
+        
+        if (!matchSnap.exists) return res.status(404).json({ error: "Maç bulunamadı" });
+
+        const matchData = matchSnap.data();
+        const allPlayerIds = Array.from(new Set([...lineup, ...pointStats.map(s => s.playerId)]));
+
+        const statsToArchive = allPlayerIds.map(playerId => {
+            const pStat = pointStats.find(s => s.playerId === playerId);
+            return {
+                playerId: playerId,
+                pointsPlayed: 1,
+                goal: pStat?.goal || 0,
+                assist: pStat?.assist || 0,
+                block: pStat?.block || 0,
+                successfulPass: pStat?.successfulPass || 0,
+                throwaway: pStat?.throwaway || 0,
+                drop: pStat?.drop || 0,
+                callahan: pStat?.callahan || 0,
+                catchStat: pStat?.catchStat || 0,
+                passDistribution: pStat?.passDistribution || {},
+                pullAttempts: pStat?.pullAttempts || 0,
+                successfulPulls: pStat?.successfulPulls || 0,
+                totalPulls: pStat?.totalPulls || 0,
+                totalPullTimeSeconds: pStat?.totalPullTimeSeconds || 0
+            };
+        });
+
+        const newPoint = {
+            id: Date.now().toString(),
+            startMode,
+            whoScored,
+            playerIds: allPlayerIds,
+            stats: statsToArchive,
+            durationSeconds: 0 
+        };
+
+        let newScoreUs = matchData.scoreUs ?? matchData.score?.[0] ?? 0;
+        let newScoreThem = matchData.scoreThem ?? matchData.score?.[1] ?? 0;
+        
+        if (whoScored === 'US') newScoreUs += 1;
+        else if (whoScored === 'THEM') newScoreThem += 1;
+
+        await matchRef.update({
+            pointsArchive: admin.firestore.FieldValue.arrayUnion(newPoint),
+            scoreUs: newScoreUs,
+            scoreThem: newScoreThem,
+            score: [newScoreUs, newScoreThem] 
+        });
+
+        const tournamentRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}`);
+        await tournamentRef.update({ lastUpdated: Date.now() });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Sayı arşivlenirken hata:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
