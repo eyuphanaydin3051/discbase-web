@@ -55,7 +55,10 @@ export const getTournamentPlayers = (teamId: string, tournamentId: string, callb
     fetch(`${API_BASE}/teams/${teamId}/tournaments/${tournamentId}/players`)
         .then(res => res.json())
         .then(data => callback(data))
-        .catch(err => console.error("Turnuva oyuncuları çekilemedi:", err));
+        .catch(err => {
+            console.error("Turnuva oyuncuları çekilemedi:", err);
+            callback([]);
+        });
     return () => {};
 };
 
@@ -131,6 +134,7 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
         return () => {};
     }
 
+    // Match detayı içinden events dizisini okuyoruz
     fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}`)
         .then(res => res.json())
         .then(data => {

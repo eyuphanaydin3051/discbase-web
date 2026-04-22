@@ -13,7 +13,71 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+// --- TEMEL OKUMA ENDPOINT'LERİ (LİSTELEME) ---
 
+// 1. Kullanıcının Takımlarını Getir (Giriş sonrası ilk çağrılan)
+app.get('/api/teams', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) return res.status(400).json({ error: "userId query parametresi gerekli" });
+        
+        // Takımlar koleksiyonunda members objesi içinde userId'si bulunanları getir
+        const snapshot = await db.collection('teams').where(`members.${userId}`, '!=', null).get();
+        const teams = snapshot.docs.map(doc => ({ teamId: doc.id, ...doc.data() }));
+        res.json(teams);
+    } catch (e) {
+        console.error("Takımlar getirilirken hata:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 2. Takımın Oyuncularını Getir
+app.get('/api/teams/:teamId/players', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/players`).get();
+        const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(players);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 3. Takımın Turnuvalarını Getir
+app.get('/api/teams/:teamId/tournaments', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/tournaments`).get();
+        const tournaments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(tournaments);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 4. Turnuvanın Maçlarını Getir
+app.get('/api/teams/:teamId/tournaments/:tournamentId/matches', async (req, res) => {
+    try {
+        const { teamId, tournamentId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/tournaments/${tournamentId}/matches`).get();
+        const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(matches);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 5. Maç Detayını Getir (Maç Takip ekranı için kritik)
+app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const docRef = await db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`).get();
+        if (!docRef.exists) return res.status(404).json({ error: "Maç bulunamadı" });
+        res.json({ id: docRef.id, ...docRef.data() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 // 1. API Endpoint: TAKIM ORTALAMALARI
 app.get('/api/teams/:teamId/aggregates', async (req, res) => {
     try {
