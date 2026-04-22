@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore'; // Firebase eklentileri
-import { db } from '../services/firebase'; // DB importu
 import { getPlayers, getTeamAggregates } from '../services/repository';
 import type { Player, Match } from '../types';
 
@@ -33,25 +31,28 @@ export default function Dashboard() {
             setPlayers(fetchedPlayers);
         });
 
-        // 2. Alt koleksiyonlardan (sub-collection) Maçları Topla
+        // 2. Alt koleksiyonlardan (sub-collection) Maçları Topla (API Üzerinden)
         const fetchRecentMatches = async () => {
             try {
-                // Önce tüm turnuvaları alıyoruz
-                const tourSnapshot = await getDocs(collection(db, `teams/${selectedTeamId}/tournaments`));
+                const API_URL = "http://localhost:3000/api";
+                
+                // Önce backend'den turnuvaları çekiyoruz
+                const tourResponse = await fetch(`${API_URL}/teams/${selectedTeamId}/tournaments`);
+                const tournaments = await tourResponse.json();
+                
                 let allMatchesTemp: any[] = [];
 
-                // Her turnuvanın içindeki 'matches' klasörüne giriyoruz
-                for (const tourDoc of tourSnapshot.docs) {
-                    const tourData = tourDoc.data();
-                    const matchesSnapshot = await getDocs(collection(db, `teams/${selectedTeamId}/tournaments/${tourDoc.id}/matches`));
+                // Her turnuvanın içindeki maçları yine backend üzerinden alıyoruz
+                for (const tour of tournaments) {
+                    const matchesResponse = await fetch(`${API_URL}/teams/${selectedTeamId}/tournaments/${tour.id}/matches`);
+                    const matchesData = await matchesResponse.json();
 
-                    const matchesData = matchesSnapshot.docs.map(d => ({
-                        id: d.id,
-                        ...d.data(),
-                        tournamentDate: tourData.date // Maçları sıralayabilmek için turnuvanın tarihini miras alıyoruz
+                    const matchesWithDate = matchesData.map((m: any) => ({
+                        ...m,
+                        tournamentDate: tour.date // Maçları sıralayabilmek için turnuvanın tarihini miras alıyoruz
                     }));
 
-                    allMatchesTemp = [...allMatchesTemp, ...matchesData];
+                    allMatchesTemp = [...allMatchesTemp, ...matchesWithDate];
                 }
 
                 // Tarihe göre sırala (En yeni en üstte)
@@ -63,7 +64,7 @@ export default function Dashboard() {
                 
                 setRecentMatches(sortedMatches.slice(0, 4));
             } catch (error) {
-                console.error("Maçlar çekilirken hata:", error);
+                console.error("Maçlar API'den çekilirken hata:", error);
             }
         };
 
