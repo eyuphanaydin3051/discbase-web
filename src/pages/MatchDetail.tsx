@@ -139,10 +139,23 @@ export default function MatchDetail() {
     };
 
     const handleDeleteLastPoint = async () => {
-        if (!tournamentId || !matchId) return;
+        if (!tournamentId || !matchId || !activeTeamId) return;
         if (window.confirm("Son sayıyı (point) silmek istediğinize emin misiniz? (Bu işlem geri alınamaz ve bu sayıdaki istatistikleriniz silinir!)")) {
+            setLoading(true);
             await deleteLastPoint(tournamentId, matchId);
-            // Firebase onSnapshot aktif olduğu için veriler otomatik olarak senkronize olacak, sayfayı manuel yenilemeye gerek yok.
+            
+            // YENİ: Sayfayı manuel yenilemeye gerek kalmadan Backend'den taze verileri çekiyoruz
+            const [matchData, statsData] = await Promise.all([
+                getMatch(tournamentId, matchId),
+                getMatchStats(tournamentId, matchId)
+            ]);
+            if (matchData) setMatch(matchData);
+            if (statsData) {
+                setPlayerStats(statsData.playerStats);
+                setTeamStats(statsData.teamStats);
+                setGroupedEvents(statsData.groupedEvents);
+            }
+            setLoading(false);
         }
     };
 

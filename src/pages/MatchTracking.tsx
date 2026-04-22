@@ -101,7 +101,13 @@ export default function MatchTracking() {
     const handleUndo = async () => {
         if (!matchId || !tournamentId) return;
         
-        // Hem olay geçmişini Firebase'den siliyoruz hem de sonucu bekliyoruz
+        // YENİ: Firebase onSnapshot olmadığı için UI'ı anında güncellemek adına lokal state'ten son olayı siliyoruz (Optimistic Update)
+        setMatch(prev => prev ? {
+            ...prev,
+            events: prev.events ? prev.events.slice(0, -1) : []
+        } : prev);
+
+        // Arka planda Backend API'den sil
         await undoLastEvent(tournamentId, matchId);
     
         if (historyStack.length > 0) {
@@ -275,7 +281,13 @@ export default function MatchTracking() {
             videoTimestampSeconds: currentVideoTime
         } as MatchEvent;
         
-        // Sonra Firebase'e gönder (Arka planda çalışır, UI'ı dondurmaz)
+        // YENİ: Firebase canlı bağlantısı (onSnapshot) olmadığı için UI'daki 'Canlı Olay Geçmişi' panelini anında güncelliyoruz
+        setMatch(prev => prev ? {
+            ...prev,
+            events: [...(prev.events || []), event]
+        } : prev);
+
+        // Sonra Backend API'ye gönder (Arka planda çalışır, UI'ı dondurmaz)
         await addMatchEvent(tournamentId, matchId, event);
         setTimeout(() => setLastAction(null), 300);
     };
@@ -413,8 +425,11 @@ export default function MatchTracking() {
         setCurrentPointStats([]);
         setActivePasserId(null);
         setPointTimer(0);
-        // DÜZELTME: getMatch(.then) hatalı olduğu için kaldırıldı. 
-        // Veriler zaten useEffect içindeki onSnapshot ile Firebase'den otomatik güncelleniyor.
+        
+        // YENİ: Firebase onSnapshot'ı kaldırdığımız için, sayı kaydedildikten hemen sonra 
+        // Backend'den en güncel maç verisini (pointsArchive dahil) çekip UI'ı eşitliyoruz.
+        const freshMatch = await getMatch(tournamentId, matchId);
+        if (freshMatch) setMatch(freshMatch);
     };
 
     const handleFinishMatch = async () => {
