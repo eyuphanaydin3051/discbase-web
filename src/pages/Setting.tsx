@@ -23,7 +23,47 @@ export default function Setting() {
         localStorage.setItem('theme', newTheme);
         const root = window.document.documentElement;
         const isDark = newTheme === 'dark' || (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        root.classList.toggle('dark', isDark);
+        if (isDark) {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+    };
+
+    // Sayfa yüklendiğinde temayı uygula
+    useEffect(() => {
+        handleThemeChange(theme);
+    }, []);
+
+    // Ayar Değiştirme Fonksiyonları
+    const handleNameFormatChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const value = e.target.value as NameFormat;
+        setNameFormat(value);
+        localStorage.setItem('nameFormat', value);
+    };
+
+    const handleShortcutsToggle = () => {
+        const newValue = !shortcutsEnabled;
+        setShortcutsEnabled(newValue);
+        localStorage.setItem('shortcuts', newValue.toString());
+    };
+
+    const handleCaptureModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const value = e.target.value;
+        setCaptureMode(value);
+        localStorage.setItem('captureMode', value);
+    };
+
+    const handleCsvExport = () => {
+        // İleride global statelerden veya backend'den çekilen verilerle CSV doldurulacak.
+        const csvContent = "data:text/csv;charset=utf-8,ID,Oyuncu Adi,Istatistik,Deger\n1,Ornek Oyuncu,Gol,1";
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `discbase_istatistik_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     // Yedekleme (JSON Export)
@@ -98,6 +138,56 @@ export default function Setting() {
                             </select>
                         </section>
 
+                        {/* GÖRÜNÜM VE ARAYÜZ (İsim Formatı) */}
+                        <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <div className="flex flex-col">
+                                <span className="font-semibold">İsim Formatı</span>
+                                <span className="text-xs text-slate-500">Geniş tablolarda oyuncu isimlerinin gösterim şekli.</span>
+                            </div>
+                            <select 
+                                value={nameFormat} 
+                                onChange={handleNameFormatChange}
+                                className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
+                            >
+                                <option value="FULL_NAME">Eyüphan Aydın</option>
+                                <option value="INITIAL_LAST">E. Aydın</option>
+                                <option value="FIRST_INITIAL">Eyüphan A.</option>
+                            </select>
+                        </section>
+
+                        {/* VERİ GİRİŞ SEÇENEKLERİ (Mod ve Kısayollar) */}
+                        <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+                            <h2 className="text-lg font-semibold mb-2">Veri Giriş Seçenekleri</h2>
+                            
+                            <div className="flex justify-between items-center">
+                                <div className="flex flex-col">
+                                    <span className="font-semibold">Mod Seçimi</span>
+                                    <span className="text-xs text-slate-500">Canlı maç verisi girmek için (Web / Tablet).</span>
+                                </div>
+                                <select 
+                                    value={captureMode} 
+                                    onChange={handleCaptureModeChange}
+                                    className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
+                                >
+                                    <option value="SIMPLE">Basit Mod (Özet)</option>
+                                    <option value="ADVANCED">Gelişmiş Mod (Detaylı)</option>
+                                </select>
+                            </div>
+
+                            <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-700">
+                                <div className="flex flex-col">
+                                    <span className="font-semibold">Klavye Kısayolları</span>
+                                    <span className="text-xs text-slate-500">Hızlı veri girişi için (Örn: G = Gol, T = Turn).</span>
+                                </div>
+                                <button 
+                                    onClick={handleShortcutsToggle}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${shortcutsEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${shortcutsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                        </section>
+
                         {/* VERİMLİLİK KRİTERLERİ (Admin Paneli Mantığı) */}
                         <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                             <div className="flex justify-between items-center mb-4">
@@ -136,10 +226,68 @@ export default function Setting() {
                                     Yedek Yükle
                                     <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
                                 </label>
-                                <hr className="opacity-20" />
-                                <button className="w-full py-3 bg-white text-indigo-600 hover:bg-indigo-50 rounded-xl font-bold text-sm transition-all">
-                                    CSV Olarak Dışa Aktar
+                                {/* DİL SEÇİMİ */}
+                        <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <span className="font-semibold">Dil / Language</span>
+                            <select 
+                                value={i18n.language} 
+                                onChange={(e) => i18n.changeLanguage(e.target.value)}
+                                className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
+                            >
+                                <option value="tr">Türkçe</option>
+                                <option value="en">English</option>
+                            </select>
+                        </section>
+
+                        {/* GÖRÜNÜM VE ARAYÜZ (İsim Formatı) */}
+                        <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <div className="flex flex-col">
+                                <span className="font-semibold">İsim Formatı</span>
+                                <span className="text-xs text-slate-500">Geniş tablolarda oyuncu isimlerinin gösterim şekli.</span>
+                            </div>
+                            <select 
+                                value={nameFormat} 
+                                onChange={handleNameFormatChange}
+                                className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
+                            >
+                                <option value="FULL_NAME">Eyüphan Aydın</option>
+                                <option value="INITIAL_LAST">E. Aydın</option>
+                                <option value="FIRST_INITIAL">Eyüphan A.</option>
+                            </select>
+                        </section>
+
+                        {/* VERİ GİRİŞ SEÇENEKLERİ (Mod ve Kısayollar) */}
+                        <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+                            <h2 className="text-lg font-semibold mb-2">Veri Giriş Seçenekleri</h2>
+                            
+                            <div className="flex justify-between items-center">
+                                <div className="flex flex-col">
+                                    <span className="font-semibold">Mod Seçimi</span>
+                                    <span className="text-xs text-slate-500">Canlı maç verisi girmek için (Web / Tablet).</span>
+                                </div>
+                                <select 
+                                    value={captureMode} 
+                                    onChange={handleCaptureModeChange}
+                                    className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
+                                >
+                                    <option value="SIMPLE">Basit Mod (Özet)</option>
+                                    <option value="ADVANCED">Gelişmiş Mod (Detaylı)</option>
+                                </select>
+                            </div>
+
+                            <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-700">
+                                <div className="flex flex-col">
+                                    <span className="font-semibold">Klavye Kısayolları</span>
+                                    <span className="text-xs text-slate-500">Hızlı veri girişi için (Örn: G = Gol, T = Turn).</span>
+                                </div>
+                                <button 
+                                    onClick={handleShortcutsToggle}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${shortcutsEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${shortcutsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
+                            </div>
+                        </section>
                             </div>
                         </section>
                     </div>
