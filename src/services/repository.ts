@@ -278,3 +278,14 @@ export const deleteTraining = async (teamId: string, trainingId: string) => {
         return false;
     }
 };
+export const getMatchStats = async (tournamentId: string, matchId: string) => {
+    const activeTeamId = localStorage.getItem('selectedTeamId');
+    if (!activeTeamId) return null;
+    try {
+        const response = await fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}/stats`);
+        return response.ok ? await response.json() : null;
+    } catch (err) {
+        console.error("Maç istatistikleri çekilemedi:", err);
+        return null;
+    }
+};

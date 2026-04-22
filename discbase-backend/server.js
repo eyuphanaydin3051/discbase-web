@@ -433,7 +433,95 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId', async (
         res.status(500).json({ error: error.message });
     }
 });
+// --- MAÇ İSTATİSTİK RAPORU (HESAPLAMALAR BURADA YAPILIR) ---
+app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const matchDoc = await db.collection('teams').doc(teamId).collection('tournaments').doc(tournamentId).collection('matches').doc(matchId).get();
+        
+        if (!matchDoc.exists) return res.status(404).json({ error: "Maç bulunamadı" });
+        const match = matchDoc.data();
+        const playersSnapshot = await db.collection('teams').doc(teamId).collection('players').get();
+        const rosterPlayers = playersSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        // --- 1. OYUNCU İSTATİSTİKLERİ HESAPLAMA ---
+        const statsMap = {};
+        rosterPlayers.forEach(p => {
+            statsMap[p.id] = { id: p.id, name: p.name, jerseyNumber: p.jerseyNumber, goals: 0, assists: 0, blocks: 0, callahans: 0, passes: 0, drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0 };
+        });
+
+        if (match.pointsArchive) {
+            match.pointsArchive.forEach(point => {
+                point.stats?.forEach(stat => {
+                    const ps = statsMap[stat.playerId];
+                    if (ps) {
+                        ps.goals += stat.goal || 0;
+                        ps.assists += stat.assist || 0;
+                        ps.blocks += stat.block || 0;
+                        ps.callahans += stat.callahan || 0;
+                        ps.passes += (stat.successfulPass || 0) + (stat.assist || 0);
+                        ps.drops += stat.drop || 0;
+                        ps.throwaways += stat.throwaway || 0;
+                        ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
+                        ps.pointsPlayed += stat.pointsPlayed || 0;
+                    }
+                });
+            });
+        }
+
+        const computedPlayerStats = Object.values(statsMap).map(s => {
+            const totalPassAttempts = s.passes + s.throwaways;
+            const passPercentage = totalPassAttempts > 0 ? parseFloat(((s.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
+            const efficiency = ((s.goals - s.callahans) * 1.0) + (s.assists * 1.0) + ((s.blocks - s.callahans) * 1.5) + (s.callahans * 3.5) - (s.turns * 1.0) + (s.passes * 0.05);
+            return { ...s, totalPasses: totalPassAttempts, passPercentage, efficiency: efficiency.toFixed(2) };
+        });
+
+        // --- 2. TAKIM İSTATİSTİKLERİ HESAPLAMA ---
+        let oPoints = 0, oHolds = 0, dPoints = 0, dBreaks = 0;
+        if (match.pointsArchive) {
+            match.pointsArchive.forEach(p => {
+                const isUs = p.whoScored === 'US';
+                if (p.startMode === 'OFFENSE') { oPoints++; if (isUs) oHolds++; }
+                else { dPoints++; if (isUs) dBreaks++; }
+            });
+        }
+
+        const teamStats = {
+            totalPoints: match.pointsArchive?.length || 0,
+            holdPercent: oPoints > 0 ? Math.round((oHolds / oPoints) * 100) : 0,
+            breakPercent: dPoints > 0 ? Math.round((dBreaks / dPoints) * 100) : 0,
+            oHolds, oPoints, dBreaks, dPoints
+        };
+
+        // --- 3. OLAY GRUPLAMA (ASSIST/GOAL MERGE) ---
+        const groupedEvents = [];
+        let currentPoint = [];
+        const sortedEvents = (match.events || []).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+        sortedEvents.forEach(evt => {
+            const p = rosterPlayers.find(rp => rp.id === evt.playerId);
+            const sp = rosterPlayers.find(rp => rp.id === evt.secondaryPlayerId);
+            const enrichedEvt = { ...evt, player: p, secondaryPlayer: sp };
+
+            if (enrichedEvt.eventType === 'Goal') {
+                const last = currentPoint[currentPoint.length - 1];
+                if (last && last.eventType === 'Assist') {
+                    enrichedEvt.secondaryPlayer = last.player;
+                    currentPoint.pop();
+                }
+            }
+            currentPoint.push(enrichedEvt);
+            if (['Goal', 'Callahan', 'OpponentGoal'].includes(evt.eventType)) {
+                groupedEvents.push([...currentPoint]);
+                currentPoint = [];
+            }
+        });
+
+        res.json({ playerStats: computedPlayerStats, teamStats, groupedEvents });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 // Takımın antrenmanlarını getir
 app.get('/api/teams/:teamId/trainings', async (req, res) => {
     try {

@@ -14,17 +14,21 @@ export default function MatchDetail() {
     const navigate = useNavigate();
     const activeTeamId = localStorage.getItem('selectedTeamId');
 
-    const [match, setMatch] = useState<Match | null>(null);
-    const [tournament, setTournament] = useState<any>(null);
+    
     const [events, setEvents] = useState<MatchEvent[]>([]);
     const [rosterPlayers, setRosterPlayers] = useState<Player[]>([]);
+    
+    const [match, setMatch] = useState<Match | null>(null);
+    const [tournament, setTournament] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [playerStats, setPlayerStats] = useState<any[]>([]);
+    const [teamStats, setTeamStats] = useState<any>(null);
+    const [groupedEvents, setGroupedEvents] = useState<any[][]>([]);
 
-    // VİDEO SCOUTER STATE'LERİ
-    // VİDEO SCOUTER STATE'LERİ
     const [videoUrl, setVideoUrl] = useState('');
     const [ytPlayer, setYtPlayer] = useState<any>(null);
-    const [expandedPointIndex, setExpandedPointIndex] = useState<number | null>(null); // Accordion için yeni state
+    const [expandedPointIndex, setExpandedPointIndex] = useState<number | null>(null);
+    
  
     // Tablo Sıralama State'i
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({
@@ -43,32 +47,26 @@ export default function MatchDetail() {
 
     // 2. Maç ve Olayları çek (Tamamen Backend API Üzerinden)
     useEffect(() => {
-        if (!matchId || !tournamentId || !activeTeamId) {
-            navigate('/teams');
-            return;
-        }
+        if (!matchId || !tournamentId || !activeTeamId) return;
 
-        const fetchMatch = async () => {
-            const fetchedMatch = await getMatch(tournamentId, matchId);
-            if (fetchedMatch) {
-                setMatch(fetchedMatch);
-                if (fetchedMatch.events && Array.isArray(fetchedMatch.events)) {
-                    setEvents(fetchedMatch.events);
-                } else {
-                    setEvents([]);
-                }
-            } else {
-                navigate('/teams');
+        const fetchData = async () => {
+            setLoading(true);
+            const [matchData, statsData] = await Promise.all([
+                getMatch(tournamentId, matchId),
+                getMatchStats(tournamentId, matchId)
+            ]);
+
+            if (matchData) setMatch(matchData);
+            if (statsData) {
+                setPlayerStats(statsData.playerStats);
+                setTeamStats(statsData.teamStats);
+                setGroupedEvents(statsData.groupedEvents);
             }
             setLoading(false);
         };
 
-        fetchMatch();
-
-        const safetyTimer = setTimeout(() => setLoading(false), 2000);
-
-        return () => clearTimeout(safetyTimer);
-    }, [tournamentId, matchId, activeTeamId, navigate]);
+        fetchData();
+    }, [tournamentId, matchId, activeTeamId]);
     // 5. Turnuva verisini çek (Takım adı için)
     useEffect(() => {
         if (!activeTeamId || !tournamentId) return;
