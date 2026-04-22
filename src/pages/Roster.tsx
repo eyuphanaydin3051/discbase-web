@@ -140,7 +140,6 @@ export default function Roster() {
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5B4DBC]"></div>
                 </div>
             ) : viewMode === 'leaderboard' ? (
-                ) : viewMode === 'leaderboard' ? (
                 <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full">
                     
                     {/* 1. FİLTRELER (TURNUVA / MAÇ) */}
@@ -235,7 +234,6 @@ export default function Roster() {
                     </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredPlayers.map((player) => (
                         <div key={player.id}
