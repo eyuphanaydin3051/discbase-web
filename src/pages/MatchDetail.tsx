@@ -91,36 +91,20 @@ export default function MatchDetail() {
         const type = evt.eventType;
 
         switch (type) {
-            case 'Pickup': 
-                return <><span className="font-bold text-blue-600">{playerName}</span> diski yerden alarak oyuna soktu.</>;
-            case 'OpponentGoal': 
-                return <><span className="font-bold text-rose-600">RAKİP SAYI ALDI.</span></>;
-            case 'Completion': 
-                return <><span className="font-bold">{playerName}</span> oyuncusundan <span className="font-bold">{receiverName}</span> oyuncusuna başarılı pas.</>;
-            case 'Drop': 
-                return <><span className="font-bold">{playerName}</span> atılan diski tutamadı (Drop).</>;
-            case 'Throwaway': 
-                return <><span className="font-bold">{playerName}</span> hatalı pas attı (Disk dışarıda veya yerde).</>;
+            case 'Pickup': return <><span className="font-bold text-blue-600">{playerName}</span> diski yerden alarak oyuna soktu.</>;
+            case 'OpponentGoal': return <><span className="font-bold text-rose-600">RAKİP SAYI ALDI.</span></>;
+            case 'Completion': return <><span className="font-bold">{playerName}</span> oyuncusundan <span className="font-bold">{receiverName}</span> oyuncusuna başarılı pas.</>;
+            case 'Drop': return <><span className="font-bold">{playerName}</span> atılan diski tutamadı (Drop).</>;
+            case 'Throwaway': return <><span className="font-bold">{playerName}</span> hatalı pas attı (Disk dışarıda veya yerde).</>;
             case 'Goal': 
-                if (evt.secondaryPlayer) {
-                    return <><span className="font-bold text-violet-600">{evt.secondaryPlayer.name}</span> asistinde <span className="font-bold text-emerald-600">{playerName}</span> GOL attı!</>;
-                }
+                if (evt.secondaryPlayer) return <><span className="font-bold text-violet-600">{evt.secondaryPlayer.name}</span> asistinde <span className="font-bold text-emerald-600">{playerName}</span> GOL attı!</>;
                 return <><span className="font-bold text-emerald-600">{playerName} GOL ATTI!</span></>;
-            case 'Assist': 
-                return <><span className="font-bold">{playerName}</span> muhteşem bir asist yaptı.</>;
-            case 'D-Up': 
-                return <><span className="font-bold text-orange-600">{playerName} blok (D-Up) yaptı, disk takımımıza geçti.</span></>;
-            case 'Callahan': 
-                return <><span className="font-bold text-purple-600">{playerName} CALLAHAN YAPTI!</span></>;
-            case 'Substitute':
-                return <><span className="font-bold text-rose-600">{playerName}</span> oyundan çıktı, yerine <span className="font-bold text-emerald-600">{receiverName}</span> girdi.</>;
+            case 'Assist': return <><span className="font-bold">{playerName}</span> muhteşem bir asist yaptı.</>;
+            case 'D-Up': return <><span className="font-bold text-orange-600">{playerName} blok (D-Up) yaptı, disk takımımıza geçti.</span></>;
+            case 'Callahan': return <><span className="font-bold text-purple-600">{playerName} CALLAHAN YAPTI!</span></>;
+            case 'Substitute': return <><span className="font-bold text-rose-600">{playerName}</span> oyundan çıktı, yerine <span className="font-bold text-emerald-600">{receiverName}</span> girdi.</>;
             default: 
-                if (type.includes('Pull')) {
-                    let pullStatus = "pull attı.";
-                    if (type.includes('OB')) pullStatus = "başarısız (Saha dışı - OB) pull attı.";
-                    if (type.includes('IB')) pullStatus = "başarılı (Saha içi - IB) pull attı.";
-                    return <><span className="font-bold">{playerName}</span> {pullStatus}</>;
-                }
+                if (type.includes('Pull')) return <><span className="font-bold">{playerName}</span> {type.includes('OB') ? 'başarısız (OB)' : 'başarılı'} pull attı.</>;
                 return <><span className="font-bold">{playerName}</span> {type} aksiyonu yaptı.</>;
         }
     };

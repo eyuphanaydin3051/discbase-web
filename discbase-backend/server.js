@@ -447,11 +447,72 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
         // --- 1. OYUNCU İSTATİSTİKLERİ HESAPLAMA ---
         const statsMap = {};
         rosterPlayers.forEach(p => {
-            statsMap[p.id] = { id: p.id, name: p.name, jerseyNumber: p.jerseyNumber, goals: 0, assists: 0, blocks: 0, callahans: 0, passes: 0, drops: 0, throwaways: 0, turns: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0 };
+            statsMap[p.id] = { 
+                id: p.id, name: p.name, jerseyNumber: p.jerseyNumber, photoUrl: p.photoUrl, 
+                goals: 0, assists: 0, blocks: 0, callahans: 0, passes: 0, drops: 0, 
+                throwaways: 0, turns: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0 
+            };
         });
 
+        // A. Süre (Zaman) Hesaplaması
+        const pointDurationsByPlayer = [];
+        if (match.events && match.events.length > 0) {
+            const sortedEvents = [...match.events].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            let currentPointStart = null;
+            let lastEventTime = null;
+            let activePlayers = new Set();
+            let currentPointTimes = {};
+            let pointIndex = 0;
+
+            sortedEvents.forEach((evt, idx) => {
+                const vTime = evt.videoTimestampSeconds;
+
+                if ((evt.eventType.includes('Pull') || evt.eventType === 'Pickup') && currentPointStart === null) {
+                    currentPointStart = vTime ?? null;
+                    lastEventTime = vTime ?? null;
+                    currentPointTimes = {};
+                    
+                    const archivePoint = match.pointsArchive?.[pointIndex];
+                    if (archivePoint) {
+                        const subbedIn = new Set();
+                        for (let i = idx; i < sortedEvents.length; i++) {
+                            const e = sortedEvents[i];
+                            if (e.eventType === 'Substitute' && e.secondaryPlayerId) subbedIn.add(e.secondaryPlayerId);
+                            if (e.eventType === 'Goal' || e.eventType === 'Callahan' || e.eventType === 'OpponentGoal') break;
+                        }
+                        archivePoint.stats?.forEach(s => {
+                            if (!subbedIn.has(s.playerId)) activePlayers.add(s.playerId);
+                        });
+                    }
+                }
+
+                if (currentPointStart !== null && vTime !== undefined && lastEventTime !== null) {
+                    const delta = Math.max(0, vTime - lastEventTime);
+                    activePlayers.forEach(pid => {
+                        currentPointTimes[pid] = (currentPointTimes[pid] || 0) + delta;
+                    });
+                    lastEventTime = vTime;
+                }
+
+                if (evt.eventType === 'Substitute') {
+                    if (evt.playerId) activePlayers.delete(evt.playerId);
+                    if (evt.secondaryPlayerId) activePlayers.add(evt.secondaryPlayerId);
+                }
+
+                if (evt.eventType === 'Goal' || evt.eventType === 'Callahan' || evt.eventType === 'OpponentGoal') {
+                    pointDurationsByPlayer.push(currentPointTimes);
+                    currentPointStart = null;
+                    lastEventTime = null;
+                    activePlayers.clear();
+                    pointIndex++;
+                }
+            });
+        }
+
+        // B. Aksiyon İstatistiklerini Toplama
         if (match.pointsArchive) {
-            match.pointsArchive.forEach(point => {
+            match.pointsArchive.forEach((point, pIndex) => {
+                const playerTimes = pointDurationsByPlayer[pIndex] || {};
                 point.stats?.forEach(stat => {
                     const ps = statsMap[stat.playerId];
                     if (ps) {
@@ -464,38 +525,91 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
                         ps.throwaways += stat.throwaway || 0;
                         ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
                         ps.pointsPlayed += stat.pointsPlayed || 0;
+                        ps.totalTimePlayedSeconds += (playerTimes[stat.playerId] || 0);
                     }
                 });
             });
         }
 
-        const computedPlayerStats = Object.values(statsMap).map(s => {
-            const totalPassAttempts = s.passes + s.throwaways;
-            const passPercentage = totalPassAttempts > 0 ? parseFloat(((s.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
-            const efficiency = ((s.goals - s.callahans) * 1.0) + (s.assists * 1.0) + ((s.blocks - s.callahans) * 1.5) + (s.callahans * 3.5) - (s.turns * 1.0) + (s.passes * 0.05);
-            return { ...s, totalPasses: totalPassAttempts, passPercentage, efficiency: efficiency.toFixed(2) };
+        const computedPlayerStats = Object.values(statsMap).map(stats => {
+            const totalPassAttempts = stats.passes + stats.throwaways;
+            const passPercentage = totalPassAttempts > 0 ? parseFloat(((stats.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
+            const catches = totalPassAttempts + stats.goals;
+            const totalCatchOpportunities = catches + stats.drops;
+            const catchPercentage = totalCatchOpportunities > 0 ? parseFloat(((catches / totalCatchOpportunities) * 100).toFixed(1)) : 0;
+            const efficiency = ((stats.goals - stats.callahans) * 1.0) + (stats.assists * 1.0) + ((stats.blocks - stats.callahans) * 1.5) + (stats.callahans * 3.5) - (stats.turns * 1.0) + (stats.passes * 0.05);
+
+            return { 
+                ...stats, 
+                totalPasses: totalPassAttempts, 
+                passPercentage, 
+                catchPercentage, 
+                efficiency: efficiency.toFixed(2) 
+            };
         });
 
         // --- 2. TAKIM İSTATİSTİKLERİ HESAPLAMA ---
-        let oPoints = 0, oHolds = 0, dPoints = 0, dBreaks = 0;
-        if (match.pointsArchive) {
-            match.pointsArchive.forEach(p => {
-                const isUs = p.whoScored === 'US';
-                if (p.startMode === 'OFFENSE') { oPoints++; if (isUs) oHolds++; }
-                else { dPoints++; if (isUs) dBreaks++; }
+        let totalPointsPlayed = 0, totalGoals = 0, totalAssists = 0, totalSuccessfulPass = 0;
+        let totalThrowaways = 0, totalDrops = 0, totalBlocks = 0;
+        let totalOffensePoints = 0, offensiveHolds = 0, cleanHolds = 0;
+        let totalDefensePoints = 0, breakPointsScored = 0;
+        let totalBlockPoints = 0, blocksConvertedToGoals = 0;
+
+        if (match.pointsArchive && match.pointsArchive.length > 0) {
+            totalPointsPlayed = match.pointsArchive.length;
+            match.pointsArchive.forEach(point => {
+                const isOurPoint = point.whoScored === 'US' || point.whoScored === 'OURS';
+                let pointTurnovers = 0, pointBlocks = 0;
+
+                if (point.startMode === 'OFFENSE') {
+                    totalOffensePoints++;
+                    if (isOurPoint) offensiveHolds++;
+                } else if (point.startMode === 'DEFENSE') {
+                    totalDefensePoints++;
+                    if (isOurPoint) breakPointsScored++;
+                }
+
+                point.stats?.forEach(stat => {
+                    totalGoals += stat.goal || 0;
+                    totalAssists += stat.assist || 0;
+                    totalSuccessfulPass += stat.successfulPass || 0;
+                    totalThrowaways += stat.throwaway || 0;
+                    totalDrops += stat.drop || 0;
+                    totalBlocks += stat.block || 0;
+
+                    pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
+                    pointBlocks += stat.block || 0;
+                });
+
+                if (point.startMode === 'OFFENSE' && isOurPoint && pointTurnovers === 0) cleanHolds++;
+                if (pointBlocks > 0) {
+                    totalBlockPoints++;
+                    if (isOurPoint) blocksConvertedToGoals++;
+                }
             });
         }
 
+        const totalPassesCompleted = totalSuccessfulPass + totalAssists;
+        const totalPassesAttempted = totalPassesCompleted + totalThrowaways + totalDrops;
+        const totalPossessions = totalGoals + totalThrowaways + totalDrops;
+
         const teamStats = {
-            totalPoints: match.pointsArchive?.length || 0,
-            holdPercent: oPoints > 0 ? Math.round((oHolds / oPoints) * 100) : 0,
-            breakPercent: dPoints > 0 ? Math.round((dBreaks / dPoints) * 100) : 0,
-            oHolds, oPoints, dBreaks, dPoints
+            totalPointsPlayed, totalGoals, totalAssists, totalBlocks,
+            totalTurnovers: totalThrowaways + totalDrops,
+            totalPassesCompleted, totalPassesAttempted, totalPossessions,
+            offensiveHolds, totalOffensePoints, cleanHolds, breakPointsScored, totalDefensePoints,
+            totalBlockPoints, blocksConvertedToGoals,
+            holdPercent: totalOffensePoints > 0 ? Math.round((offensiveHolds / totalOffensePoints) * 100) : 0,
+            cleanHoldPercent: totalOffensePoints > 0 ? Math.round((cleanHolds / totalOffensePoints) * 100) : 0,
+            breakPercent: totalDefensePoints > 0 ? Math.round((breakPointsScored / totalDefensePoints) * 100) : 0,
+            passSuccess: totalPassesAttempted > 0 ? Math.round((totalPassesCompleted / totalPassesAttempted) * 100) : 0,
+            conversionRate: totalPossessions > 0 ? Math.round((totalGoals / totalPossessions) * 100) : 0,
+            blockConversionRate: totalBlockPoints > 0 ? Math.round((blocksConvertedToGoals / totalBlockPoints) * 100) : 0
         };
 
         // --- 3. OLAY GRUPLAMA (ASSIST/GOAL MERGE) ---
         const groupedEvents = [];
-        let currentPoint = [];
+        let currentPointEvents = [];
         const sortedEvents = (match.events || []).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
         sortedEvents.forEach(evt => {
@@ -504,21 +618,25 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
             const enrichedEvt = { ...evt, player: p, secondaryPlayer: sp };
 
             if (enrichedEvt.eventType === 'Goal') {
-                const last = currentPoint[currentPoint.length - 1];
-                if (last && last.eventType === 'Assist') {
-                    enrichedEvt.secondaryPlayer = last.player;
-                    currentPoint.pop();
+                const lastEvt = currentPointEvents[currentPointEvents.length - 1];
+                if (lastEvt && lastEvt.eventType === 'Assist') {
+                    enrichedEvt.secondaryPlayer = lastEvt.player;
+                    currentPointEvents.pop();
                 }
             }
-            currentPoint.push(enrichedEvt);
+            currentPointEvents.push(enrichedEvt);
+
             if (['Goal', 'Callahan', 'OpponentGoal'].includes(evt.eventType)) {
-                groupedEvents.push([...currentPoint]);
-                currentPoint = [];
+                groupedEvents.push([...currentPointEvents]);
+                currentPointEvents = [];
             }
         });
 
+        if (currentPointEvents.length > 0) groupedEvents.push(currentPointEvents);
+
         res.json({ playerStats: computedPlayerStats, teamStats, groupedEvents });
     } catch (error) {
+        console.error("Stats Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
