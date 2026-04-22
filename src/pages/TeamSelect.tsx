@@ -35,205 +35,149 @@ export default function TeamSelect() {
     };
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F9F9F9] dark:bg-[#121212]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6366F1]"></div>
+        <div className="min-h-screen flex items-center justify-center bg-[#051424]">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#bc13fe]"></div>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-[#F9F9F9] dark:bg-[#121212] text-[#111827] dark:text-[#F3F4F6] font-sans antialiased selection:bg-[#6366F1] selection:text-white transition-colors duration-300">
-            
-            {/* Üst Bilgi Çubuğu (Header) */}
-            <header className="w-full bg-white dark:bg-[#1E1E1E] shadow-sm sticky top-0 z-50 transition-colors duration-300 border-b border-gray-100 dark:border-gray-800">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-                    <div className="flex flex-col">
-                        <span className="text-sm text-[#6B7280] dark:text-[#9CA3AF] font-medium">Hoş Geldin,</span>
-                        <h1 className="text-2xl font-bold text-[#111827] dark:text-[#F3F4F6] tracking-tight">
-                            {user?.displayName || 'Kullanıcı'}
-                        </h1>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <button className="p-2 rounded-full text-[#6B7280] dark:text-[#9CA3AF] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                            <span className="material-icons-outlined text-2xl">settings</span>
-                        </button>
-                        <div className="h-8 w-[1px] bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                        <button 
-                            onClick={handleLogout}
-                            className="flex items-center gap-2 text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#6366F1] transition-colors font-medium text-sm"
-                        >
-                            <span>Çıkış Yap</span>
-                            <span className="material-icons-outlined text-lg">logout</span>
-                        </button>
-                    </div>
+        <div className="bg-[#051424] text-[#d4e4fa] font-['Inter'] min-h-screen flex flex-col bg-[radial-gradient(circle_at_50%_0%,rgba(188,19,254,0.15)_0%,transparent_50%),radial-gradient(circle_at_100%_100%,rgba(0,241,253,0.1)_0%,transparent_50%)]">
+            {/* TopNavBar */}
+            <header className="sticky top-0 shadow-[0_4px_30px_rgba(0,0,0,0.5)] z-50 flex justify-between items-center w-full px-6 py-4 bg-slate-950/40 backdrop-blur-xl border-b border-white/10">
+                <div className="flex items-center gap-4">
+                    <span className="text-2xl font-black tracking-tighter text-[#bc13fe] drop-shadow-[0_0_8px_rgba(188,19,254,0.6)] font-['Inter']">Discbase</span>
+                </div>
+                <nav className="hidden md:flex gap-8">
+                    <a className="text-[#bc13fe] font-bold border-b-2 border-[#bc13fe] pb-1 font-['Inter'] tracking-tight" href="#">Takımlar</a>
+                </nav>
+                <div className="flex items-center gap-4">
+                    <button onClick={handleLogout} className="text-[#bc13fe] hover:bg-white/5 hover:backdrop-blur-md transition-all duration-300 p-2 rounded-lg active:scale-95 flex items-center gap-2">
+                        <span className="font-semibold text-sm hidden md:block">Çıkış Yap</span>
+                        <span className="material-icons-outlined">logout</span>
+                    </button>
+                    {user?.photoURL ? (
+                        <img alt="User profile photo" className="w-8 h-8 rounded-full border border-white/20" src={user.photoURL} />
+                    ) : (
+                        <div className="w-8 h-8 rounded-full border border-white/20 bg-[#1c2b3c] flex items-center justify-center text-white font-bold">
+                            {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                    )}
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Main Layout */}
+            <main className="flex-1 flex flex-col md:flex-row gap-6 p-6 max-w-[1440px] mx-auto w-full">
+                {/* Left Section: My Teams */}
+                <section className="flex-1 flex flex-col gap-6">
+                    <div className="flex justify-between items-center">
+                        <h1 className="font-['Inter'] text-[32px] font-semibold text-[#d4e4fa]">Takımlarım</h1>
+                        <div className="flex gap-4">
+                            <button className="bg-[#0d1c2d]/60 backdrop-blur-md border border-[#ebb2ff]/30 px-4 py-2 rounded-lg text-[#ebb2ff] hover:bg-white/5 transition-colors flex items-center gap-2">
+                                <span className="material-icons-outlined text-sm">add</span>
+                                <span className="font-['Inter'] text-[12px] font-semibold tracking-wider uppercase">Yeni Takım</span>
+                            </button>
+                            <button className="bg-[#ebb2ff]/20 text-[#ebb2ff] border border-[#ebb2ff] px-4 py-2 rounded-lg hover:bg-[#ebb2ff]/30 transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(188,19,254,0.3)]">
+                                <span className="material-icons-outlined text-sm">group_add</span>
+                                <span className="font-['Inter'] text-[12px] font-semibold tracking-wider uppercase">Katıl</span>
+                            </button>
+                        </div>
+                    </div>
                     
-                    {/* SOL TARAF: Takımlar Listesi */}
-                    <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <span className="material-icons-outlined text-[#6366F1]">groups</span>
-                                Takımlarım
-                            </h2>
-                            <div className="flex gap-3">
-                                <button className="bg-[#6366F1] hover:bg-[#4F46E5] text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-lg shadow-[#6366F1]/30 transition-all hover:scale-105 active:scale-95">
-                                    <span className="material-icons-outlined text-lg">add</span>
-                                    Yeni Takım
-                                </button>
-                                <button className="bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-gray-700 text-[#6366F1] hover:bg-gray-50 dark:hover:bg-gray-800 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-sm transition-all hover:scale-105 active:scale-95">
-                                    <span className="material-icons-outlined text-lg">person_add</span>
-                                    Katıl
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid gap-4">
-                            {teams.map((team, index) => (
-                                <div key={team.teamId} className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-5 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-md transition-shadow duration-300 border border-transparent dark:border-gray-800 relative group cursor-pointer" onClick={() => {
-                                    localStorage.setItem('selectedTeamId', team.teamId);
-                                    navigate('/dashboard');
-                                }}>
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-16 h-16 rounded-full bg-gray-50 border border-gray-100 dark:border-gray-700 p-1 flex-shrink-0 overflow-hidden shadow-sm">
-                                                <img 
-                                                    alt={`${team.teamName} logo`} 
-                                                    className="w-full h-full object-cover rounded-full" 
-                                                    src={`https://ui-avatars.com/api/?name=${team.teamName}&background=random&color=fff`}
-                                                />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-lg font-bold mb-1">{team.teamName}</h3>
-                                                <div className="text-sm text-[#6B7280] dark:text-[#9CA3AF] mb-1">
-                                                    <span className="font-medium">Rol: </span>
-                                                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs text-[#111827] dark:text-[#F3F4F6]">
-                                                        {(user && team.members && team.members[user.uid]) ? team.members[user.uid] : 'Üye'}
-                                                    </span>
-                                                </div>
-                                                <p className="text-xs text-[#6B7280] dark:text-[#9CA3AF] mt-2 flex items-center gap-1">
-                                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                                    Aktif Sezon
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button className="p-2 text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#EF4444] hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" onClick={(e) => { e.stopPropagation(); /* Ayrılma fonksiyonu */ }}>
-                                                <span className="material-icons-outlined">delete_outline</span>
-                                            </button>
-                                            <span className="material-icons-outlined text-[#6B7280]">chevron_right</span>
+                    <div className="flex flex-col gap-4">
+                        {teams.map((team) => (
+                            <div key={team.teamId} onClick={() => { localStorage.setItem('selectedTeamId', team.teamId); navigate('/dashboard'); }} className="bg-[#0d1c2d]/60 backdrop-blur-md border border-white/10 rounded-xl p-4 flex items-center justify-between group hover:border-[#ebb2ff]/50 transition-all cursor-pointer">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-[#bc13fe]/20 border border-[#ebb2ff] text-[#ebb2ff] flex items-center justify-center font-['Inter'] font-bold text-[20px]">
+                                        {team.teamName.substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-['Inter'] font-semibold text-[20px] text-[#d4e4fa] mb-1">{team.teamName}</h3>
+                                        <div className="flex gap-2 items-center">
+                                            <span className="bg-[#273647] px-2 py-0.5 rounded font-['Inter'] text-[12px] font-semibold text-[#d4c0d7]">
+                                                {(user && team.members && team.members[user.uid]) ? team.members[user.uid] : 'Üye'}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
-                            ))}
-                            
-                            {teams.length === 0 && (
-                                <div className="text-center py-10 bg-white dark:bg-[#1E1E1E] rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-                                    <span className="material-icons-outlined text-4xl text-gray-300 mb-2">groups</span>
-                                    <p className="text-gray-500 font-medium">Henüz bir takımınız yok.</p>
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button className="text-[#ffb4ab] hover:text-[#ffdad6] p-2" onClick={(e) => { e.stopPropagation(); /* Ayrılma mantığı eklenebilir */ }}>
+                                        <span className="material-icons-outlined">delete</span>
+                                    </button>
+                                    <button className="text-[#ebb2ff] hover:text-[#f8d8ff] p-2">
+                                        <span className="material-icons-outlined">chevron_right</span>
+                                    </button>
                                 </div>
-                            )}
-                        </div>
-                    </div>
+                            </div>
+                        ))}
 
-                    {/* SAĞ TARAF: Oyuncu Kariyeri */}
-                    <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <span className="material-icons-outlined text-[#2DD4BF]">person</span>
-                                Oyuncu Kariyeri
-                            </h2>
-                            <button className="text-sm text-[#6366F1] hover:underline font-medium">Tam Profil</button>
-                        </div>
+                        {teams.length === 0 && (
+                            <div className="text-center py-10 bg-[#0d1c2d]/60 backdrop-blur-md rounded-xl border-2 border-dashed border-white/10">
+                                <span className="material-icons-outlined text-4xl text-gray-500 mb-2">groups</span>
+                                <p className="text-gray-400 font-medium">Henüz bir takımınız yok.</p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                {/* Right Section: Player Career */}
+                <aside className="w-full md:w-80 flex flex-col gap-6">
+                    <div className="bg-[#0d1c2d]/60 backdrop-blur-md border border-white/10 rounded-xl p-6 relative overflow-hidden">
+                        {/* Corner Highlights */}
+                        <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#dcfdff]"></div>
+                        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#dcfdff]"></div>
                         
-                        <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] border border-transparent dark:border-gray-800 overflow-hidden flex flex-col h-full">
-                            {/* Renkli Gradient Kart */}
-                            <div className="bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] p-6 text-white relative">
-                                <div className="absolute top-0 right-0 p-4 opacity-20">
-                                    <span className="material-icons-outlined text-8xl">sports_handball</span>
-                                </div>
-                                <div className="relative z-10 flex items-center gap-4">
-                                    <div className="w-16 h-16 rounded-full border-2 border-white/30 flex items-center justify-center bg-white/10 text-2xl font-bold backdrop-blur-sm">
-                                        {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+                        <h2 className="font-['Inter'] font-semibold text-[24px] text-[#d4e4fa] mb-6">Oyuncu Kariyeri</h2>
+                        
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-16 h-16 rounded-full bg-[#1c2b3c] border-2 border-[#ebb2ff] text-[#ebb2ff] flex items-center justify-center font-['Inter'] font-bold text-[28px] shadow-[0_0_20px_rgba(188,19,254,0.2)]">
+                                {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                            <div>
+                                <h3 className="font-['Inter'] text-[16px] text-[#d4e4fa] font-semibold">{user?.displayName || 'Kullanıcı'}</h3>
+                                <p className="font-['Inter'] text-[12px] font-semibold tracking-wider text-[#d4c0d7] mt-1 uppercase">ID: #{user?.uid.substring(0, 4) || '8924'}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex border-b border-white/10 mb-6">
+                            <button className="px-4 py-2 text-[#ebb2ff] border-b-2 border-[#ebb2ff] font-['Inter'] text-[12px] font-semibold uppercase tracking-wider">İstatistikler</button>
+                            <button className="px-4 py-2 text-[#d4c0d7] hover:text-[#d4e4fa] transition-colors font-['Inter'] text-[12px] font-semibold uppercase tracking-wider">Bağlantılar</button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <h4 className="font-['Inter'] text-[12px] font-semibold text-[#d4c0d7] uppercase tracking-wider mb-3">Oyun Süresi</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="bg-[#122131]/50 p-2 rounded-lg text-center border border-white/5">
+                                        <div className="text-[#ebb2ff] font-['Inter'] font-bold text-[20px]">0</div>
+                                        <div className="font-['Inter'] text-[10px] font-semibold text-[#d4c0d7] mt-1 uppercase">Toplam</div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold">{user?.displayName || 'Kullanıcı'}</h3>
-                                        <p className="text-white/80 text-sm font-light">{user?.email || ''}</p>
+                                    <div className="bg-[#122131]/50 p-2 rounded-lg text-center border border-white/5">
+                                        <div className="text-[#dcfdff] font-['Inter'] font-bold text-[20px]">0</div>
+                                        <div className="font-['Inter'] text-[10px] font-semibold text-[#d4c0d7] mt-1 uppercase">Ofans</div>
+                                    </div>
+                                    <div className="bg-[#122131]/50 p-2 rounded-lg text-center border border-white/5">
+                                        <div className="text-[#e1e0fb] font-['Inter'] font-bold text-[20px]">0</div>
+                                        <div className="font-['Inter'] text-[10px] font-semibold text-[#d4c0d7] mt-1 uppercase">Defans</div>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Filtreler */}
-                            <div className="p-5 border-b border-gray-100 dark:border-gray-700 space-y-3">
-                                <div className="bg-[#F9F9F9] dark:bg-[#121212] rounded-lg px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                    <div>
-                                        <p className="text-xs text-[#6B7280] dark:text-[#9CA3AF] mb-0.5">Takım Filtresi</p>
-                                        <p className="text-sm font-semibold text-[#111827] dark:text-[#F3F4F6]">Tüm Takımlar (Kariyer)</p>
+                            
+                            <div>
+                                <h4 className="font-['Inter'] text-[12px] font-semibold text-[#d4c0d7] uppercase tracking-wider mb-3">Yakalama</h4>
+                                <div className="bg-[#122131]/50 p-4 rounded-lg border border-white/5">
+                                    <div className="flex justify-between items-end mb-2">
+                                        <span className="font-['Inter'] text-[14px] text-[#d4e4fa]">Tutuş Yüzdesi</span>
+                                        <span className="font-['Inter'] font-bold text-[24px] text-[#ebb2ff]">0%</span>
                                     </div>
-                                    <span className="material-icons-outlined text-[#6B7280]">arrow_drop_down</span>
-                                </div>
-                            </div>
-
-                            {/* Sekmeler */}
-                            <div className="flex border-b border-gray-100 dark:border-gray-700">
-                                <button className="flex-1 py-3 text-sm font-semibold text-[#6366F1] border-b-2 border-[#6366F1] bg-[#6366F1]/5">
-                                    İstatistikler
-                                </button>
-                                <button className="flex-1 py-3 text-sm font-medium text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#111827] hover:bg-gray-50 transition-colors">
-                                    Bağlantılar
-                                </button>
-                            </div>
-
-                            {/* Veri Özeti */}
-                            <div className="p-6 flex-grow flex flex-col justify-center">
-                                <div className="flex items-center gap-2 mb-6">
-                                    <span className="material-icons-outlined text-[#6366F1] text-xl">schedule</span>
-                                    <h4 className="font-bold text-lg">Oyun Süresi (Sayı)</h4>
-                                </div>
-                                <div className="grid grid-cols-3 gap-4 text-center relative">
-                                    <div className="flex flex-col items-center">
-                                        <span className="text-4xl font-black tracking-tight">50</span>
-                                        <span className="text-sm text-[#6B7280] dark:text-[#9CA3AF] font-medium mt-1">Toplam</span>
-                                    </div>
-                                    
-                                    <div className="flex flex-col items-center border-l border-r border-gray-100 dark:border-gray-700 px-2">
-                                        <span className="text-3xl font-bold text-[#2DD4BF]">28</span>
-                                        <span className="text-sm text-[#2DD4BF] font-medium mt-1">Ofans</span>
-                                    </div>
-                                    <div className="flex flex-col items-center">
-                                        <span className="text-3xl font-bold text-[#EF4444]">22</span>
-                                        <span className="text-sm text-[#EF4444] font-medium mt-1">Defans</span>
-                                    </div>
-                                </div>
-
-                                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="material-icons-outlined text-[#2DD4BF] text-xl">pan_tool</span>
-                                        <h4 className="font-bold">Yakalama (Receiving)</h4>
-                                    </div>
-                                    <div className="flex justify-between items-end">
-                                        <span className="text-sm text-[#6B7280] dark:text-[#9CA3AF]">Tutuş Yüzdesi</span>
-                                        <span className="text-lg font-bold text-[#111827] dark:text-[#F3F4F6]">100,0%</span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
-                                        <div className="bg-[#2DD4BF] h-2 rounded-full" style={{ width: '100%' }}></div>
+                                    <div className="h-1 w-full bg-[#1c2b3c] rounded-full overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-[#ebb2ff] to-[#dcfdff] w-[5%] rounded-full shadow-[0_0_10px_rgba(188,19,254,0.5)]"></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </aside>
             </main>
-            
-            {/* Giriş Başarılı Animasyonu */}
-            <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 text-[#111827] dark:text-[#F3F4F6] px-6 py-3 rounded-full shadow-xl border border-gray-100 dark:border-gray-700 flex items-center gap-3 animate-bounce shadow-indigo-100 dark:shadow-none">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                    <span className="material-icons-outlined text-white text-xs">check</span>
-                </div>
-                <span className="font-medium text-sm">Giriş başarılı!</span>
-            </div>
         </div>
     );
 }
