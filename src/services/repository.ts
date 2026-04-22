@@ -9,18 +9,17 @@ import {
     onSnapshot,
     doc,
     updateDoc,
-    getDocs,
     getDoc,
-    setDoc, // setDoc eklendi
-    deleteDoc
+    setDoc,
+    deleteDoc,
+    arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
-import { arrayUnion } from 'firebase/firestore';
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
     const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
-    return onSnapshot(q, (snapshot) => {
-        const teamsData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const teamsData = snapshot.docs.map((doc: any) => ({
             teamId: doc.id,
             ...doc.data()
         } as TeamProfile));
@@ -30,13 +29,12 @@ export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) =>
 
 export const getPlayers = (teamId: string, callback: (players: Player[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/players`));
-    return onSnapshot(q, (snapshot) => {
-        const playersData = snapshot.docs.map(doc => {
+    return onSnapshot(q, (snapshot: any) => {
+        const playersData = snapshot.docs.map((doc: any) => {
             const data = doc.data();
             return {
                 id: doc.id,
                 ...data,
-                // Hem 'photoUrl' hem de 'photoURL' ihtimallerini kontrol edip atıyoruz
                 photoUrl: data.photoUrl || data.photoURL || null
             } as Player;
         });
@@ -46,8 +44,8 @@ export const getPlayers = (teamId: string, callback: (players: Player[]) => void
 
 export const getTournaments = (teamId: string, callback: (tournaments: Tournament[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments`));
-    return onSnapshot(q, (snapshot) => {
-        const tournamentsData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const tournamentsData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         } as Tournament));
@@ -57,8 +55,8 @@ export const getTournaments = (teamId: string, callback: (tournaments: Tournamen
 
 export const getTournamentMatches = (teamId: string, tournamentId: string, callback: (matches: any[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/matches`));
-    return onSnapshot(q, (snapshot) => {
-        const matchesData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const matchesData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         }));
@@ -68,8 +66,8 @@ export const getTournamentMatches = (teamId: string, tournamentId: string, callb
 
 export const getTournamentPlayers = (teamId: string, tournamentId: string, callback: (players: TournamentPlayer[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/players`));
-    return onSnapshot(q, (snapshot) => {
-        const playersData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const playersData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         } as TournamentPlayer));
@@ -77,211 +75,73 @@ export const getTournamentPlayers = (teamId: string, tournamentId: string, callb
     });
 };
 
-// --- YENİ EKLENEN: OYUNCU GÜNCELLEME ---
+// --- YENİ EKLENEN: OYUNCU GÜNCELLEME (BACKEND API) ---
 export const updatePlayer = async (teamId: string, player: Player) => {
     try {
-        const playerRef = doc(db, `teams/${teamId}/players`, player.id);
-        await updateDoc(playerRef, {
-            name: player.name,
-            jerseyNumber: player.jerseyNumber,
-            position: player.position,
-            isCaptain: player.isCaptain,
-            photoUrl: player.photoUrl // Fotoğraf güncellemesi için
+        const API_URL = "http://localhost:3000";
+        const response = await fetch(`${API_URL}/api/teams/${teamId}/players/${player.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(player)
         });
-        return true;
+        return response.ok;
     } catch (error) {
-        console.error("Oyuncu güncellenirken hata:", error);
+        console.error("Oyuncu güncellenirken hata (API):", error);
         return false;
     }
 };
 
-// --- GÜNCELLENEN: TAKIM ORTALAMALARINI VE PERFORMANSINI HESAPLA ---
+// --- GÜNCELLENEN: TAKIM ORTALAMALARINI VE PERFORMANSINI HESAPLA (BACKEND API KULLANIR) ---
 export const getTeamAggregates = async (teamId: string) => {
     try {
-        const tourSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments`));
-        let allMatches: Match[] = [];
-        
-        for (const tourDoc of tourSnapshot.docs) {
-            const matchesSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments/${tourDoc.id}/matches`));
-            const matchesData = matchesSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Match));
-            allMatches = [...allMatches, ...matchesData];
+        const API_URL = "http://localhost:3000"; // Canlıya alınca burası değişecek
+        const response = await fetch(`${API_URL}/api/teams/${teamId}/aggregates`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-
-        let totalGoals = 0, totalAssists = 0, totalBlocks = 0, totalTurns = 0, totalDrops = 0;
-        let totalSuccessfulPass = 0;
-        let oPoints = 0, oHolds = 0, cleanHolds = 0;
-        let dPoints = 0, dBreaks = 0;
-        let totalPointsPlayed = 0;
-        let totalBlockPoints = 0;
-        let blocksConvertedToGoals = 0;
-        let uniquePlayerIds = new Set<string>();
-
-        const totalMatches = allMatches.length;
-
-        // Her maçı ve oynanan her sayıyı (point) tek tek tarıyoruz
-        allMatches.forEach(match => {
-            match.pointsArchive?.forEach(point => {
-                totalPointsPlayed++; // Oynanan her pozisyonu/sayıyı say
-                let pointHasOurGoal = false;
-                let pointTurnovers = 0; // Bu sayı içinde yapılan toplam top kaybı
-                let pointBlocks = 0; // Bu sayı içinde yapılan toplam blok
-
-                point.stats?.forEach(stat => {
-                    uniquePlayerIds.add(stat.playerId);
-                    totalGoals += stat.goal || 0;
-                    totalAssists += stat.assist || 0;
-                    totalBlocks += stat.block || 0;
-                    totalTurns += stat.throwaway || 0;
-                    totalDrops += stat.drop || 0;
-                    totalSuccessfulPass += stat.successfulPass || 0;
-                    
-                    pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
-                    pointBlocks += stat.block || 0;
-
-                    if (stat.goal && stat.goal > 0) {
-                        pointHasOurGoal = true; 
-                    }
-                });
-
-                // Blok Dönüşümü Hesabı (App ile birebir aynı: Blok olan sayılarda gol attık mı?)
-                if (pointBlocks > 0) {
-                    totalBlockPoints++;
-                    if (pointHasOurGoal) {
-                        blocksConvertedToGoals++;
-                    }
-                }
-
-                // Verimlilik: Hold, Break ve Clean Hold (Hatasız Hücum) Hesabı
-                if (point.startMode === 'OFFENSE') {
-                    oPoints++;
-                    if (pointHasOurGoal) {
-                        oHolds++;
-                        if (pointTurnovers === 0) cleanHolds++; // Hiç turnover yapmadan sayı olduysa
-                    }
-                } else if (point.startMode === 'DEFENSE') {
-                    dPoints++;
-                    if (pointHasOurGoal) dBreaks++;
-                }
-            });
-        });
-
-        const playerCount = uniquePlayerIds.size || 1;
-        const absoluteTurnovers = totalTurns + totalDrops;
-        
-        // Uygulamadaki Gerçek Pas ve Verimlilik (Possession) Hesaplaması
-        const totalPassesCompleted = totalSuccessfulPass + totalAssists;
-        const totalPassAttempts = totalPassesCompleted + totalTurns;
-        const totalPossessions = totalGoals + totalTurns + totalDrops;
-
-        return {
-            totalMatches,
-            totalPointsPlayed,
-            avgGoals: parseFloat((totalGoals / playerCount).toFixed(1)),
-            avgAssists: parseFloat((totalAssists / playerCount).toFixed(1)),
-            avgBlocks: parseFloat((totalBlocks / playerCount).toFixed(1)),
-            avgTurns: parseFloat((absoluteTurnovers / playerCount).toFixed(1)),
-            holdPercentage: oPoints > 0 ? ((oHolds / oPoints) * 100).toFixed(1) : 0,
-            breakPercentage: dPoints > 0 ? ((dBreaks / dPoints) * 100).toFixed(1) : 0,
-            passSuccess: totalPassAttempts > 0 ? ((totalPassesCompleted / totalPassAttempts) * 100).toFixed(1) : 0,
-            conversionRate: totalPossessions > 0 ? ((totalGoals / totalPossessions) * 100).toFixed(1) : 0,
-            blockConversionRate: totalBlockPoints > 0 ? ((blocksConvertedToGoals / totalBlockPoints) * 100).toFixed(1) : 0,
-            totalPassAttempts,
-            totalPassesCompleted,
-            totalTurnovers: absoluteTurnovers,
-            totalPossessions,
-            totalGoals,
-            cleanHolds,
-            totalBlockPoints,
-            blocksConvertedToGoals,
-            oHolds, oPoints,
-            dBreaks, dPoints
-        };
+        const data = await response.json();
+        return data;
     } catch (e) {
-        console.error("Takım ortalamaları hatası:", e);
+        console.error("Takım ortalamaları API hatası:", e);
         return null;
     }
 };
 
-// --- GÜNCELLENEN: Oyuncunun tüm kariyer istatistiklerini hesaplayan fonksiyon ---
+// --- GÜNCELLENEN: Oyuncunun tüm kariyer istatistiklerini hesaplayan fonksiyon (BACKEND API KULLANIR) ---
 export const getPlayerCareerStats = async (teamId: string, playerId: string) => {
     try {
-        // 1. Takımın tüm turnuvalarını çek
-        const tourSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments`));
-        
-        let allMatches: Match[] = [];
-        let passDistribution: Record<string, number> = {};
-        
-        // 2. Her turnuvanın içindeki maçları çek
-        for (const tourDoc of tourSnapshot.docs) {
-            const matchesSnapshot = await getDocs(collection(db, `teams/${teamId}/tournaments/${tourDoc.id}/matches`));
-            const matchesData = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
-            allMatches = [...allMatches, ...matchesData];
+        const API_URL = "http://localhost:3000"; // Canlıya alınca burası değişecek
+        const response = await fetch(`${API_URL}/api/teams/${teamId}/players/${playerId}/careerStats`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-
-        // 3. Değişkenleri tanımla
-        let goals = 0, assists = 0, blocks = 0, drops = 0, throwaways = 0;
-        let catches = 0, passes = 0, oPoints = 0, dPoints = 0, pointsPlayed = 0;
-
-        // 4. Maçlardaki her bir "sayı (point)" verisini analiz et
-        allMatches.forEach(match => {
-            if (!match.pointsArchive) return;
-            
-            match.pointsArchive.forEach(point => {
-                const pStat = point.stats?.find(s => s.playerId === playerId);
-                if (pStat) {
-                    pointsPlayed++;
-                    if (point.startMode === 'OFFENSE') oPoints++;
-                    if (point.startMode === 'DEFENSE') dPoints++;
-
-                    goals += pStat.goal || 0;
-                    assists += pStat.assist || 0;
-                    blocks += pStat.block || 0;
-                    drops += pStat.drop || 0;
-                    throwaways += pStat.throwaway || 0;
-                    catches += pStat.catchStat || 0;
-                    // ASİSTİ BAŞARILI PAS OLARAK SAY (Android ile eşitleme)
-                    passes += (pStat.successfulPass || 0) + (pStat.assist || 0);
-                    
-                    // Pas dağılımını hesapla
-                    if (pStat.passDistribution) {
-                        Object.entries(pStat.passDistribution).forEach(([targetName, count]) => {
-                            passDistribution[targetName] = (passDistribution[targetName] || 0) + count;
-                        });
-                    }
-                }
-            });
-        });
-
-        // 5. Yüzdelik ve +/- Hesaplamaları
-        const plusMinus = (goals + assists + blocks) - (throwaways + drops);
-        const catchRate = (catches + drops) > 0 ? Math.round((catches / (catches + drops)) * 100) : 0;
-        const passRate = (passes + throwaways) > 0 ? Math.round((passes / (passes + throwaways)) * 100) : 0;
-
-        return {
-            goals, assists, blocks, drops, throwaways, catches, passes,
-            oPoints, dPoints, pointsPlayed, plusMinus, catchRate, passRate, passDistribution
-        };
+        const data = await response.json();
+        return data;
     } catch (error) {
-        console.error("İstatistikler çekilirken hata oluştu:", error);
+        console.error("Oyuncu İstatistikleri API hatası:", error);
         return null;
     }
 };
-export const getMatch = async (tournamentId: string, matchId: string): Promise<Match | null> => {
-    // BURASI DÜZELTİLDİ: activeTeamId yerine selectedTeamId
+const API_URL = "http://localhost:3000";
+
+export const getMatch = (tournamentId: string, matchId: string, callback: (match: Match | null) => void) => {
     const activeTeamId = localStorage.getItem('selectedTeamId');
-    if (!activeTeamId) return null;
+    if (!activeTeamId) {
+        callback(null);
+        return () => {};
+    }
 
     const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
-    const matchSnap = await getDoc(matchDocRef);
-
-    if (matchSnap.exists()) {
-        return { id: matchSnap.id, ...matchSnap.data() } as Match;
-    }
-    return null;
+    return onSnapshot(matchDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            callback({ id: docSnap.id, ...docSnap.data() } as Match);
+        } else {
+            callback(null);
+        }
+    });
 };
 
 export const getMatchEvents = (tournamentId: string, matchId: string, callback: (events: MatchEvent[]) => void) => {
-    // BURASI DÜZELTİLDİ: activeTeamId yerine selectedTeamId
     const activeTeamId = localStorage.getItem('selectedTeamId');
     if (!activeTeamId) {
         callback([]);
@@ -290,13 +150,13 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
 
     const eventsCollectionRef = collection(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId, 'events');
 
-    const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot) => {
-        const events = querySnapshot.docs.map(docSnap => ({
+    const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot: any) => {
+        const events = querySnapshot.docs.map((docSnap: any) => ({
             id: docSnap.id,
             ...docSnap.data(),
         } as MatchEvent));
         
-        callback(events.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
+        callback(events.sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
     });
 
     return unsubscribe;
@@ -309,52 +169,35 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
 // createMatch fonksiyonunu revize ediyoruz
 // src/services/repository.ts içindeki ilgili fonksiyonları bu şekilde revize edin
 
-// --- GÜNCELLENEN: createMatch ---
+// --- GÜNCELLENEN: createMatch (BACKEND API) ---
 export const createMatch = async (teamId: string, tournamentId: string, opponentName: string, ourTeamName: string) => {
     try {
-        const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
-        const matchesRef = collection(tournamentRef, 'matches');
-        const newMatchDoc = doc(matchesRef);
-        
-        const newMatch: Match = {
-            id: newMatchDoc.id,
-            opponentName: opponentName,
-            ourTeamName: ourTeamName, 
-            scoreUs: 0,
-            scoreThem: 0,
-            pointsArchive: [],
-            matchDurationSeconds: 0,
-            isProMode: false, 
-            date: new Date().toISOString(),
-            tournamentId: tournamentId,
-            teamNames: [ourTeamName, opponentName],
-            score: [0, 0],
-            finished: false
-        };
-        
-        // 1. Maçı alt koleksiyona kaydet
-        await setDoc(newMatchDoc, newMatch);
-
-        await updateDoc(tournamentRef, {
-            lastUpdated: Date.now()
+        const API_URL = "http://localhost:3000";
+        const response = await fetch(`${API_URL}/api/teams/${teamId}/tournaments/${tournamentId}/matches`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ opponentName, ourTeamName })
         });
-        
-        return newMatchDoc.id;
+        if (!response.ok) throw new Error("API Hatası");
+        const data = await response.json();
+        return data.matchId;
     } catch (error) {
-        console.error("Maç oluşturulurken hata:", error);
+        console.error("Maç oluşturulurken hata (API):", error);
         return null;
     }
 };
 
-// YENİ EKLENEN: updateMatchData (Eksik fonksiyon eklendi)
 export const updateMatchData = async (teamId: string, tournamentId: string, data: any) => {
     try {
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${data.id}`);
         const { id, ...updateFields } = data;
-        await updateDoc(matchRef, updateFields);
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${data.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateFields)
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Maç güncellenirken hata:", error);
+        console.error("Maç güncellenirken API hatası:", error);
         return false;
     }
 };
@@ -371,49 +214,29 @@ export const updateMatchData = async (teamId: string, tournamentId: string, data
 
 // ... diğer importlar ...
 
-// YENİ EKLENEN/GÜNCELLENEN: Olayı maçın içine dizi elemanı olarak kaydeder
 export const addMatchEvent = async (tournamentId: string, matchId: string, event: any) => {
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
     try {
-        const teamId = localStorage.getItem('selectedTeamId');
-        if (!teamId) return;
-
-        // Maçın yolunu buluyoruz (Kendi veritabanı ağacınıza göre güncelleyin)
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-        
-        // arrayUnion ile olayı var olan dizinin içine (diğer verileri bozmadan) itiyoruz
-        await updateDoc(matchRef, {
-            events: arrayUnion(event)
+        await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}/events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(event)
         });
     } catch (error) {
-        console.error("Video olayı kaydedilirken hata:", error);
+        console.error("Video olayı API hatası:", error);
     }
 };
 
-// YENİ EKLENEN/GÜNCELLENEN: Son olayı geri alır (Undo)
 export const undoLastEvent = async (tournamentId: string, matchId: string) => {
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
     try {
-        const teamId = localStorage.getItem('selectedTeamId');
-        if (!teamId) return;
-
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-        const matchSnap = await getDoc(matchRef);
-        
-        if (matchSnap.exists()) {
-            const matchData = matchSnap.data();
-            const events = matchData.events || [];
-            
-            if (events.length > 0) {
-                // Zaman damgasına göre ARTAN sırada sırala (eskiden yeniye)
-                const sortedEvents = events.sort((a: any, b: any) => a.timestamp - b.timestamp);
-                
-                // En son ekleneni (dizinin en sonundaki elemanı) çıkar
-                const eventsToKeep = sortedEvents.slice(0, -1);
-                
-                await updateDoc(matchRef, { events: eventsToKeep });
-            }
-        }
+        await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}/events/undo`, {
+            method: 'DELETE'
+        });
     } catch (error) {
-        console.error("Geri alırken hata:", error);
+        console.error("Undo event API hatası:", error);
     }
 };
 
@@ -421,178 +244,80 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
     const teamId = localStorage.getItem('selectedTeamId');
     if (!teamId) return;
 
-    const matchRef = doc(db, 'teams', teamId, 'tournaments', tournamentId, 'matches', matchId);
-    const matchSnap = await getDoc(matchRef);
-    if (!matchSnap.exists()) return;
-
-    const matchData = matchSnap.data();
-
-    // DÜZELTME: Sadece 'lineup' içindeki 7 oyuncuyu değil, o sayı içinde yer almış (pointStats içinde bulunan)
-    // tüm oyuncuları (oyundan sakatlık/değişiklik ile çıkanlar da dahil) hesaba katarak arşivle.
-    const allPlayerIds = Array.from(new Set([...lineup, ...pointStats.map(s => s.playerId)]));
-
-    const statsToArchive = allPlayerIds.map(playerId => {
-        const pStat = pointStats.find(s => s.playerId === playerId);
-        return {
-            playerId: playerId,
-            pointsPlayed: 1, // Her halükarda kadrodaysa veya girip çıktıysa 1 puan oynadı
-            goal: pStat?.goal || 0,
-            assist: pStat?.assist || 0,
-            block: pStat?.block || 0,
-            successfulPass: pStat?.successfulPass || 0,
-            throwaway: pStat?.throwaway || 0,
-            drop: pStat?.drop || 0,
-            callahan: pStat?.callahan || 0,
-            catchStat: pStat?.catchStat || 0,
-            passDistribution: pStat?.passDistribution || {},
-            pullAttempts: pStat?.pullAttempts || 0,
-            successfulPulls: pStat?.successfulPulls || 0,
-            totalPulls: pStat?.totalPulls || 0,
-            totalPullTimeSeconds: pStat?.totalPullTimeSeconds || 0
-        };
-    });
-
-    const newPoint = {
-        id: Date.now().toString(),
-        startMode,
-        whoScored,
-        playerIds: allPlayerIds, // DÜZELTME: Giren ve çıkanlar dahil tüm oyuncuların ID'sini sakla
-        stats: statsToArchive,
-        durationSeconds: 0 
-    };
-
-    let newScoreUs = matchData.scoreUs ?? matchData.score?.[0] ?? 0;
-    let newScoreThem = matchData.scoreThem ?? matchData.score?.[1] ?? 0;
-    
-    if (whoScored === 'US') newScoreUs += 1;
-    else if (whoScored === 'THEM') newScoreThem += 1;
-
-    await updateDoc(matchRef, {
-        pointsArchive: arrayUnion(newPoint),
-        scoreUs: newScoreUs,
-        scoreThem: newScoreThem,
-        score: [newScoreUs, newScoreThem] 
-    });
-
-    // KRİTİK EKSİK: Sayı kaydedildiğinde istatistiklerin web arayüzüne hemen yansıması için 
-    // turnuvanın lastUpdated alanını güncelliyoruz.
-    const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
-    await updateDoc(tournamentRef, {
-        lastUpdated: Date.now()
-    });
+    try {
+        const API_URL = "http://localhost:3000";
+        await fetch(`${API_URL}/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}/archive-point`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lineup, startMode, whoScored, pointStats })
+        });
+    } catch (error) {
+        console.error("Sayı arşivlenirken API hatası:", error);
+    }
 };
 
-// Maçı ve içindeki verileri silme fonksiyonu
 export const deleteMatch = async (tournamentId: string, matchId: string) => {
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return false;
     try {
-        const teamId = localStorage.getItem('selectedTeamId');
-        if (!teamId) return false;
-        
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-        await deleteDoc(matchRef);
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`, {
+            method: 'DELETE'
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Maç silinirken hata oluştu:", error);
+        console.error("Maç silme API hatası:", error);
         return false;
     }
 };
-// src/services/repository.ts dosyasının içine uygun bir yere ekleyin:
 
 export const deleteLastPoint = async (tournamentId: string, matchId: string) => {
     const teamId = localStorage.getItem('selectedTeamId');
     if (!teamId) return;
-
-    const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-    const matchSnap = await getDoc(matchRef);
-    
-    if (matchSnap.exists()) {
-        const matchData = matchSnap.data();
-        const pointsArchive = matchData.pointsArchive || [];
-        const events = matchData.events || []; // Event geçmişini de çektik
-        
-        if (pointsArchive.length > 0) {
-            const lastPoint = pointsArchive[pointsArchive.length - 1];
-            
-            // Son sayıyı arşivden çıkar
-            const newArchive = pointsArchive.slice(0, -1);
-            
-            // Skoru geri al
-            let newScoreUs = matchData.scoreUs || 0;
-            let newScoreThem = matchData.scoreThem || 0;
-            
-            if (lastPoint.whoScored === 'US' && newScoreUs > 0) newScoreUs--;
-            if (lastPoint.whoScored === 'THEM' && newScoreThem > 0) newScoreThem--;
-
-            // Sildiğimiz sayıya ait olayları "events" listesinden temizliyoruz
-            const sortedEvents = events.sort((a: any, b: any) => a.timestamp - b.timestamp);
-            let scoreEventIndices: number[] = [];
-            
-            // Sondan geriye doğru skor yaratan olayları buluyoruz
-            for (let i = sortedEvents.length - 1; i >= 0; i--) {
-                const type = sortedEvents[i].eventType;
-                if (type === 'Goal' || type === 'Callahan' || type === 'OpponentGoal') {
-                    scoreEventIndices.push(i);
-                }
-            }
-
-            let newEvents = [];
-            if (scoreEventIndices.length > 1) {
-                // Sildiğimiz sayıdan bir önceki sayıya kadar olan tüm eventleri koru
-                newEvents = sortedEvents.slice(0, scoreEventIndices[1] + 1);
-            } else {
-                // Ekranda sadece 1 skor varsa veya henüz hiç yoksa tüm geçmişi temizle
-                newEvents = [];
-            }
-
-            // Firebase'i güncelle (Sayı, Skorlar ve Temizlenmiş Event Geçmişi ile)
-            await updateDoc(matchRef, {
-                pointsArchive: newArchive,
-                scoreUs: newScoreUs,
-                scoreThem: newScoreThem,
-                score: [newScoreUs, newScoreThem],
-                events: newEvents
-            });
-
-            // KRİTİK EKSİK: Sayı silindiğinde de istatistiklerin yenilenmesi için tetikliyoruz.
-            const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
-            await updateDoc(tournamentRef, {
-                lastUpdated: Date.now()
-            });
-        }
+    try {
+        await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}/points/undo`, {
+            method: 'DELETE'
+        });
+    } catch (error) {
+        console.error("Son sayı silme API hatası:", error);
     }
 };
 // --- ANTRENMAN (TRAINING) FONKSİYONLARI ---
 
 export const getTrainings = (teamId: string, callback: (trainings: any[]) => void) => {
     const trainingsRef = collection(db, `teams/${teamId}/trainings`);
-    return onSnapshot(trainingsRef, (snapshot) => {
-        const trainingsData = snapshot.docs.map(doc => ({
+    return onSnapshot(trainingsRef, (snapshot: any) => {
+        const trainingsData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         })) as any[];
-        // Tarihe göre sırala (En yeni en üstte)
-        trainingsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        trainingsData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
         callback(trainingsData);
     });
 };
 
 export const saveTraining = async (teamId: string, training: any) => {
     try {
-        const trainingRef = doc(db, `teams/${teamId}/trainings`, training.id);
-        await setDoc(trainingRef, training, { merge: true });
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/trainings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(training)
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Antrenman kaydedilirken hata:", error);
+        console.error("Antrenman kaydetme API hatası:", error);
         return false;
     }
 };
 
 export const deleteTraining = async (teamId: string, trainingId: string) => {
     try {
-        await deleteDoc(doc(db, `teams/${teamId}/trainings`, trainingId));
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/trainings/${trainingId}`, {
+            method: 'DELETE'
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Antrenman silinirken hata:", error);
+        console.error("Antrenman silme API hatası:", error);
         return false;
     }
 };
