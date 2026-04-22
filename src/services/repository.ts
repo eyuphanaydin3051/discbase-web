@@ -1,66 +1,55 @@
-// src/services/repository.ts
-
-// src/services/repository.ts
-
-import {
-    collection,
-    query,
-    where,
-    onSnapshot,
-    doc,
-    getDoc
-} from 'firebase/firestore';
-// Firebase yazma işlemleri (updateDoc, setDoc, vb.) frontend'den tamamen kaldırıldı. 
-// Tüm yazma işlemleri backend API (server.js) üzerinden yapılmaktadır.
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
+const API_BASE = "http://localhost:3000/api";
+
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
-    const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
-    return onSnapshot(q, (snapshot: any) => {
-        const teamsData = snapshot.docs.map((doc: any) => ({
-            teamId: doc.id,
-            ...doc.data()
-        } as TeamProfile));
-        callback(teamsData);
-    });
+    fetch(`${API_BASE}/teams?userId=${userId}`)
+        .then(res => res.json())
+        .then(data => callback(data))
+        .catch(err => console.error("Takımlar çekilemedi:", err));
+    return () => {}; // Unsubscribe simülasyonu
 };
 
 export const getPlayers = (teamId: string, callback: (players: Player[]) => void) => {
-    const q = query(collection(db, `teams/${teamId}/players`));
-    return onSnapshot(q, (snapshot: any) => {
-        const playersData = snapshot.docs.map((doc: any) => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                photoUrl: data.photoUrl || data.photoURL || null
-            } as Player;
-        });
-        callback(playersData);
-    });
+    fetch(`${API_BASE}/teams/${teamId}/players`)
+        .then(res => res.json())
+        .then(data => callback(data))
+        .catch(err => console.error("Oyuncular çekilemedi:", err));
+    return () => {};
 };
 
 export const getTournaments = (teamId: string, callback: (tournaments: Tournament[]) => void) => {
-    const q = query(collection(db, `teams/${teamId}/tournaments`));
-    return onSnapshot(q, (snapshot: any) => {
-        const tournamentsData = snapshot.docs.map((doc: any) => ({
-            id: doc.id,
-            ...doc.data()
-        } as Tournament));
-        callback(tournamentsData);
-    });
+    fetch(`${API_BASE}/teams/${teamId}/tournaments`)
+        .then(res => res.json())
+        .then(data => callback(data))
+        .catch(err => console.error("Turnuvalar çekilemedi:", err));
+    return () => {};
 };
 
 export const getTournamentMatches = (teamId: string, tournamentId: string, callback: (matches: any[]) => void) => {
-    const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/matches`));
-    return onSnapshot(q, (snapshot: any) => {
-        const matchesData = snapshot.docs.map((doc: any) => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        callback(matchesData);
-    });
+    fetch(`${API_BASE}/teams/${teamId}/tournaments/${tournamentId}/matches`)
+        .then(res => res.json())
+        .then(data => callback(data))
+        .catch(err => console.error("Maçlar çekilemedi:", err));
+    return () => {};
 };
+
+export const getTrainings = (teamId: string, callback: (trainings: any[]) => void) => {
+    fetch(`${API_BASE}/teams/${teamId}/trainings`)
+        .then(res => res.json())
+        .then(data => {
+            data.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            callback(data);
+        })
+        .catch(err => console.error("Antrenmanlar çekilemedi:", err));
+    return () => {};
+};
+
+
+
+
+
+
 
 export const getTournamentPlayers = (teamId: string, tournamentId: string, callback: (players: TournamentPlayer[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/players`));
@@ -129,14 +118,14 @@ export const getMatch = (tournamentId: string, matchId: string, callback: (match
         return () => {};
     }
 
-    const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
-    return onSnapshot(matchDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            callback({ id: docSnap.id, ...docSnap.data() } as Match);
-        } else {
+    fetch(`${API_BASE}/teams/${activeTeamId}/tournaments/${tournamentId}/matches/${matchId}`)
+        .then(res => res.json())
+        .then(data => callback(data))
+        .catch(err => {
+            console.error("Maç detayı çekilemedi:", err);
             callback(null);
-        }
-    });
+        });
+    return () => {};
 };
 
 export const getMatchEvents = (tournamentId: string, matchId: string, callback: (events: MatchEvent[]) => void) => {
@@ -283,18 +272,6 @@ export const deleteLastPoint = async (tournamentId: string, matchId: string) => 
 };
 // --- ANTRENMAN (TRAINING) FONKSİYONLARI ---
 
-export const getTrainings = (teamId: string, callback: (trainings: any[]) => void) => {
-    const trainingsRef = collection(db, `teams/${teamId}/trainings`);
-    return onSnapshot(trainingsRef, (snapshot: any) => {
-        const trainingsData = snapshot.docs.map((doc: any) => ({
-            id: doc.id,
-            ...doc.data()
-        })) as any[];
-        
-        trainingsData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        callback(trainingsData);
-    });
-};
 
 export const saveTraining = async (teamId: string, training: any) => {
     try {

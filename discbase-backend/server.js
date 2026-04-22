@@ -298,6 +298,83 @@ app.delete('/api/teams/:teamId/trainings/:trainingId', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// --- YENİ: TÜM OKUMA (READ) API ENDPOINT'LERİ ---
+
+// Kullanıcının dahil olduğu takımları getir
+app.get('/api/teams', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) return res.status(400).json({ error: "userId gerekli" });
+        
+        // members nested objesinde userId'si olan takımları filtrele
+        const snapshot = await db.collection('teams').where(`members.${userId}`, '!=', null).get();
+        const teams = snapshot.docs.map(doc => ({ teamId: doc.id, ...doc.data() }));
+        res.json(teams);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Takımın oyuncularını getir
+app.get('/api/teams/:teamId/players', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/players`).get();
+        const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(players);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Takımın turnuvalarını getir
+app.get('/api/teams/:teamId/tournaments', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/tournaments`).get();
+        const tournaments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(tournaments);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Turnuvanın maçlarını getir
+app.get('/api/teams/:teamId/tournaments/:tournamentId/matches', async (req, res) => {
+    try {
+        const { teamId, tournamentId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/tournaments/${tournamentId}/matches`).get();
+        const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(matches);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Takımın antrenmanlarını getir
+app.get('/api/teams/:teamId/trainings', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const snapshot = await db.collection(`teams/${teamId}/trainings`).get();
+        const trainings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json(trainings);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Spesifik bir maçın detayını getir (Maç Takip Ekranı İçin)
+app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const doc = await db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`).get();
+        if (!doc.exists) return res.status(404).json({ error: "Maç bulunamadı" });
+        res.json({ id: doc.id, ...doc.data() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Backend sunucusu ${PORT} portunda çalışıyor...`);
