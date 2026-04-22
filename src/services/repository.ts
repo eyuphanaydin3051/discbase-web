@@ -9,18 +9,17 @@ import {
     onSnapshot,
     doc,
     updateDoc,
-    getDocs,
     getDoc,
-    setDoc, // setDoc eklendi
-    deleteDoc
+    setDoc,
+    deleteDoc,
+    arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
-import { arrayUnion } from 'firebase/firestore';
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
     const q = query(collection(db, "teams"), where(`members.${userId}`, "!=", null));
-    return onSnapshot(q, (snapshot) => {
-        const teamsData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const teamsData = snapshot.docs.map((doc: any) => ({
             teamId: doc.id,
             ...doc.data()
         } as TeamProfile));
@@ -30,13 +29,12 @@ export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) =>
 
 export const getPlayers = (teamId: string, callback: (players: Player[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/players`));
-    return onSnapshot(q, (snapshot) => {
-        const playersData = snapshot.docs.map(doc => {
+    return onSnapshot(q, (snapshot: any) => {
+        const playersData = snapshot.docs.map((doc: any) => {
             const data = doc.data();
             return {
                 id: doc.id,
                 ...data,
-                // Hem 'photoUrl' hem de 'photoURL' ihtimallerini kontrol edip atıyoruz
                 photoUrl: data.photoUrl || data.photoURL || null
             } as Player;
         });
@@ -46,8 +44,8 @@ export const getPlayers = (teamId: string, callback: (players: Player[]) => void
 
 export const getTournaments = (teamId: string, callback: (tournaments: Tournament[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments`));
-    return onSnapshot(q, (snapshot) => {
-        const tournamentsData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const tournamentsData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         } as Tournament));
@@ -57,8 +55,8 @@ export const getTournaments = (teamId: string, callback: (tournaments: Tournamen
 
 export const getTournamentMatches = (teamId: string, tournamentId: string, callback: (matches: any[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/matches`));
-    return onSnapshot(q, (snapshot) => {
-        const matchesData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const matchesData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         }));
@@ -68,8 +66,8 @@ export const getTournamentMatches = (teamId: string, tournamentId: string, callb
 
 export const getTournamentPlayers = (teamId: string, tournamentId: string, callback: (players: TournamentPlayer[]) => void) => {
     const q = query(collection(db, `teams/${teamId}/tournaments/${tournamentId}/players`));
-    return onSnapshot(q, (snapshot) => {
-        const playersData = snapshot.docs.map(doc => ({
+    return onSnapshot(q, (snapshot: any) => {
+        const playersData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         } as TournamentPlayer));
@@ -141,7 +139,6 @@ export const getMatch = async (tournamentId: string, matchId: string): Promise<M
 };
 
 export const getMatchEvents = (tournamentId: string, matchId: string, callback: (events: MatchEvent[]) => void) => {
-    // BURASI DÜZELTİLDİ: activeTeamId yerine selectedTeamId
     const activeTeamId = localStorage.getItem('selectedTeamId');
     if (!activeTeamId) {
         callback([]);
@@ -150,13 +147,13 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
 
     const eventsCollectionRef = collection(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId, 'events');
 
-    const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot) => {
-        const events = querySnapshot.docs.map(docSnap => ({
+    const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot: any) => {
+        const events = querySnapshot.docs.map((docSnap: any) => ({
             id: docSnap.id,
             ...docSnap.data(),
         } as MatchEvent));
         
-        callback(events.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
+        callback(events.sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
     });
 
     return unsubscribe;
@@ -425,13 +422,13 @@ export const deleteLastPoint = async (tournamentId: string, matchId: string) => 
 
 export const getTrainings = (teamId: string, callback: (trainings: any[]) => void) => {
     const trainingsRef = collection(db, `teams/${teamId}/trainings`);
-    return onSnapshot(trainingsRef, (snapshot) => {
-        const trainingsData = snapshot.docs.map(doc => ({
+    return onSnapshot(trainingsRef, (snapshot: any) => {
+        const trainingsData = snapshot.docs.map((doc: any) => ({
             id: doc.id,
             ...doc.data()
         })) as any[];
-        // Tarihe göre sırala (En yeni en üstte)
-        trainingsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        trainingsData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
         callback(trainingsData);
     });
 };
