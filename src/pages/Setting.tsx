@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { NameFormat, EfficiencyCriterion } from '../types';
+import type { NameFormat } from '../types';
 
-export default function Settings() {
-    const { t, i18n } = useTranslation();
+export default function Setting() {
+    const { i18n } = useTranslation();
     const navigate = useNavigate();
     
     // Web'e Özel Öneri: Klavye Kısayolları Durumu
     const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
-    const [nameFormat, setNameFormat] = useState<NameFormat>(NameFormat.FULL_NAME);
+    const [nameFormat, setNameFormat] = useState<NameFormat>('FULL_NAME');
 
     const changeLanguage = (lng: string) => {
         i18n.changeLanguage(lng);
@@ -62,9 +62,9 @@ export default function Settings() {
                             <h2 className="text-lg font-semibold mb-4">İsim Formatı</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {[
-                                    { id: NameFormat.FULL_NAME, label: 'Ad Soyad', sample: 'Eyüphan Aydın' },
-                                    { id: NameFormat.FIRST_NAME_LAST_INITIAL, label: 'Ad S.', sample: 'Eyüphan A.' },
-                                    { id: NameFormat.INITIAL_LAST_NAME, label: 'A. Soyad', sample: 'E. Aydın' },
+                                    { id: 'FULL_NAME' as NameFormat, label: 'Ad Soyad', sample: 'Eyüphan Aydın' },
+                                    { id: 'FIRST_NAME_LAST_INITIAL' as NameFormat, label: 'Ad S.', sample: 'Eyüphan A.' },
+                                    { id: 'INITIAL_LAST_NAME' as NameFormat, label: 'A. Soyad', sample: 'E. Aydın' },
                                 ].map((format) => (
                                     <button
                                         key={format.id}

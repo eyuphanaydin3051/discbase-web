@@ -26,7 +26,7 @@ export default function Login() {
                 <button className="text-[#bc13fe] hover:bg-white/5 backdrop-blur-sm transition-all duration-300 p-2 rounded-lg active:scale-95 flex items-center justify-center group" title="Dil Seçenekleri">
                     <span className="material-icons-outlined group-hover:drop-shadow-[0_0_8px_rgba(188,19,254,0.6)]">language</span>
                 </button>
-                <button className="text-[#bc13fe] hover:bg-white/5 backdrop-blur-sm transition-all duration-300 p-2 rounded-lg active:scale-95 flex items-center justify-center group" title="Ayarlar">
+                <button onClick={() => navigate('/settings')} className="text-[#bc13fe] hover:bg-white/5 backdrop-blur-sm transition-all duration-300 p-2 rounded-lg active:scale-95 flex items-center justify-center group" title="Ayarlar">
                     <span className="material-icons-outlined group-hover:drop-shadow-[0_0_8px_rgba(188,19,254,0.6)]">settings</span>
                 </button>
             </div>

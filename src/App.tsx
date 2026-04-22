@@ -2,6 +2,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout'; // Layout'u import et
 import Login from './pages/Login';
+import Setting from './pages/Setting';
 import TeamSelect from './pages/TeamSelect';
 import Dashboard from './pages/Dashboard';
 import TournamentList from './pages/TournamentList';
@@ -18,7 +19,7 @@ function App() {
         {/* Sidebar OLMAYAN sayfalar (Public / Giriş) */}
         <Route path="/" element={<Login />} />
         <Route path="/teams" element={<TeamSelect />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/settings" element={<Setting />} />
 
         {/* Sidebar OLAN sayfalar (Layout içinde) */}
         <Route element={<Layout />}>
