@@ -182,15 +182,17 @@ export const createMatch = async (teamId: string, tournamentId: string, opponent
     }
 };
 
-// YENİ EKLENEN: updateMatchData (Eksik fonksiyon eklendi)
 export const updateMatchData = async (teamId: string, tournamentId: string, data: any) => {
     try {
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${data.id}`);
         const { id, ...updateFields } = data;
-        await updateDoc(matchRef, updateFields);
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${data.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateFields)
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Maç güncellenirken hata:", error);
+        console.error("Maç güncellenirken API hatası:", error);
         return false;
     }
 };
@@ -207,49 +209,29 @@ export const updateMatchData = async (teamId: string, tournamentId: string, data
 
 // ... diğer importlar ...
 
-// YENİ EKLENEN/GÜNCELLENEN: Olayı maçın içine dizi elemanı olarak kaydeder
 export const addMatchEvent = async (tournamentId: string, matchId: string, event: any) => {
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
     try {
-        const teamId = localStorage.getItem('selectedTeamId');
-        if (!teamId) return;
-
-        // Maçın yolunu buluyoruz (Kendi veritabanı ağacınıza göre güncelleyin)
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-        
-        // arrayUnion ile olayı var olan dizinin içine (diğer verileri bozmadan) itiyoruz
-        await updateDoc(matchRef, {
-            events: arrayUnion(event)
+        await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}/events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(event)
         });
     } catch (error) {
-        console.error("Video olayı kaydedilirken hata:", error);
+        console.error("Video olayı API hatası:", error);
     }
 };
 
-// YENİ EKLENEN/GÜNCELLENEN: Son olayı geri alır (Undo)
 export const undoLastEvent = async (tournamentId: string, matchId: string) => {
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return;
     try {
-        const teamId = localStorage.getItem('selectedTeamId');
-        if (!teamId) return;
-
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-        const matchSnap = await getDoc(matchRef);
-        
-        if (matchSnap.exists()) {
-            const matchData = matchSnap.data();
-            const events = matchData.events || [];
-            
-            if (events.length > 0) {
-                // Zaman damgasına göre ARTAN sırada sırala (eskiden yeniye)
-                const sortedEvents = events.sort((a: any, b: any) => a.timestamp - b.timestamp);
-                
-                // En son ekleneni (dizinin en sonundaki elemanı) çıkar
-                const eventsToKeep = sortedEvents.slice(0, -1);
-                
-                await updateDoc(matchRef, { events: eventsToKeep });
-            }
-        }
+        await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}/events/undo`, {
+            method: 'DELETE'
+        });
     } catch (error) {
-        console.error("Geri alırken hata:", error);
+        console.error("Undo event API hatası:", error);
     }
 };
 
@@ -269,83 +251,29 @@ export const archivePoint = async (tournamentId: string, matchId: string, lineup
     }
 };
 
-// Maçı ve içindeki verileri silme fonksiyonu
 export const deleteMatch = async (tournamentId: string, matchId: string) => {
+    const teamId = localStorage.getItem('selectedTeamId');
+    if (!teamId) return false;
     try {
-        const teamId = localStorage.getItem('selectedTeamId');
-        if (!teamId) return false;
-        
-        const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-        await deleteDoc(matchRef);
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`, {
+            method: 'DELETE'
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Maç silinirken hata oluştu:", error);
+        console.error("Maç silme API hatası:", error);
         return false;
     }
 };
-// src/services/repository.ts dosyasının içine uygun bir yere ekleyin:
 
 export const deleteLastPoint = async (tournamentId: string, matchId: string) => {
     const teamId = localStorage.getItem('selectedTeamId');
     if (!teamId) return;
-
-    const matchRef = doc(db, `teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
-    const matchSnap = await getDoc(matchRef);
-    
-    if (matchSnap.exists()) {
-        const matchData = matchSnap.data();
-        const pointsArchive = matchData.pointsArchive || [];
-        const events = matchData.events || []; // Event geçmişini de çektik
-        
-        if (pointsArchive.length > 0) {
-            const lastPoint = pointsArchive[pointsArchive.length - 1];
-            
-            // Son sayıyı arşivden çıkar
-            const newArchive = pointsArchive.slice(0, -1);
-            
-            // Skoru geri al
-            let newScoreUs = matchData.scoreUs || 0;
-            let newScoreThem = matchData.scoreThem || 0;
-            
-            if (lastPoint.whoScored === 'US' && newScoreUs > 0) newScoreUs--;
-            if (lastPoint.whoScored === 'THEM' && newScoreThem > 0) newScoreThem--;
-
-            // Sildiğimiz sayıya ait olayları "events" listesinden temizliyoruz
-            const sortedEvents = events.sort((a: any, b: any) => a.timestamp - b.timestamp);
-            let scoreEventIndices: number[] = [];
-            
-            // Sondan geriye doğru skor yaratan olayları buluyoruz
-            for (let i = sortedEvents.length - 1; i >= 0; i--) {
-                const type = sortedEvents[i].eventType;
-                if (type === 'Goal' || type === 'Callahan' || type === 'OpponentGoal') {
-                    scoreEventIndices.push(i);
-                }
-            }
-
-            let newEvents = [];
-            if (scoreEventIndices.length > 1) {
-                // Sildiğimiz sayıdan bir önceki sayıya kadar olan tüm eventleri koru
-                newEvents = sortedEvents.slice(0, scoreEventIndices[1] + 1);
-            } else {
-                // Ekranda sadece 1 skor varsa veya henüz hiç yoksa tüm geçmişi temizle
-                newEvents = [];
-            }
-
-            // Firebase'i güncelle (Sayı, Skorlar ve Temizlenmiş Event Geçmişi ile)
-            await updateDoc(matchRef, {
-                pointsArchive: newArchive,
-                scoreUs: newScoreUs,
-                scoreThem: newScoreThem,
-                score: [newScoreUs, newScoreThem],
-                events: newEvents
-            });
-
-            // KRİTİK EKSİK: Sayı silindiğinde de istatistiklerin yenilenmesi için tetikliyoruz.
-            const tournamentRef = doc(db, 'teams', teamId, 'tournaments', tournamentId);
-            await updateDoc(tournamentRef, {
-                lastUpdated: Date.now()
-            });
-        }
+    try {
+        await fetch(`http://localhost:3000/api/teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}/points/undo`, {
+            method: 'DELETE'
+        });
+    } catch (error) {
+        console.error("Son sayı silme API hatası:", error);
     }
 };
 // --- ANTRENMAN (TRAINING) FONKSİYONLARI ---
@@ -365,21 +293,26 @@ export const getTrainings = (teamId: string, callback: (trainings: any[]) => voi
 
 export const saveTraining = async (teamId: string, training: any) => {
     try {
-        const trainingRef = doc(db, `teams/${teamId}/trainings`, training.id);
-        await setDoc(trainingRef, training, { merge: true });
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/trainings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(training)
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Antrenman kaydedilirken hata:", error);
+        console.error("Antrenman kaydetme API hatası:", error);
         return false;
     }
 };
 
 export const deleteTraining = async (teamId: string, trainingId: string) => {
     try {
-        await deleteDoc(doc(db, `teams/${teamId}/trainings`, trainingId));
-        return true;
+        const response = await fetch(`http://localhost:3000/api/teams/${teamId}/trainings/${trainingId}`, {
+            method: 'DELETE'
+        });
+        return response.ok;
     } catch (error) {
-        console.error("Antrenman silinirken hata:", error);
+        console.error("Antrenman silme API hatası:", error);
         return false;
     }
 };

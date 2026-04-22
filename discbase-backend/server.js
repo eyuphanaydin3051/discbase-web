@@ -165,7 +165,139 @@ app.get('/api/teams/:teamId/players/:playerId/careerStats', async (req, res) => 
         res.status(500).json({ error: error.message });
     }
 });
+// --- 6. API Endpoint: MAÇ GÜNCELLEME ---
+app.put('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        await db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`).update(req.body);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
+// --- 7. API Endpoint: MAÇ OLAYI EKLEME (MATCH EVENT) ---
+app.post('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/events', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const matchRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        await matchRef.update({
+            events: admin.firestore.FieldValue.arrayUnion(req.body)
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- 8. API Endpoint: SON OLAYI GERİ ALMA (UNDO EVENT) ---
+app.delete('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/events/undo', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const matchRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        const matchSnap = await matchRef.get();
+        
+        if (matchSnap.exists) {
+            const matchData = matchSnap.data();
+            const events = matchData.events || [];
+            if (events.length > 0) {
+                const sortedEvents = events.sort((a, b) => a.timestamp - b.timestamp);
+                const eventsToKeep = sortedEvents.slice(0, -1);
+                await matchRef.update({ events: eventsToKeep });
+            }
+        }
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- 9. API Endpoint: MAÇI KOMPLE SİLME ---
+app.delete('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        await db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`).delete();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- 10. API Endpoint: SON SAYIYI (POINT) GERİ ALMA ---
+app.delete('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/points/undo', async (req, res) => {
+    try {
+        const { teamId, tournamentId, matchId } = req.params;
+        const matchRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
+        const matchSnap = await matchRef.get();
+        
+        if (matchSnap.exists) {
+            const matchData = matchSnap.data();
+            const pointsArchive = matchData.pointsArchive || [];
+            const events = matchData.events || []; 
+            
+            if (pointsArchive.length > 0) {
+                const lastPoint = pointsArchive[pointsArchive.length - 1];
+                const newArchive = pointsArchive.slice(0, -1);
+                
+                let newScoreUs = matchData.scoreUs || 0;
+                let newScoreThem = matchData.scoreThem || 0;
+                
+                if (lastPoint.whoScored === 'US' && newScoreUs > 0) newScoreUs--;
+                if (lastPoint.whoScored === 'THEM' && newScoreThem > 0) newScoreThem--;
+
+                const sortedEvents = events.sort((a, b) => a.timestamp - b.timestamp);
+                let scoreEventIndices = [];
+                for (let i = sortedEvents.length - 1; i >= 0; i--) {
+                    const type = sortedEvents[i].eventType;
+                    if (type === 'Goal' || type === 'Callahan' || type === 'OpponentGoal') {
+                        scoreEventIndices.push(i);
+                    }
+                }
+
+                let newEvents = [];
+                if (scoreEventIndices.length > 1) {
+                    newEvents = sortedEvents.slice(0, scoreEventIndices[1] + 1);
+                }
+
+                await matchRef.update({
+                    pointsArchive: newArchive,
+                    scoreUs: newScoreUs,
+                    scoreThem: newScoreThem,
+                    score: [newScoreUs, newScoreThem],
+                    events: newEvents
+                });
+
+                await db.doc(`teams/${teamId}/tournaments/${tournamentId}`).update({ lastUpdated: Date.now() });
+            }
+        }
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- 11. API Endpoint: ANTRENMAN KAYDET/GÜNCELLE ---
+app.post('/api/teams/:teamId/trainings', async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const training = req.body;
+        await db.doc(`teams/${teamId}/trainings/${training.id}`).set(training, { merge: true });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- 12. API Endpoint: ANTRENMAN SİL ---
+app.delete('/api/teams/:teamId/trainings/:trainingId', async (req, res) => {
+    try {
+        const { teamId, trainingId } = req.params;
+        await db.doc(`teams/${teamId}/trainings/${trainingId}`).delete();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Backend sunucusu ${PORT} portunda çalışıyor...`);
