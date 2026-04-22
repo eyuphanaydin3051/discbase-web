@@ -122,18 +122,23 @@ export const getPlayerCareerStats = async (teamId: string, playerId: string) => 
         return null;
     }
 };
-export const getMatch = async (tournamentId: string, matchId: string): Promise<Match | null> => {
-    // BURASI DÜZELTİLDİ: activeTeamId yerine selectedTeamId
+const API_URL = "http://localhost:3000";
+
+export const getMatch = (tournamentId: string, matchId: string, callback: (match: Match | null) => void) => {
     const activeTeamId = localStorage.getItem('selectedTeamId');
-    if (!activeTeamId) return null;
+    if (!activeTeamId) {
+        callback(null);
+        return () => {};
+    }
 
     const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
-    const matchSnap = await getDoc(matchDocRef);
-
-    if (matchSnap.exists()) {
-        return { id: matchSnap.id, ...matchSnap.data() } as Match;
-    }
-    return null;
+    return onSnapshot(matchDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            callback({ id: docSnap.id, ...docSnap.data() } as Match);
+        } else {
+            callback(null);
+        }
+    });
 };
 
 export const getMatchEvents = (tournamentId: string, matchId: string, callback: (events: MatchEvent[]) => void) => {
