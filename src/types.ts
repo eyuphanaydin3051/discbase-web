@@ -14,10 +14,12 @@ export interface UserProfile {
     email: string | null;
 }
 
+export type StatType = 'GOAL' | 'ASSIST' | 'BLOCK' | 'THROWAWAY' | 'DROP' | 'CALLAHAN' | 'PASS_COUNT' | 'POINTS_PLAYED' | 'CATCH_COUNT';
+
 export interface EfficiencyCriterion {
     id: string;
     name: string;
-    statType: 'GOAL' | 'ASSIST' | 'BLOCK' | 'THROWAWAY' | 'DROP' | 'CALLAHAN' | 'PASS_COUNT' | 'POINTS_PLAYED' | 'CATCH_COUNT' | string;
+    statType: StatType;
     points: number;
 }
 

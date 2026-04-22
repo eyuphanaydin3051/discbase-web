@@ -12,7 +12,16 @@ import Roster from './pages/Roster'; // Yeni sayfayı import et
 import PlayerDetail from './pages/PlayerDetail';
 import MatchDetail from './pages/MatchDetail';
 import MatchTracking from './pages/MatchTracking';
+import { useEffect } from 'react';
 function App() {
+  // Tema Uygulama Mantığı
+  useEffect(() => {
+    const theme = localStorage.getItem('theme') || 'system';
+    const root = window.document.documentElement;
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    root.classList.toggle('dark', isDark);
+  }, []);
+
   return (
     <Router>
       <Routes>
