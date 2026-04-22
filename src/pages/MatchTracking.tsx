@@ -53,11 +53,11 @@ export default function MatchTracking() {
     useEffect(() => {
         const teamId = localStorage.getItem('selectedTeamId');
         if (matchId && tournamentId && teamId) {
-            getMatch(tournamentId, matchId).then(m => {
+            // DÜZELTME: getMatch bir Promise (.then) değil, callback fonksiyonu bekler.
+            const unsubMatch = getMatch(tournamentId, matchId, (m: Match | null) => {
                 setMatch(m);
-                // Firebase'den veri gelirse, olayları en yeni en üstte olacak şekilde sırala
-                
             });
+            
             const unsubPlayers = getPlayers(teamId, setRoster);
             const unsubTournaments = getTournaments(teamId, (tours) => {
                 const currentTour = tours.find(t => t.id === tournamentId);
@@ -65,6 +65,7 @@ export default function MatchTracking() {
             });
 
             return () => {
+                if (unsubMatch) unsubMatch(); // Dinleyiciyi temizle
                 unsubPlayers();
                 unsubTournaments();
             };
@@ -411,7 +412,8 @@ export default function MatchTracking() {
         setCurrentPointStats([]);
         setActivePasserId(null);
         setPointTimer(0);
-        getMatch(tournamentId, matchId).then(setMatch);
+        // DÜZELTME: getMatch(.then) hatalı olduğu için kaldırıldı. 
+        // Veriler zaten useEffect içindeki onSnapshot ile Firebase'den otomatik güncelleniyor.
     };
 
     const handleFinishMatch = async () => {
@@ -726,6 +728,33 @@ export default function MatchTracking() {
                                         )}
                                     </>
                                 )}
+
+                                {/* OLAY GEÇMİŞİ (EVENT HISTORY) BÖLÜMÜ - WEBE ÖZEL */}
+                                {trackingStep === 'tracking' && match?.events && match.events.length > 0 && (
+                                    <div className="mt-3 border-t border-slate-200 pt-3 flex-1 flex flex-col min-h-0">
+                                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-1 shrink-0">
+                                            <span className="material-icons-outlined text-[14px]">history</span> Canlı Olay Geçmişi
+                                        </h4>
+                                        <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1 pb-1 flex-1">
+                                            {[...match.events].sort((a, b) => b.timestamp - a.timestamp).slice(0, 15).map((ev: any) => {
+                                                const player = roster.find(r => r.id === ev.playerId);
+                                                const target = ev.secondaryPlayerId ? roster.find(r => r.id === ev.secondaryPlayerId) : null;
+                                                const timeStr = ev.videoTimestampSeconds ? `[${Math.floor(ev.videoTimestampSeconds / 60)}:${String(ev.videoTimestampSeconds % 60).padStart(2, '0')}]` : '';
+                                                return (
+                                                    <div key={ev.id} className="text-[10px] bg-slate-50 p-1.5 rounded border border-slate-100 flex justify-between items-center shadow-sm">
+                                                        <div className="flex gap-1 items-center flex-wrap">
+                                                            <span className="font-bold text-slate-700 truncate max-w-[70px]">{player?.name || 'Bilinmiyor'}</span>
+                                                            <span className="text-slate-500 font-medium px-1 bg-white rounded border border-slate-200">{ev.eventType}</span>
+                                                            {target && <span className="font-bold text-violet-600 truncate max-w-[70px]">→ {target.name}</span>}
+                                                        </div>
+                                                        <span className="text-slate-400 font-mono text-[9px] shrink-0">{timeStr}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
                             </div>
                         )}
                     </div>

@@ -8,12 +8,10 @@ import {
     where,
     onSnapshot,
     doc,
-    updateDoc,
-    getDoc,
-    setDoc,
-    deleteDoc,
-    arrayUnion
+    getDoc
 } from 'firebase/firestore';
+// Firebase yazma işlemleri (updateDoc, setDoc, vb.) frontend'den tamamen kaldırıldı. 
+// Tüm yazma işlemleri backend API (server.js) üzerinden yapılmaktadır.
 import { db } from './firebase';
 import type { TeamProfile, Player, Tournament, TournamentPlayer, Match, MatchEvent } from '../types';
 export const getUserTeams = (userId: string, callback: (teams: TeamProfile[]) => void) => {
@@ -148,15 +146,17 @@ export const getMatchEvents = (tournamentId: string, matchId: string, callback: 
         return () => {};
     }
 
-    const eventsCollectionRef = collection(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId, 'events');
-
-    const unsubscribe = onSnapshot(eventsCollectionRef, (querySnapshot: any) => {
-        const events = querySnapshot.docs.map((docSnap: any) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-        } as MatchEvent));
-        
-        callback(events.sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
+    const matchDocRef = doc(db, 'teams', activeTeamId, 'tournaments', tournamentId, 'matches', matchId);
+    
+    // Backend API artık event'leri subcollection yerine maç dökümanı içinde 'events' array'i olarak tutuyor.
+    const unsubscribe = onSnapshot(matchDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const events = data.events || [];
+            callback(events.sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0)));
+        } else {
+            callback([]);
+        }
     });
 
     return unsubscribe;
