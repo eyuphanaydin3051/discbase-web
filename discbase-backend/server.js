@@ -472,6 +472,8 @@ app.get('/api/teams/:teamId/leaderboard', async (req, res) => {
             }
 
             if (finalValue > 0 || (statType === 'PLUS_MINUS' && finalValue !== 0)) {
+                // Roster tablosu için toplam pas bilgisi ekleniyor
+                ps.totalPasses = (ps.successfulPass + ps.assist + ps.throwaway);
                 const formatTime = (seconds) => {
                     const m = Math.floor(seconds / 60);
                     const s = Math.floor(seconds % 60);
@@ -675,8 +677,8 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
         }
 
         const computedPlayerStats = Object.values(statsMap).map(stats => {
-            // HATA DÜZELTMESİ: Toplam pas sayısı, tablodaki Başarısız (Turns) sütunuyla tutarlı olması için Drop'ları da içermelidir.
-            const totalPassAttempts = stats.passes + stats.throwaways + stats.drops;
+            // DÜZELTME: Toplam pas = Başarılı Paslar (Assist dahil) + Hatalı Paslar (Throwaway). Drop dahil edilmez.
+            const totalPassAttempts = stats.passes + stats.throwaways;
             const passPercentage = totalPassAttempts > 0 ? parseFloat(((stats.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
 
             // Yakalama yüzdesi doğrudan catchStat üzerinden hesaplanmalıdır.

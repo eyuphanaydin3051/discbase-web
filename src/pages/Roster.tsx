@@ -208,33 +208,56 @@ export default function Roster() {
                         ))}
                     </div>
 
-                    {/* 4. SIRALAMA LİSTESİ */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    {/* 4. SIRALAMA TABLOSU */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
                         {leaderboard.length === 0 ? (
                             <div className="p-10 text-center text-gray-500 font-medium flex flex-col items-center">
                                 <span className="material-icons-outlined text-4xl text-gray-300 mb-2">sentiment_dissatisfied</span>
                                 Bu kriterlere uygun istatistik bulunamadı.
                             </div>
                         ) : (
-                            <div className="divide-y divide-gray-100">
-                                {leaderboard.map((item, idx) => (
-                                    <div key={item.player.id} onClick={() => navigate(`/player/${activeTeamId}/${item.player.id}`)} className="flex items-center p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-                                        <div className="w-8 text-center font-bold text-gray-400 text-lg mr-2">#{idx + 1}</div>
-                                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-bold text-sm text-gray-600 overflow-hidden border border-gray-300 mr-4">
-                                            {item.player.photoUrl ? <img src={item.player.photoUrl} className="w-full h-full object-cover" /> : getInitials(item.player.name)}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="font-extrabold text-gray-900 text-base">{item.player.name}</div>
-                                            {item.player.jerseyNumber && <div className="text-xs font-bold text-[#5B4DBC]">#{item.player.jerseyNumber}</div>}
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="font-black text-2xl text-gray-800">
-                                                {item.formattedValue}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Oyuncu</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Gol</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Asist</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Blok</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Drop</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Hatalı Pas</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Verimlilik</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-100">
+                                    {leaderboard.map((item, idx) => (
+                                        <tr key={item.player.id} 
+                                            onClick={() => navigate(`/player/${activeTeamId}/${item.player.id}`)}
+                                            className="hover:bg-gray-50 cursor-pointer transition-colors">
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-400">#{idx + 1}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 overflow-hidden mr-3">
+                                                        {item.player.photoUrl ? <img src={item.player.photoUrl} className="h-full w-full object-cover" /> : <span className="text-xs font-bold text-gray-500">{getInitials(item.player.name)}</span>}
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm font-bold text-gray-900">{item.player.name}</div>
+                                                        <div className="text-xs text-[#5B4DBC]">#{item.player.jerseyNumber || '-'}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats.goal}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats.assist}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats.block}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-pink-600 font-medium">{item.stats.drop}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-red-600 font-bold">{item.stats.throwaway}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-right">
+                                                <span className="text-lg font-black text-[#5B4DBC]">{item.formattedValue}</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         )}
                     </div>
                 </div>
