@@ -604,17 +604,21 @@ const handleCreateMatch = async () => {
                                                 <div className="flex items-center justify-center gap-1">Catch % {sortConfig.key === 'catchPercentage' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
                                             {/* YENİ EKLENEN 2 BAŞLIK BİTİŞ */}
-                                            <th onClick={() => requestSort('turns')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                <div className="flex items-center justify-center gap-1">Turn {sortConfig.key === 'turns' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
-                                            </th>
+                                            
                                             <th onClick={() => requestSort('goals')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 <div className="flex items-center justify-center gap-1">Gol {sortConfig.key === 'goals' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
                                             <th onClick={() => requestSort('assists')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 <div className="flex items-center justify-center gap-1">Asist {sortConfig.key === 'assists' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
-                                            <th onClick={() => requestSort('blocks')} className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            <th onClick={() => requestSort('blocks')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                                 <div className="flex items-center justify-center gap-1">Blok {sortConfig.key === 'blocks' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('drops')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Drop {sortConfig.key === 'drops' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
+                                            </th>
+                                            <th onClick={() => requestSort('throwaways')} className="cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                <div className="flex items-center justify-center gap-1">Hatalı Pas {sortConfig.key === 'throwaways' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
                                             </th>
                                             <th onClick={() => requestSort('efficiency')} className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors px-6 py-3 text-center text-xs font-bold text-[#5B4DBC] uppercase tracking-wider bg-purple-50 dark:bg-purple-900/10">
                                                 <div className="flex items-center justify-center gap-1">Verimlilik {sortConfig.key === 'efficiency' && <span className="material-icons-outlined text-[14px]">{sortConfig.direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>}</div>
