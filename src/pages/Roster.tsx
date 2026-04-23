@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { auth } from '../services/firebase';
-import { getUserTeamsAsync, getPlayersAsync, getLeaderboard } from '../services/repository';
+import { getUserTeamsAsync, getPlayersAsync } from '../services/repository';
 import type { Player, TeamProfile } from '../types';
 import PlayerDetailModal from '../components/PlayerDetailModal';
 import { useNavigate } from 'react-router-dom';
@@ -15,8 +15,7 @@ export default function Roster() {
     const activeTeamId = localStorage.getItem('selectedTeamId');
 
     const [players, setPlayers] = useState<Player[]>([]);
-    const [rawLeaderboard, setRawLeaderboard] = useState<any[]>([]); // Backend'den gelen ham veri
-    const [leaderboard, setLeaderboard] = useState<any[]>([]); // Ekrana çizilecek sıralı veri
+    const [leaderboard, setLeaderboard] = useState<any[]>([]); // Backend'den gelen hazır hesaplanmış sıralı veri
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -56,85 +55,34 @@ export default function Roster() {
         fetchInitialData();
     }, [user, activeTeamId, navigate]);
 
-    // SADECE Turnuva veya Maç Değiştiğinde Veriyi Backend'den Yenile (Ağ İsteği)
+    // Tüm İstatistik İşlemleri Backend'e Taşındı (Filtreler Değiştikçe Backend'e İstek Atılır)
     useEffect(() => {
         if (!activeTeamId || viewMode !== 'leaderboard') return;
+        
         const fetchLeaderboard = async () => {
             setLoading(true);
-            const rawData = await getLeaderboard(activeTeamId, selectedTournamentId, selectedMatchId || undefined);
-            setRawLeaderboard(rawData);
+            try {
+                const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+                let url = `${API_URL}/teams/${activeTeamId}/leaderboard?statType=${selectedStatType}&calculationMode=${calculationMode}`;
+                
+                if (selectedTournamentId && selectedTournamentId !== 'GENEL') {
+                    url += `&tournamentId=${selectedTournamentId}`;
+                }
+                if (selectedMatchId) {
+                    url += `&matchId=${selectedMatchId}`;
+                }
+                
+                const res = await fetch(url);
+                const data = await res.json();
+                setLeaderboard(data);
+            } catch (err) {
+                console.error("Leaderboard yüklenirken hata oluştu:", err);
+            }
             setLoading(false);
         };
+        
         fetchLeaderboard();
-    }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId]);
-
-    // Süreyi Saniye -> Dakika:Saniye
-    const formatTime = (seconds: number) => {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
-
-    // İstatistik Tipi veya Hesaplama Modu Değiştiğinde ANINDA Güncelle (Ağ İsteği Yok)
-    useEffect(() => {
-        const rankedPlayers: any[] = [];
-        const sType = selectedStatType || 'PLUS_MINUS';
-
-        rawLeaderboard.forEach(ps => {
-            const passes = ps.successfulPass + ps.assist + ps.throwaway;
-            const completedPasses = ps.successfulPass + ps.assist;
-            const turns = ps.drop + ps.throwaway;
-            const plusMinus = ((ps.goal - ps.callahan) * 1.0) + (ps.assist * 1.0) + ((ps.block - ps.callahan) * 1.5) + (ps.callahan * 3.5) - (turns * 1.0) + (completedPasses * 0.05);
-
-            let rawValue = 0;
-            if (sType === 'GOAL') rawValue = ps.goal;
-            else if (sType === 'ASSIST') rawValue = ps.assist;
-            else if (sType === 'BLOCK') rawValue = ps.block;
-            else if (sType === 'CALLAHAN') rawValue = ps.callahan;
-            else if (sType === 'THROWAWAY') rawValue = ps.throwaway;
-            else if (sType === 'DROP') rawValue = ps.drop;
-            else if (sType === 'PLUS_MINUS') rawValue = plusMinus;
-            else if (sType === 'PASS_COUNT') rawValue = passes;
-            else if (sType === 'POINTS_PLAYED') rawValue = ps.pointsPlayed;
-            else if (sType === 'PLAYTIME') rawValue = ps.secondsPlayed;
-            else if (sType === 'CATCH_RATE') {
-                const catches = completedPasses + ps.goal;
-                const attempts = catches + ps.drop;
-                rawValue = attempts > 0 ? (catches / attempts) * 100 : 0;
-            }
-            else if (sType === 'PASS_RATE') rawValue = passes > 0 ? (completedPasses / passes) * 100 : 0;
-            else if (sType === 'AVG_PULL_TIME') rawValue = ps.pullAttempts > 0 ? ps.totalPullTimeSeconds / ps.pullAttempts : 0;
-            else if (sType === 'AVG_PLAYTIME') rawValue = ps.pointsPlayed > 0 ? ps.secondsPlayed / ps.pointsPlayed : 0;
-
-            const isAlreadyAverage = ['CATCH_RATE', 'PASS_RATE', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(sType);
-            let finalValue = rawValue;
-
-            if (!isAlreadyAverage) {
-                if (calculationMode === 'PER_MATCH') {
-                    const mCount = ps.matchesPlayedSet.length;
-                    finalValue = mCount > 0 ? rawValue / mCount : 0;
-                } else if (calculationMode === 'PER_POINT') {
-                    if (ps.pointsPlayed > 0) {
-                        finalValue = sType === 'PLUS_MINUS' ? (rawValue / ps.pointsPlayed) * 10.0 : rawValue / ps.pointsPlayed;
-                    } else finalValue = 0;
-                }
-            }
-
-            if (finalValue > 0 || (sType === 'PLUS_MINUS' && finalValue !== 0)) {
-                rankedPlayers.push({
-                    player: { id: ps.id, name: ps.name, photoUrl: ps.photoUrl, jerseyNumber: ps.jerseyNumber },
-                    value: finalValue,
-                    formattedValue: ['CATCH_RATE', 'PASS_RATE'].includes(sType) ? `${finalValue.toFixed(1)}%` :
-                                    ['PLAYTIME', 'AVG_PLAYTIME'].includes(sType) ? formatTime(finalValue) :
-                                    sType === 'AVG_PULL_TIME' ? `${finalValue.toFixed(1)} sn` :
-                                    finalValue.toFixed(2).replace(/\.00$/, ''),
-                    stats: ps
-                });
-            }
-        });
-
-        setLeaderboard(rankedPlayers.sort((a, b) => b.value - a.value));
-    }, [rawLeaderboard, selectedStatType, calculationMode]);
+    }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId, selectedStatType, calculationMode]);
 
     const filteredPlayers = players.filter(player => (player.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 

@@ -366,7 +366,7 @@ app.delete('/api/teams/:teamId/trainings/:trainingId', async (req, res) => {
 app.get('/api/teams/:teamId/leaderboard', async (req, res) => {
     try {
         const { teamId } = req.params;
-        const { tournamentId, matchId } = req.query;
+        const { tournamentId, matchId, statType = 'PLUS_MINUS', calculationMode = 'TOTAL' } = req.query;
 
         // Oyuncuları Çek
         const playersSnapshot = await db.collection(`teams/${teamId}/players`).get();
@@ -425,8 +425,81 @@ app.get('/api/teams/:teamId/leaderboard', async (req, res) => {
             });
         });
 
-        // Hesaplamaları frontend'in anlık yapabilmesi için doğrudan JSON dönüyoruz
-        res.json(Object.values(statsMap));
+        // Frontend yükünü hafifletmek için tüm hesaplamalar, filtrelemeler ve sıralama backend'de yapılıyor
+        const rankedPlayers = [];
+        Object.values(statsMap).forEach(ps => {
+            const passes = ps.successfulPass + ps.assist + ps.throwaway;
+            const completedPasses = ps.successfulPass + ps.assist;
+            const turns = ps.drop + ps.throwaway;
+            
+            // HATA DÜZELTİLMESİ: Callahan'ı gol ve bloktan çıkarınca negatif değerler oluşabiliyordu.
+            // Direk toplayarak daha stabil bir verimlilik (efficiency) hesaplaması yapıyoruz.
+            const plusMinus = (ps.goal * 1.0) + (ps.assist * 1.0) + (ps.block * 1.5) + (ps.callahan * 3.5) - (turns * 1.0) + (completedPasses * 0.05);
+
+            let rawValue = 0;
+            if (statType === 'GOAL') rawValue = ps.goal;
+            else if (statType === 'ASSIST') rawValue = ps.assist;
+            else if (statType === 'BLOCK') rawValue = ps.block;
+            else if (statType === 'CALLAHAN') rawValue = ps.callahan;
+            else if (statType === 'THROWAWAY') rawValue = ps.throwaway;
+            else if (statType === 'DROP') rawValue = ps.drop;
+            else if (statType === 'PLUS_MINUS') rawValue = plusMinus;
+            else if (statType === 'PASS_COUNT') rawValue = passes;
+            else if (statType === 'POINTS_PLAYED') rawValue = ps.pointsPlayed;
+            else if (statType === 'PLAYTIME') rawValue = ps.secondsPlayed;
+            else if (statType === 'CATCH_RATE') {
+                const catches = completedPasses + ps.goal;
+                const attempts = catches + ps.drop;
+                rawValue = attempts > 0 ? (catches / attempts) * 100 : 0;
+            }
+            else if (statType === 'PASS_RATE') rawValue = passes > 0 ? (completedPasses / passes) * 100 : 0;
+            else if (statType === 'AVG_PULL_TIME') rawValue = ps.pullAttempts > 0 ? ps.totalPullTimeSeconds / ps.pullAttempts : 0;
+            else if (statType === 'AVG_PLAYTIME') rawValue = ps.pointsPlayed > 0 ? ps.secondsPlayed / ps.pointsPlayed : 0;
+
+            const isAlreadyAverage = ['CATCH_RATE', 'PASS_RATE', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(statType);
+            let finalValue = rawValue;
+
+            if (!isAlreadyAverage) {
+                if (calculationMode === 'PER_MATCH') {
+                    const mCount = ps.matchesPlayedSet.length;
+                    finalValue = mCount > 0 ? rawValue / mCount : 0;
+                } else if (calculationMode === 'PER_POINT') {
+                    if (ps.pointsPlayed > 0) {
+                        finalValue = statType === 'PLUS_MINUS' ? (rawValue / ps.pointsPlayed) * 10.0 : rawValue / ps.pointsPlayed;
+                    } else finalValue = 0;
+                }
+            }
+
+            if (finalValue > 0 || (statType === 'PLUS_MINUS' && finalValue !== 0)) {
+                const formatTime = (seconds) => {
+                    const m = Math.floor(seconds / 60);
+                    const s = Math.floor(seconds % 60);
+                    return `${m}:${s.toString().padStart(2, '0')}`;
+                };
+
+                let formattedValue = '';
+                if (['CATCH_RATE', 'PASS_RATE'].includes(statType)) {
+                    formattedValue = `${finalValue.toFixed(1)}%`;
+                } else if (['PLAYTIME', 'AVG_PLAYTIME'].includes(statType)) {
+                    formattedValue = formatTime(finalValue);
+                } else if (statType === 'AVG_PULL_TIME') {
+                    formattedValue = `${finalValue.toFixed(1)} sn`;
+                } else {
+                    formattedValue = finalValue.toFixed(2).replace(/\.00$/, '');
+                }
+
+                rankedPlayers.push({
+                    player: { id: ps.id, name: ps.name, photoUrl: ps.photoUrl, jerseyNumber: ps.jerseyNumber },
+                    value: finalValue,
+                    formattedValue,
+                    stats: ps
+                });
+            }
+        });
+
+        // Sıralayıp JSON olarak dönüyoruz
+        rankedPlayers.sort((a, b) => b.value - a.value);
+        res.json(rankedPlayers);
     } catch (error) {
         console.error("Leaderboard Error:", error);
         res.status(500).json({ error: error.message });

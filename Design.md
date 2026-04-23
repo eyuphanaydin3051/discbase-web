@@ -1,38 +1,38 @@
 ---
-name: Velocity Kinetic
+name: Indigo Nexus
 colors:
-  surface: '#f8f9ff'
-  surface-dim: '#cbdbf5'
-  surface-bright: '#f8f9ff'
-  surface-container-lowest: '#ffffff'
-  surface-container-low: '#eff4ff'
-  surface-container: '#e5eeff'
-  surface-container-high: '#dce9ff'
-  surface-container-highest: '#d3e4fe'
-  on-surface: '#0b1c30'
-  on-surface-variant: '#464554'
-  inverse-surface: '#213145'
-  inverse-on-surface: '#eaf1ff'
-  outline: '#777586'
-  outline-variant: '#c7c4d7'
-  surface-tint: '#5148d7'
-  primary: '#2a14b4'
-  on-primary: '#ffffff'
+  surface: '#031427'
+  surface-dim: '#031427'
+  surface-bright: '#2a3a4f'
+  surface-container-lowest: '#000f21'
+  surface-container-low: '#0b1c30'
+  surface-container: '#102034'
+  surface-container-high: '#1b2b3f'
+  surface-container-highest: '#26364a'
+  on-surface: '#d3e4fe'
+  on-surface-variant: '#c7c4d7'
+  inverse-surface: '#d3e4fe'
+  inverse-on-surface: '#213145'
+  outline: '#918fa0'
+  outline-variant: '#464554'
+  surface-tint: '#c3c0ff'
+  primary: '#c3c0ff'
+  on-primary: '#1f00a4'
   primary-container: '#4338ca'
   on-primary-container: '#c1beff'
-  inverse-primary: '#c3c0ff'
-  secondary: '#006a61'
-  on-secondary: '#ffffff'
-  secondary-container: '#86f2e4'
-  on-secondary-container: '#006f66'
-  tertiary: '#7b0022'
-  on-tertiary: '#ffffff'
+  inverse-primary: '#5148d7'
+  secondary: '#6bd8cb'
+  on-secondary: '#003732'
+  secondary-container: '#29a195'
+  on-secondary-container: '#00302b'
+  tertiary: '#ffb2b7'
+  on-tertiary: '#67001b'
   tertiary-container: '#a60031'
   on-tertiary-container: '#ffb0b5'
-  error: '#ba1a1a'
-  on-error: '#ffffff'
-  error-container: '#ffdad6'
-  on-error-container: '#93000a'
+  error: '#ffb4ab'
+  on-error: '#690005'
+  error-container: '#93000a'
+  on-error-container: '#ffdad6'
   primary-fixed: '#e3dfff'
   primary-fixed-dim: '#c3c0ff'
   on-primary-fixed: '#100069'
@@ -45,44 +45,35 @@ colors:
   tertiary-fixed-dim: '#ffb2b7'
   on-tertiary-fixed: '#40000d'
   on-tertiary-fixed-variant: '#92002a'
-  background: '#f8f9ff'
-  on-background: '#0b1c30'
-  surface-variant: '#d3e4fe'
+  background: '#031427'
+  on-background: '#d3e4fe'
+  surface-variant: '#26364a'
 typography:
-  headline-xl:
-    fontFamily: Inter
-    fontSize: 36px
-    fontWeight: '700'
-    lineHeight: 44px
-    letterSpacing: -0.02em
   headline-lg:
+    fontFamily: Inter
+    fontSize: 32px
+    fontWeight: '700'
+    lineHeight: 40px
+  headline-md:
     fontFamily: Inter
     fontSize: 24px
     fontWeight: '600'
     lineHeight: 32px
-    letterSpacing: -0.01em
-  body-md:
+  body-lg:
     fontFamily: Inter
     fontSize: 16px
     fontWeight: '400'
     lineHeight: 24px
-  body-sm:
+  body-md:
     fontFamily: Inter
     fontSize: 14px
     fontWeight: '400'
     lineHeight: 20px
-  label-bold:
+  label-md:
     fontFamily: Inter
     fontSize: 12px
-    fontWeight: '700'
+    fontWeight: '500'
     lineHeight: 16px
-    letterSpacing: 0.05em
-  stat-value:
-    fontFamily: Inter
-    fontSize: 32px
-    fontWeight: '800'
-    lineHeight: 40px
-    letterSpacing: -0.02em
 rounded:
   sm: 0.25rem
   DEFAULT: 0.5rem
@@ -91,68 +82,40 @@ rounded:
   xl: 1.5rem
   full: 9999px
 spacing:
-  base: 4px
+  base: 8px
   xs: 4px
   sm: 8px
   md: 16px
   lg: 24px
   xl: 32px
-  gutter: 20px
+  gutter: 16px
   margin: 24px
 ---
 
+# Indigo Nexus Design System
+
 ## Brand & Style
-
-This design system is built for the high-energy, data-driven world of competitive sports. The brand personality is **Athletic, Precise, and Empowering**, aimed at coaches and team managers who need to synthesize complex performance metrics at a glance.
-
-The visual style follows a **Corporate Modern** approach with **Glassmorphism** accents. It leverages high-density data visualization balanced by generous white space and soft depth. The interface utilizes translucent layers for secondary information and solid, vibrant containers for primary calls to action, creating a clear "field of play" for team data. The goal is to evoke a sense of professional mastery and forward momentum.
+Indigo Nexus is a professional, modern, and reliable design system designed for high-performance SaaS applications. The brand personality is grounded in trust and precision, shifting away from aggressive warmth toward a balanced, tech-forward aesthetic. It evokes an emotional response of clarity and efficiency through a "Corporate Modern" style that borrows the best practices of clean digital interfaces. The visual language emphasizes clarity, using a refined color palette and approachable geometry to guide users through complex workflows with ease.
 
 ## Colors
-
-This design system utilizes a high-contrast palette to differentiate between action states and data categories. 
-- **Deep Indigo (Primary):** Used for navigation, primary branding, and core interactive elements.
-- **Teal/Cyan (Secondary):** Represents positive growth, success metrics (wins), and secondary data points.
-- **Coral/Red (Accent):** Reserved for alerts, losses, and critical performance "pain points" that require immediate attention.
-- **Surface Strategy:** In light mode, surfaces use subtle cool grays to reduce eye strain. In dark mode, surfaces utilize deep navy tones with indigo tints to maintain brand consistency without losing legibility.
+The color palette is built around a deep Indigo primary (#4338CA) that signals stability and intelligence. This is complemented by a Teal secondary (#0D9488) for success states and secondary actions, and a Rose tertiary (#F43F5E) to draw attention to critical highlights or specialized data points. The neutral palette uses Slate (#64748B) to provide a cool, professional backdrop that maintains high legibility. The system operates in a Dark color mode, utilizing deep, sophisticated surfaces with subtle tinted neutrals to define hierarchy and reduce eye strain in professional environments.
 
 ## Typography
-
-The typography system relies on **Inter** for its exceptional legibility in data-heavy environments. The hierarchy is strictly enforced through weight and letter spacing rather than just size. 
-
-- **Headlines:** Use tight letter-spacing and bold weights to feel impactful and "headline-ready."
-- **Stats:** A dedicated "stat-value" tier ensures that numbers are the hero of the dashboard.
-- **Labels:** Small caps or bold uppercase are used for category headers (e.g., "ANA MENÜ") to distinguish them from interactive content.
+The system utilizes Inter across all levels to ensure maximum readability on digital screens. Headlines are bold and assertive, providing a clear map of the page content. Body text is optimized for long-form reading with generous line heights. Labels and small utility text use a medium weight to maintain visibility even at smaller scales. The typographic rhythm is designed to be functional and neutral, allowing the content to take center stage.
 
 ## Layout & Spacing
-
-This design system employs a **12-column fluid grid** for the main dashboard content, ensuring responsiveness across desktop and tablet views. 
-
-The vertical rhythm is based on a **4px baseline grid**. 
-- **Sidebars:** Fixed at 280px to provide a stable anchor for navigation.
-- **Cards:** Utilize `lg` (24px) padding to ensure data-heavy charts don't feel cluttered.
-- **Gaps:** Standardize 20px gaps between grid items to create clear visual separation without wasting excessive screen real estate.
+The layout philosophy follows a strict 8px grid system, ensuring a consistent vertical and horizontal rhythm. All margins and paddings are derived from the base 8px unit (Spacing 2). The system uses a fluid grid approach for main content areas, allowing the UI to adapt seamlessly to different viewport sizes while maintaining standard gutters of 16px and outer margins of 24px for balanced whitespace.
 
 ## Elevation & Depth
-
-Hierarchy is established through **Ambient Shadows** and **Tonal Layering**. 
-- **Base Layer:** The background is the lowest point, using the neutral background hex.
-- **Content Cards:** Raised slightly with a very soft, diffused shadow (Blur: 15px, Opacity: 4%, Color: Primary Tint). 
-- **Interactive Hover:** Elements increase in shadow spread and opacity when hovered, providing tactile feedback.
-- **Overlays:** Modals and dropdowns use a "Glassmorphism" effect (Backdrop Blur: 10px) with a 1px border stroke to maintain edge definition against complex backgrounds.
+In this dark mode environment, visual hierarchy is conveyed through tonal layers and subtle luminosity. Rather than relying on heavy shadows, the system utilizes surface-container tiers—where higher elevation elements use slightly lighter slate-tinted backgrounds—to separate different functional areas. When shadows are used, they are extra-diffused and low-opacity, serving more as a soft glow or a subtle dark-on-dark offset to create a sense of natural depth that feels light and modern.
 
 ## Shapes
-
-The shape language is consistently **Rounded**, reflecting the approachable and modern nature of the platform.
-- **Standard Cards:** Use 1rem (16px) corner radius for a friendly, modular look.
-- **Buttons & Inputs:** Use 0.5rem (8px) to maintain a professional, structured feel.
-- **Tags & Badges:** Use a pill-shaped (full-round) radius to distinguish them from actionable buttons.
-- **Progress Bars:** Fully rounded ends to mimic the motion of a tracking disc or ball.
+The design system moves away from sharp edges to a friendly and professional Rounded aesthetic. Standard UI components like buttons and input fields feature a 0.5rem (8px) corner radius. Larger containers, such as cards, utilize a 1rem (16px) radius, while extra-large components like modals or hero sections use a 1.5rem (24px) radius. This consistent rounding creates a cohesive, modern look that feels accessible and polished.
 
 ## Components
-
-- **Buttons:** Primary buttons use a solid Indigo gradient. Secondary buttons use a Teal "ghost" style with a 1.5px border. High-energy actions (like "Delete" or "Loss") use Coral.
-- **Metric Cards:** Large stat values are top-aligned, with a sparkline or trend indicator (Teal for up, Coral for down) placed at the bottom right.
-- **Navigation Items:** Active states use a soft Indigo background tint with a 4px vertical "pill" indicator on the left edge.
-- **List Items:** Match rows use a subtle vertical border on the left (Teal for Win, Coral for Loss) to provide instant color-coded context before the user reads the text.
-- **Data Tables:** Row hover states use a 50% opacity primary tint. Column headers use the "Label-Bold" typography style for clarity.
-- **Input Fields:** Use a subtle inset shadow and 1px neutral border. Focus states trigger a 2px Indigo glow.
+Components are designed with clarity and consistency at their core. 
+- **Buttons:** Feature 8px rounded corners, utilizing the Indigo primary for main actions and the Teal secondary for supporting actions.
+- **Input Fields:** Use a dark, Slate-tinted background with a subtle border and a clear focus state in Indigo.
+- **Cards:** Defined by soft 16px corners and tonal surface variations to lift them from the primary background.
+- **Chips & Labels:** Use the tertiary Rose or secondary Teal colors with low-opacity backgrounds for status indicators, ensuring they pop against the dark UI.
+- **Checkboxes & Radios:** Adopt the 8px rounding logic for a unified geometric language across the entire interface.
