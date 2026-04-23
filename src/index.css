@@ -1,47 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
 @import "tailwindcss";
 
+/* Tailwind CSS v4'te class bazlı dark mode'u aktif etmek için gereken direktif */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-    /* STITCH TASARIM RENKLERİ (Doğru Kodlar) */
-    --color-primary: #5B4DBC;
-    /* Deep Purple */
-    --color-primary-dark: #4B3CA0;
-    --color-secondary: #2F58CD;
-    /* Blue-ish Purple */
+  --font-sans: 'Inter', sans-serif;
 
-    --color-accent: #00C4B4;
-    /* Teal (Pozitif) */
-    --color-danger: #EF4444;
-    /* Red (Negatif) */
-    --color-warning: #F59E0B;
-    /* Orange */
+  /* Discbase Core Design System - Tailwind V4 Theme Variables */
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
 
-    --color-background-light: #F9F9FB;
-    --color-background-dark: #121212;
-    --color-card-light: #FFFFFF;
-    --color-card-dark: #1E1E1E;
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
 
-    --color-text-light: #1F2937;
-    --color-text-dark: #F3F4F6;
-    --color-text-muted-light: #6B7280;
-    --color-text-muted-dark: #9CA3AF;
+  --color-secondary: var(--secondary);
+  --color-on-secondary: var(--on-secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary-container: var(--on-secondary-container);
 
-    /* Özel İstatistik Arka Planları */
-    --color-stat-bg-purple-light: #EBEAF8;
-    --color-stat-bg-purple-dark: #2D2B42;
-    --color-stat-bg-teal-light: #E0F7FA;
-    --color-stat-bg-teal-dark: #1A383C;
-    --color-stat-bg-orange-light: #FFF3E0;
-    --color-stat-bg-orange-dark: #3E2C1C;
-    --color-stat-bg-red-light: #FFEBEE;
-    --color-stat-bg-red-dark: #3E1F21;
+  --color-tertiary: var(--tertiary);
+  --color-on-tertiary: var(--on-tertiary);
+  --color-tertiary-container: var(--tertiary-container);
+  --color-on-tertiary-container: var(--on-tertiary-container);
 
-    /* Gölge Ayarları */
-    --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
+
+  /* Özel Yuvarlama ve Gölgeler */
+  --radius-tech: 4px;
+  --shadow-glass: 0 4px 20px rgba(13, 28, 45, 0.08);
+  --shadow-glow: 0 0 10px rgba(188, 19, 254, 0.3);
 }
 
-/* Temel Font Ayarı */
-body {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--color-background-light);
-    color: var(--color-text-light);
+@layer base {
+  :root {
+    /* LIGHT MODE (Aydınlık Tema) - Yüksek kontrast ve okunabilirlik için tasarlandı */
+    --surface: #f8fafc;
+    --surface-dim: #f1f5f9;
+    --surface-bright: #ffffff;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #f8fafc;
+    --surface-container: #f1f5f9;
+    --surface-container-high: #e2e8f0;
+    --surface-container-highest: #cbd5e1;
+    --on-surface: #0f172a;
+    --on-surface-variant: #475569;
+
+    --primary: #9800d0;
+    --on-primary: #ffffff;
+    --primary-container: #e9b3ff;
+    --on-primary-container: #320047;
+
+    --secondary: #006a6f;
+    --on-secondary: #ffffff;
+    --secondary-container: #6ff6ff;
+    --on-secondary-container: #002022;
+
+    --tertiary: #383e8d;
+    --on-tertiary: #ffffff;
+    --tertiary-container: #e0e0ff;
+    --on-tertiary-container: #060a62;
+
+    --outline: #64748b;
+    --outline-variant: #94a3b8;
+
+    --error: #ba1a1a;
+    --on-error: #ffffff;
+    --error-container: #ffdad6;
+    --on-error-container: #410002;
+  }
+
+  .dark {
+    /* DARK MODE (Karanlık Tema) - Design.md'den tam uyumlu "Mainframe/Command Center" paleti */
+    --surface: #051424;
+    --surface-dim: #051424;
+    --surface-bright: #2c3a4c;
+    --surface-container-lowest: #010f1f;
+    --surface-container-low: #0d1c2d;
+    --surface-container: #122131;
+    --surface-container-high: #1c2b3c;
+    --surface-container-highest: #273647;
+    --on-surface: #d4e4fa;
+    --on-surface-variant: #d4c0d7;
+
+    --primary: #ebb2ff;
+    --on-primary: #520072;
+    --primary-container: #bc13fe;
+    --on-primary-container: #ffffff;
+
+    --secondary: #dcfdff;
+    --on-secondary: #00373a;
+    --secondary-container: #00f1fd;
+    --on-secondary-container: #006a6f;
+
+    --tertiary: #bec2ff;
+    --on-tertiary: #202676;
+    --tertiary-container: #696fc1;
+    --on-tertiary-container: #ffffff;
+
+    --outline: #9d8ba0;
+    --outline-variant: #504254;
+
+    --error: #ffb4ab;
+    --on-error: #690005;
+    --error-container: #93000a;
+    --on-error-container: #ffdad6;
+  }
+
+  body {
+    /* Dinamik arkaplan ve yazı rengi */
+    @apply bg-surface text-on-surface font-sans antialiased transition-colors duration-300;
+  }
+}
+
+@layer components {
+
+  /* Design.md: Glass Cards */
+  .glass-card {
+    @apply bg-surface-container-lowest/60 dark:bg-surface-container-lowest/40 backdrop-blur-md border border-white/50 dark:border-white/10 shadow-glass rounded-tech relative overflow-hidden transition-all duration-300;
+  }
+
+  /* Design.md: High-priority cards corner highlight */
+  .glass-card-highlight::before {
+    content: '';
+    @apply absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-secondary rounded-tl-tech;
+  }
+
+  .glass-card-highlight::after {
+    content: '';
+    @apply absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-secondary rounded-br-tech;
+  }
+
+  /* Design.md: Buttons */
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-container to-secondary-container text-white font-semibold py-2 px-6 rounded-tech transition-all duration-200 hover:shadow-glow hover:scale-[1.02] active:scale-[0.98];
+  }
+
+  /* Design.md: Decorative Notches (45-degree clipped corners) */
+  .tech-notch {
+    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  }
+
+  /* Design.md: Inputs */
+  .tech-input {
+    @apply bg-surface-container-low/50 dark:bg-surface-container-lowest/50 border-b-2 border-outline focus:border-secondary outline-none px-4 py-2 font-mono text-sm transition-colors;
+  }
+
+  /* Design.md: Chips/Tags */
+  .tech-chip {
+    @apply bg-secondary-container/20 text-tertiary dark:text-secondary-container text-xs px-3 py-1 rounded-sm uppercase tracking-wider font-bold border border-secondary/30;
+  }
 }
