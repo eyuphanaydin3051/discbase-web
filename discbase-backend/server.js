@@ -5,7 +5,7 @@ const admin = require('firebase-admin');
 // Firebase Admin SDK'yı başlat
 const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 });
 
 const db = admin.firestore();
@@ -20,7 +20,7 @@ app.get('/api/teams', async (req, res) => {
     try {
         const { userId } = req.query;
         if (!userId) return res.status(400).json({ error: "userId query parametresi gerekli" });
-        
+
         // Takımlar koleksiyonunda members objesi içinde userId'si bulunanları getir
         const snapshot = await db.collection('teams').where(`members.${userId}`, '!=', null).get();
         const teams = snapshot.docs.map(doc => ({ teamId: doc.id, ...doc.data() }));
@@ -84,7 +84,7 @@ app.get('/api/teams/:teamId/aggregates', async (req, res) => {
         const { teamId } = req.params;
         const tourSnapshot = await db.collection(`teams/${teamId}/tournaments`).get();
         let allMatches = [];
-        
+
         for (const tourDoc of tourSnapshot.docs) {
             const matchesSnapshot = await db.collection(`teams/${teamId}/tournaments/${tourDoc.id}/matches`).get();
             const matchesData = matchesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -101,7 +101,7 @@ app.get('/api/teams/:teamId/aggregates', async (req, res) => {
         const totalMatches = allMatches.length;
 
         allMatches.forEach(match => {
-            if(!match.pointsArchive) return;
+            if (!match.pointsArchive) return;
             match.pointsArchive.forEach(point => {
                 totalPointsPlayed++;
                 let pointHasOurGoal = false;
@@ -116,11 +116,11 @@ app.get('/api/teams/:teamId/aggregates', async (req, res) => {
                     totalTurns += stat.throwaway || 0;
                     totalDrops += stat.drop || 0;
                     totalSuccessfulPass += stat.successfulPass || 0;
-                    
+
                     pointTurnovers += (stat.throwaway || 0) + (stat.drop || 0);
                     pointBlocks += stat.block || 0;
 
-                    if (stat.goal && stat.goal > 0) pointHasOurGoal = true; 
+                    if (stat.goal && stat.goal > 0) pointHasOurGoal = true;
                 });
 
                 if (pointBlocks > 0) {
@@ -176,10 +176,10 @@ app.get('/api/teams/:teamId/players/:playerId/careerStats', async (req, res) => 
     try {
         const { teamId, playerId } = req.params;
         const tourSnapshot = await db.collection(`teams/${teamId}/tournaments`).get();
-        
+
         let allMatches = [];
         let passDistribution = {};
-        
+
         for (const tourDoc of tourSnapshot.docs) {
             const matchesSnapshot = await db.collection(`teams/${teamId}/tournaments/${tourDoc.id}/matches`).get();
             const matchesData = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -191,7 +191,7 @@ app.get('/api/teams/:teamId/players/:playerId/careerStats', async (req, res) => 
 
         allMatches.forEach(match => {
             if (!match.pointsArchive) return;
-            
+
             match.pointsArchive.forEach(point => {
                 const pStat = point.stats?.find(s => s.playerId === playerId);
                 if (pStat) {
@@ -206,7 +206,7 @@ app.get('/api/teams/:teamId/players/:playerId/careerStats', async (req, res) => 
                     throwaways += pStat.throwaway || 0;
                     catches += pStat.catchStat || 0;
                     passes += (pStat.successfulPass || 0) + (pStat.assist || 0);
-                    
+
                     if (pStat.passDistribution) {
                         Object.entries(pStat.passDistribution).forEach(([targetName, count]) => {
                             passDistribution[targetName] = (passDistribution[targetName] || 0) + count;
@@ -260,7 +260,7 @@ app.delete('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/events
         const { teamId, tournamentId, matchId } = req.params;
         const matchRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
         const matchSnap = await matchRef.get();
-        
+
         if (matchSnap.exists) {
             const matchData = matchSnap.data();
             const events = matchData.events || [];
@@ -293,19 +293,19 @@ app.delete('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/points
         const { teamId, tournamentId, matchId } = req.params;
         const matchRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
         const matchSnap = await matchRef.get();
-        
+
         if (matchSnap.exists) {
             const matchData = matchSnap.data();
             const pointsArchive = matchData.pointsArchive || [];
-            const events = matchData.events || []; 
-            
+            const events = matchData.events || [];
+
             if (pointsArchive.length > 0) {
                 const lastPoint = pointsArchive[pointsArchive.length - 1];
                 const newArchive = pointsArchive.slice(0, -1);
-                
+
                 let newScoreUs = matchData.scoreUs || 0;
                 let newScoreThem = matchData.scoreThem || 0;
-                
+
                 if (lastPoint.whoScored === 'US' && newScoreUs > 0) newScoreUs--;
                 if (lastPoint.whoScored === 'THEM' && newScoreThem > 0) newScoreThem--;
 
@@ -414,6 +414,7 @@ app.get('/api/teams/:teamId/leaderboard', async (req, res) => {
                         ps.callahan += stat.callahan || 0;
                         ps.successfulPass += stat.successfulPass || 0;
                         ps.drop += stat.drop || 0;
+                        ps.catchStat += stat.catchStat || 0;
                         ps.throwaway += stat.throwaway || 0;
                         ps.pointsPlayed += 1;
                         ps.secondsPlayed += stat.totalTimePlayedSeconds || stat.totalPullTimeSeconds || 0;
@@ -431,7 +432,7 @@ app.get('/api/teams/:teamId/leaderboard', async (req, res) => {
             const passes = ps.successfulPass + ps.assist + ps.throwaway;
             const completedPasses = ps.successfulPass + ps.assist;
             const turns = ps.drop + ps.throwaway;
-            
+
             // HATA DÜZELTİLMESİ: Callahan'ı gol ve bloktan çıkarınca negatif değerler oluşabiliyordu.
             // Direk toplayarak daha stabil bir verimlilik (efficiency) hesaplaması yapıyoruz.
             const plusMinus = (ps.goal * 1.0) + (ps.assist * 1.0) + (ps.block * 1.5) + (ps.callahan * 3.5) - (turns * 1.0) + (completedPasses * 0.05);
@@ -510,7 +511,7 @@ app.get('/api/teams', async (req, res) => {
     try {
         const { userId } = req.query;
         if (!userId) return res.status(400).json({ error: "userId gerekli" });
-        
+
         // members nested objesinde userId'si olan takımları filtrele
         const snapshot = await db.collection('teams').where(`members.${userId}`, '!=', null).get();
         const teams = snapshot.docs.map(doc => ({ teamId: doc.id, ...doc.data() }));
@@ -564,11 +565,11 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId', async (
         const matchDoc = await db.collection('teams').doc(teamId)
             .collection('tournaments').doc(tournamentId)
             .collection('matches').doc(matchId).get();
-        
+
         if (!matchDoc.exists) {
             return res.status(404).json({ error: "Maç bulunamadı" });
         }
-        
+
         res.json({ id: matchDoc.id, ...matchDoc.data() });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -579,7 +580,7 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
     try {
         const { teamId, tournamentId, matchId } = req.params;
         const matchDoc = await db.collection('teams').doc(teamId).collection('tournaments').doc(tournamentId).collection('matches').doc(matchId).get();
-        
+
         if (!matchDoc.exists) return res.status(404).json({ error: "Maç bulunamadı" });
         const match = matchDoc.data();
         const playersSnapshot = await db.collection('teams').doc(teamId).collection('players').get();
@@ -588,10 +589,10 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
         // --- 1. OYUNCU İSTATİSTİKLERİ HESAPLAMA ---
         const statsMap = {};
         rosterPlayers.forEach(p => {
-            statsMap[p.id] = { 
-                id: p.id, name: p.name, jerseyNumber: p.jerseyNumber, photoUrl: p.photoUrl, 
-                goals: 0, assists: 0, blocks: 0, callahans: 0, passes: 0, drops: 0, 
-                throwaways: 0, turns: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0 
+            statsMap[p.id] = {
+                id: p.id, name: p.name, jerseyNumber: p.jerseyNumber, photoUrl: p.photoUrl,
+                goals: 0, assists: 0, blocks: 0, callahans: 0, passes: 0, drops: 0,
+                catchStat: 0, throwaways: 0, turns: 0, pointsPlayed: 0, totalTimePlayedSeconds: 0
             };
         });
 
@@ -612,7 +613,7 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
                     currentPointStart = vTime ?? null;
                     lastEventTime = vTime ?? null;
                     currentPointTimes = {};
-                    
+
                     const archivePoint = match.pointsArchive?.[pointIndex];
                     if (archivePoint) {
                         const subbedIn = new Set();
@@ -663,6 +664,7 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
                         ps.callahans += stat.callahan || 0;
                         ps.passes += (stat.successfulPass || 0) + (stat.assist || 0);
                         ps.drops += stat.drop || 0;
+                        ps.catchStat += stat.catchStat || 0;
                         ps.throwaways += stat.throwaway || 0;
                         ps.turns += (stat.drop || 0) + (stat.throwaway || 0);
                         ps.pointsPlayed += stat.pointsPlayed || 0;
@@ -673,19 +675,23 @@ app.get('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/stats', a
         }
 
         const computedPlayerStats = Object.values(statsMap).map(stats => {
-            const totalPassAttempts = stats.passes + stats.throwaways;
+            // HATA DÜZELTMESİ: Toplam pas sayısı, tablodaki Başarısız (Turns) sütunuyla tutarlı olması için Drop'ları da içermelidir.
+            const totalPassAttempts = stats.passes + stats.throwaways + stats.drops;
             const passPercentage = totalPassAttempts > 0 ? parseFloat(((stats.passes / totalPassAttempts) * 100).toFixed(1)) : 0;
-            const catches = totalPassAttempts + stats.goals;
-            const totalCatchOpportunities = catches + stats.drops;
-            const catchPercentage = totalCatchOpportunities > 0 ? parseFloat(((catches / totalCatchOpportunities) * 100).toFixed(1)) : 0;
-            const efficiency = ((stats.goals - stats.callahans) * 1.0) + (stats.assists * 1.0) + ((stats.blocks - stats.callahans) * 1.5) + (stats.callahans * 3.5) - (stats.turns * 1.0) + (stats.passes * 0.05);
 
-            return { 
-                ...stats, 
-                totalPasses: totalPassAttempts, 
-                passPercentage, 
-                catchPercentage, 
-                efficiency: efficiency.toFixed(2) 
+            // Yakalama yüzdesi doğrudan catchStat üzerinden hesaplanmalıdır.
+            const totalCatchOpportunities = stats.catchStat + stats.drops;
+            const catchPercentage = totalCatchOpportunities > 0 ? parseFloat(((stats.catchStat / totalCatchOpportunities) * 100).toFixed(1)) : 0;
+
+            // Verimlilik (Efficiency) formülü Android ile eşitlendi ve Callahan hataları giderildi.
+            const efficiency = (stats.goals * 1.0) + (stats.assists * 1.0) + (stats.blocks * 1.5) + (stats.callahans * 3.5) - (stats.turns * 1.0) + (stats.passes * 0.05);
+
+            return {
+                ...stats,
+                totalPasses: totalPassAttempts,
+                passPercentage,
+                catchPercentage,
+                efficiency: efficiency.toFixed(2)
             };
         });
 
@@ -814,7 +820,7 @@ app.put('/api/teams/:teamId/players/:playerId', async (req, res) => {
     try {
         const { teamId, playerId } = req.params;
         const playerData = req.body;
-        
+
         await db.doc(`teams/${teamId}/players/${playerId}`).update({
             name: playerData.name,
             jerseyNumber: playerData.jerseyNumber,
@@ -834,30 +840,30 @@ app.post('/api/teams/:teamId/tournaments/:tournamentId/matches', async (req, res
     try {
         const { teamId, tournamentId } = req.params;
         const { opponentName, ourTeamName } = req.body;
-        
+
         const tournamentRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}`);
         const matchesRef = tournamentRef.collection('matches');
-        
+
         const newMatchRef = matchesRef.doc(); // Otomatik ID oluşturur
         const newMatch = {
             id: newMatchRef.id,
             opponentName,
-            ourTeamName, 
+            ourTeamName,
             scoreUs: 0,
             scoreThem: 0,
             pointsArchive: [],
             matchDurationSeconds: 0,
-            isProMode: false, 
+            isProMode: false,
             date: new Date().toISOString(),
             tournamentId,
             teamNames: [ourTeamName, opponentName],
             score: [0, 0],
             finished: false
         };
-        
+
         await newMatchRef.set(newMatch);
         await tournamentRef.update({ lastUpdated: Date.now() });
-        
+
         res.json({ matchId: newMatchRef.id });
     } catch (error) {
         console.error("Maç oluşturulurken hata:", error);
@@ -873,7 +879,7 @@ app.post('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/archive-
 
         const matchRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}/matches/${matchId}`);
         const matchSnap = await matchRef.get();
-        
+
         if (!matchSnap.exists) return res.status(404).json({ error: "Maç bulunamadı" });
 
         const matchData = matchSnap.data();
@@ -906,12 +912,12 @@ app.post('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/archive-
             whoScored,
             playerIds: allPlayerIds,
             stats: statsToArchive,
-            durationSeconds: 0 
+            durationSeconds: 0
         };
 
         let newScoreUs = matchData.scoreUs ?? matchData.score?.[0] ?? 0;
         let newScoreThem = matchData.scoreThem ?? matchData.score?.[1] ?? 0;
-        
+
         if (whoScored === 'US') newScoreUs += 1;
         else if (whoScored === 'THEM') newScoreThem += 1;
 
@@ -919,7 +925,7 @@ app.post('/api/teams/:teamId/tournaments/:tournamentId/matches/:matchId/archive-
             pointsArchive: admin.firestore.FieldValue.arrayUnion(newPoint),
             scoreUs: newScoreUs,
             scoreThem: newScoreThem,
-            score: [newScoreUs, newScoreThem] 
+            score: [newScoreUs, newScoreThem]
         });
 
         const tournamentRef = db.doc(`teams/${teamId}/tournaments/${tournamentId}`);
