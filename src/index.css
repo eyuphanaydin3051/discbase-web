@@ -44,9 +44,9 @@
   --color-on-error-container: var(--on-error-container);
 
   /* Özel Yuvarlama ve Gölgeler */
-  --radius-tech: 4px;
-  --shadow-glass: 0 4px 20px rgba(13, 28, 45, 0.08);
-  --shadow-glow: 0 0 10px rgba(188, 19, 254, 0.3);
+  --radius-tech: 6px;
+  --shadow-glass: none;
+  --shadow-glow: none;
 }
 
 @layer base {
@@ -88,35 +88,35 @@
   }
 
   .dark {
-    /* DARK MODE (Karanlık Tema) - Design.md'den tam uyumlu "Mainframe/Command Center" paleti */
-    --surface: #051424;
-    --surface-dim: #051424;
-    --surface-bright: #2c3a4c;
-    --surface-container-lowest: #010f1f;
-    --surface-container-low: #0d1c2d;
-    --surface-container: #122131;
-    --surface-container-high: #1c2b3c;
-    --surface-container-highest: #273647;
-    --on-surface: #d4e4fa;
-    --on-surface-variant: #d4c0d7;
+    /* DARK MODE (Karanlık Tema) - Pastel Tech System */
+    --surface: #141317;
+    --surface-dim: #141317;
+    --surface-bright: #3a383e;
+    --surface-container-lowest: #0f0e12;
+    --surface-container-low: #1c1b20;
+    --surface-container: #201f24;
+    --surface-container-high: #2b292e;
+    --surface-container-highest: #363439;
+    --on-surface: #e6e1e8;
+    --on-surface-variant: #c9c4d2;
 
-    --primary: #ebb2ff;
-    --on-primary: #520072;
-    --primary-container: #bc13fe;
-    --on-primary-container: #ffffff;
+    --primary: #d3c8ff;
+    --on-primary: #32246b;
+    --primary-container: #b8a9f9;
+    --on-primary-container: #483a82;
 
-    --secondary: #dcfdff;
-    --on-secondary: #00373a;
-    --secondary-container: #00f1fd;
-    --on-secondary-container: #006a6f;
+    --secondary: #9ccaff;
+    --on-secondary: #003257;
+    --secondary-container: #03497a;
+    --on-secondary-container: #87b9f0;
 
-    --tertiary: #bec2ff;
-    --on-tertiary: #202676;
-    --tertiary-container: #696fc1;
-    --on-tertiary-container: #ffffff;
+    --tertiary: #ffbfbf;
+    --on-tertiary: #561e20;
+    --tertiary-container: #f29d9d;
+    --on-tertiary-container: #713234;
 
-    --outline: #9d8ba0;
-    --outline-variant: #504254;
+    --outline: #938f9b;
+    --outline-variant: #484550;
 
     --error: #ffb4ab;
     --on-error: #690005;
@@ -132,39 +132,34 @@
 
 @layer components {
 
-  /* Design.md: Glass Cards */
+  /* Pastel Tech System: Matte Cards */
   .glass-card {
-    @apply bg-surface-container-lowest/60 dark:bg-surface-container-lowest/40 backdrop-blur-md border border-white/50 dark:border-white/10 shadow-glass rounded-tech relative overflow-hidden transition-all duration-300;
+    @apply bg-surface-container border border-outline-variant rounded-tech relative overflow-hidden transition-all duration-300;
   }
 
-  /* Design.md: High-priority cards corner highlight */
-  .glass-card-highlight::before {
-    content: '';
-    @apply absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-secondary rounded-tl-tech;
-  }
-
+  /* Decorative elements are removed in Corporate Modern */
+  .glass-card-highlight::before,
   .glass-card-highlight::after {
-    content: '';
-    @apply absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-secondary rounded-br-tech;
+    display: none;
   }
 
-  /* Design.md: Buttons */
+  /* Pastel Tech System: Buttons */
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-container to-secondary-container text-white font-semibold py-2 px-6 rounded-tech transition-all duration-200 hover:shadow-glow hover:scale-[1.02] active:scale-[0.98];
+    @apply bg-primary text-surface-container-lowest font-medium py-2 px-6 rounded-tech transition-all duration-200 hover:brightness-110 active:scale-[0.98];
   }
 
-  /* Design.md: Decorative Notches (45-degree clipped corners) */
+  /* Pastel Tech System: Decorative Notches (Removed, standard rounding applied instead) */
   .tech-notch {
-    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+    @apply rounded-tech;
   }
 
-  /* Design.md: Inputs */
+  /* Pastel Tech System: Inputs */
   .tech-input {
-    @apply bg-surface-container-low/50 dark:bg-surface-container-lowest/50 border-b-2 border-outline focus:border-secondary outline-none px-4 py-2 font-mono text-sm transition-colors;
+    @apply bg-surface-container-low border border-outline-variant focus:border-primary text-on-surface outline-none px-4 py-2 font-sans text-sm transition-colors rounded-tech;
   }
 
-  /* Design.md: Chips/Tags */
+  /* Pastel Tech System: Chips/Tags */
   .tech-chip {
-    @apply bg-secondary-container/20 text-tertiary dark:text-secondary-container text-xs px-3 py-1 rounded-sm uppercase tracking-wider font-bold border border-secondary/30;
+    @apply bg-primary/15 text-primary text-xs px-3 py-1 rounded-full font-medium border border-transparent;
   }
 }

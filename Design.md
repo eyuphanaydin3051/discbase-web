@@ -1,140 +1,158 @@
 ---
-name: Discbase Core
+name: Velocity Kinetic
 colors:
-  surface: '#051424'
-  surface-dim: '#051424'
-  surface-bright: '#2c3a4c'
-  surface-container-lowest: '#010f1f'
-  surface-container-low: '#0d1c2d'
-  surface-container: '#122131'
-  surface-container-high: '#1c2b3c'
-  surface-container-highest: '#273647'
-  on-surface: '#d4e4fa'
-  on-surface-variant: '#d4c0d7'
-  inverse-surface: '#d4e4fa'
-  inverse-on-surface: '#233143'
-  outline: '#9d8ba0'
-  outline-variant: '#504254'
-  surface-tint: '#ebb2ff'
-  primary: '#ebb2ff'
-  on-primary: '#520072'
-  primary-container: '#bc13fe'
-  on-primary-container: '#ffffff'
-  inverse-primary: '#9800d0'
-  secondary: '#dcfdff'
-  on-secondary: '#00373a'
-  secondary-container: '#00f1fd'
-  on-secondary-container: '#006a6f'
-  tertiary: '#bec2ff'
-  on-tertiary: '#202676'
-  tertiary-container: '#696fc1'
-  on-tertiary-container: '#ffffff'
-  error: '#ffb4ab'
-  on-error: '#690005'
-  error-container: '#93000a'
-  on-error-container: '#ffdad6'
-  primary-fixed: '#f8d8ff'
-  primary-fixed-dim: '#ebb2ff'
-  on-primary-fixed: '#320047'
-  on-primary-fixed-variant: '#74009f'
-  secondary-fixed: '#6ff6ff'
-  secondary-fixed-dim: '#00dce6'
-  on-secondary-fixed: '#002022'
-  on-secondary-fixed-variant: '#004f53'
-  tertiary-fixed: '#e0e0ff'
-  tertiary-fixed-dim: '#bec2ff'
-  on-tertiary-fixed: '#060a62'
-  on-tertiary-fixed-variant: '#383e8d'
-  background: '#051424'
-  on-background: '#d4e4fa'
-  surface-variant: '#273647'
+  surface: '#f8f9ff'
+  surface-dim: '#cbdbf5'
+  surface-bright: '#f8f9ff'
+  surface-container-lowest: '#ffffff'
+  surface-container-low: '#eff4ff'
+  surface-container: '#e5eeff'
+  surface-container-high: '#dce9ff'
+  surface-container-highest: '#d3e4fe'
+  on-surface: '#0b1c30'
+  on-surface-variant: '#464554'
+  inverse-surface: '#213145'
+  inverse-on-surface: '#eaf1ff'
+  outline: '#777586'
+  outline-variant: '#c7c4d7'
+  surface-tint: '#5148d7'
+  primary: '#2a14b4'
+  on-primary: '#ffffff'
+  primary-container: '#4338ca'
+  on-primary-container: '#c1beff'
+  inverse-primary: '#c3c0ff'
+  secondary: '#006a61'
+  on-secondary: '#ffffff'
+  secondary-container: '#86f2e4'
+  on-secondary-container: '#006f66'
+  tertiary: '#7b0022'
+  on-tertiary: '#ffffff'
+  tertiary-container: '#a60031'
+  on-tertiary-container: '#ffb0b5'
+  error: '#ba1a1a'
+  on-error: '#ffffff'
+  error-container: '#ffdad6'
+  on-error-container: '#93000a'
+  primary-fixed: '#e3dfff'
+  primary-fixed-dim: '#c3c0ff'
+  on-primary-fixed: '#100069'
+  on-primary-fixed-variant: '#372abf'
+  secondary-fixed: '#89f5e7'
+  secondary-fixed-dim: '#6bd8cb'
+  on-secondary-fixed: '#00201d'
+  on-secondary-fixed-variant: '#005049'
+  tertiary-fixed: '#ffdadb'
+  tertiary-fixed-dim: '#ffb2b7'
+  on-tertiary-fixed: '#40000d'
+  on-tertiary-fixed-variant: '#92002a'
+  background: '#f8f9ff'
+  on-background: '#0b1c30'
+  surface-variant: '#d3e4fe'
 typography:
   headline-xl:
     fontFamily: Inter
-    fontSize: 48px
+    fontSize: 36px
     fontWeight: '700'
-    lineHeight: '1.1'
+    lineHeight: 44px
     letterSpacing: -0.02em
   headline-lg:
     fontFamily: Inter
-    fontSize: 32px
+    fontSize: 24px
     fontWeight: '600'
-    lineHeight: '1.2'
+    lineHeight: 32px
+    letterSpacing: -0.01em
   body-md:
     fontFamily: Inter
     fontSize: 16px
     fontWeight: '400'
-    lineHeight: '1.6'
-  label-sm:
+    lineHeight: 24px
+  body-sm:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: '400'
+    lineHeight: 20px
+  label-bold:
     fontFamily: Inter
     fontSize: 12px
-    fontWeight: '600'
-    lineHeight: '1'
+    fontWeight: '700'
+    lineHeight: 16px
     letterSpacing: 0.05em
+  stat-value:
+    fontFamily: Inter
+    fontSize: 32px
+    fontWeight: '800'
+    lineHeight: 40px
+    letterSpacing: -0.02em
 rounded:
-  sm: 0.125rem
-  DEFAULT: 0.25rem
-  md: 0.375rem
-  lg: 0.5rem
-  xl: 0.75rem
+  sm: 0.25rem
+  DEFAULT: 0.5rem
+  md: 0.75rem
+  lg: 1rem
+  xl: 1.5rem
   full: 9999px
 spacing:
-  unit: 4px
-  gutter: 24px
-  margin: 40px
-  container-max: 1440px
+  base: 4px
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  gutter: 20px
+  margin: 24px
 ---
 
 ## Brand & Style
 
-The brand identity for Discbase is rooted in the "Digital Frontier"—a high-tech, futuristic aesthetic that bridges the gap between hardware architecture and software fluidity. It is designed for a tech-savvy audience that values speed, precision, and innovation. 
+This design system is built for the high-energy, data-driven world of competitive sports. The brand personality is **Athletic, Precise, and Empowering**, aimed at coaches and team managers who need to synthesize complex performance metrics at a glance.
 
-Transitioning to a **Dark-Mode "Command Center"** interface, the visual style reflects a "Deep-Space Research" environment. It utilizes a sophisticated blend of **Dark Glassmorphism** and high-energy neon accents. The interface feels like a premium, tactical head-up display (HUD)—stealthy, professional, and ultra-precise. The goal is to evoke an emotional response of total control and technological mastery, making the user feel like they are operating a cutting-edge mainframe from the heart of a secure data vault.
+The visual style follows a **Corporate Modern** approach with **Glassmorphism** accents. It leverages high-density data visualization balanced by generous white space and soft depth. The interface utilizes translucent layers for secondary information and solid, vibrant containers for primary calls to action, creating a clear "field of play" for team data. The goal is to evoke a sense of professional mastery and forward momentum.
 
 ## Colors
 
-The palette is optimized for dark-mode, utilizing high-energy neon accents that pierce through a deep, multi-layered obsidian foundation.
-
-- **Primary (Neon Purple):** Used for primary actions, critical branding, and focal points. It provides a sharp, vibrant glow against dark surfaces.
-- **Secondary (Cyan):** Used for data visualization, "active" states, and highlights. It offers a refreshing, high-tech contrast that remains piercingly legible in low-light contexts.
-- **Tertiary (Electric Cobalt):** In this dark-mode context, Cobalt serves as a deep structural shadow and a low-energy accent for secondary UI elements, providing depth without breaking the dark aesthetic.
-- **Surface & Neutrals:** Deep slates and charcoals (Neutral) are used for container differentiation, maintaining a clean, technical hardware aesthetic that reduces eye strain.
-
-Gradients are essential; use a linear transition from Neon Purple to Cyan for "active" or "processing" states to mimic the brand's digital energy flowing through the system.
+This design system utilizes a high-contrast palette to differentiate between action states and data categories. 
+- **Deep Indigo (Primary):** Used for navigation, primary branding, and core interactive elements.
+- **Teal/Cyan (Secondary):** Represents positive growth, success metrics (wins), and secondary data points.
+- **Coral/Red (Accent):** Reserved for alerts, losses, and critical performance "pain points" that require immediate attention.
+- **Surface Strategy:** In light mode, surfaces use subtle cool grays to reduce eye strain. In dark mode, surfaces utilize deep navy tones with indigo tints to maintain brand consistency without losing legibility.
 
 ## Typography
 
-The typography system is unified under a single, high-performance typeface to maximize technical clarity and functional minimalism.
+The typography system relies on **Inter** for its exceptional legibility in data-heavy environments. The hierarchy is strictly enforced through weight and letter spacing rather than just size. 
 
-**Inter** is utilized across all levels—headlines, body, and labels. This creates a cohesive, streamlined appearance that feels like a modern software interface. Headlines utilize the bolder weights of Inter to provide hierarchy through scale and weight rather than stylistic contrast, ensuring the UI feels integrated and precise.
-
-For functional elements, label styles frequently use uppercase with increased letter-spacing to reinforce the "instrument panel" look, ensuring that even complex data remains highly legible and scannable against dark, high-contrast backgrounds.
+- **Headlines:** Use tight letter-spacing and bold weights to feel impactful and "headline-ready."
+- **Stats:** A dedicated "stat-value" tier ensures that numbers are the hero of the dashboard.
+- **Labels:** Small caps or bold uppercase are used for category headers (e.g., "ANA MENÜ") to distinguish them from interactive content.
 
 ## Layout & Spacing
 
-This design system employs a **Fixed Grid** model within a fluid container. A 12-column grid is used for desktop layouts, with generous gutters to allow the dark glassmorphic backgrounds to breathe. 
+This design system employs a **12-column fluid grid** for the main dashboard content, ensuring responsiveness across desktop and tablet views. 
 
-The spacing rhythm is strictly based on a **4px baseline grid**. Components should be aligned to this grid to maintain a "mathematically perfect" technical appearance. In layouts, utilize asymmetrical spacing where one side of the screen holds a dense "data module" while the other provides "negative space" to keep the UI from feeling cluttered.
+The vertical rhythm is based on a **4px baseline grid**. 
+- **Sidebars:** Fixed at 280px to provide a stable anchor for navigation.
+- **Cards:** Utilize `lg` (24px) padding to ensure data-heavy charts don't feel cluttered.
+- **Gaps:** Standardize 20px gaps between grid items to create clear visual separation without wasting excessive screen real estate.
 
 ## Elevation & Depth
 
-Depth is achieved through **Dark Glassmorphism** and **Inner Radiance** to create a sense of layered translucency within the tactical environment.
-
-1.  **Backdrop Blur:** All container surfaces must use a `backdrop-filter: blur(12px)` combined with a semi-transparent dark fill (approx 20-40% black or deep slate opacity).
-2.  **Inner Glow:** Use a 1px inner border (stroke) with low opacity primary or secondary color to define the edges of "glass" cards. This creates a "powered-on" effect where edges appear to catch the light of the UI.
-3.  **Tonal Layers:** Use increasingly lighter shades of dark slate to suggest that "glass" panes are closer to the user. Avoid heavy drop shadows; instead, use subtle, colored outer glows (tinted with Purple or Cobalt) for high-priority elements.
+Hierarchy is established through **Ambient Shadows** and **Tonal Layering**. 
+- **Base Layer:** The background is the lowest point, using the neutral background hex.
+- **Content Cards:** Raised slightly with a very soft, diffused shadow (Blur: 15px, Opacity: 4%, Color: Primary Tint). 
+- **Interactive Hover:** Elements increase in shadow spread and opacity when hovered, providing tactile feedback.
+- **Overlays:** Modals and dropdowns use a "Glassmorphism" effect (Backdrop Blur: 10px) with a 1px border stroke to maintain edge definition against complex backgrounds.
 
 ## Shapes
 
-The shape language is **Technical & Sharp**. While glassmorphism often trends towards very rounded corners, this design system uses a restricted radius (4px to 8px) to maintain an industrial, "circuit-board" feel. 
-
-Avoid circles for everything except the brand logo or specific user avatars. Buttons and cards should feel like precisely cut pieces of synthetic acrylic. Decorative "notches" (45-degree clipped corners) are encouraged for large section headers or primary call-to-action containers to reinforce the futuristic theme.
+The shape language is consistently **Rounded**, reflecting the approachable and modern nature of the platform.
+- **Standard Cards:** Use 1rem (16px) corner radius for a friendly, modular look.
+- **Buttons & Inputs:** Use 0.5rem (8px) to maintain a professional, structured feel.
+- **Tags & Badges:** Use a pill-shaped (full-round) radius to distinguish them from actionable buttons.
+- **Progress Bars:** Fully rounded ends to mimic the motion of a tracking disc or ball.
 
 ## Components
 
-- **Buttons:** Primary buttons use a solid Neon Purple or a Purple-to-Cyan gradient. Text must be high-contrast white.
-- **Glass Cards:** The standard container. Must have a subtle 1px border and a backdrop blur. For high-priority cards, add a "corner highlight"—a small 2px thick line segments on just two corners in the secondary color.
-- **Inputs:** Clean, dark-tinted backgrounds with a bottom-only border that turns Cyan when focused. Use monospaced fonts for numerical input to enhance the "terminal" feel.
-- **Chips/Tags:** Small, sharp-edged pills with low-opacity Cyan or Purple fills and vibrant, high-contrast text.
-- **Circuit Lines:** Non-interactive decorative elements—thin 1px lines in Slate or low-opacity Cobalt that connect components, mimicking the traces on a PCB.
-- **Data Readouts:** Use the label-sm typography for small, "system-status" style text modules that appear near the edges of cards.
+- **Buttons:** Primary buttons use a solid Indigo gradient. Secondary buttons use a Teal "ghost" style with a 1.5px border. High-energy actions (like "Delete" or "Loss") use Coral.
+- **Metric Cards:** Large stat values are top-aligned, with a sparkline or trend indicator (Teal for up, Coral for down) placed at the bottom right.
+- **Navigation Items:** Active states use a soft Indigo background tint with a 4px vertical "pill" indicator on the left edge.
+- **List Items:** Match rows use a subtle vertical border on the left (Teal for Win, Coral for Loss) to provide instant color-coded context before the user reads the text.
+- **Data Tables:** Row hover states use a 50% opacity primary tint. Column headers use the "Label-Bold" typography style for clarity.
+- **Input Fields:** Use a subtle inset shadow and 1px neutral border. Focus states trigger a 2px Indigo glow.
