@@ -127,6 +127,7 @@ export default function Trainings() {
                 if (success) {
                     setUltiplaysEventData(data);
                     setCurrentTraining(updatedTraining);
+                    setTrainings(prev => prev.map(t => t.id === updatedTraining.id ? updatedTraining : t));
                     setIsEditingRawData(false);
                     setManualJsonInput('');
                     alert('Veri antrenmana kaydedildi!');
@@ -162,6 +163,7 @@ export default function Trainings() {
             const success = await saveTraining(teamId, updated);
             if (success) {
                 setCurrentTraining(updated);
+                setTrainings(prev => prev.map(t => t.id === updated.id ? updated : t));
                 alert("Yoklama listesi başarıyla güncellendi!");
             }
         }
@@ -241,7 +243,15 @@ export default function Trainings() {
     const handleSaveTraining = async () => {
         if (!teamId || !currentTraining) return;
         const id = currentTraining.id || doc(collection(db, 'teams')).id;
-        await saveTraining(teamId, { ...currentTraining, id } as Training);
+        const updated = { ...currentTraining, id } as Training;
+        await saveTraining(teamId, updated);
+        
+        setTrainings(prev => {
+            const exists = prev.find(t => t.id === id);
+            if (exists) return prev.map(t => t.id === id ? updated : t);
+            return [...prev, updated];
+        });
+        
         setIsFormModalOpen(false);
     };
 
@@ -298,7 +308,13 @@ export default function Trainings() {
                                                 </div>
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button onClick={(e) => {e.stopPropagation(); setCurrentTraining(training); setIsFormModalOpen(true);}} className="p-1.5 text-gray-400 hover:text-[#5B4DBC] bg-gray-50 rounded-lg"><span className="material-icons-outlined text-sm">edit</span></button>
-                                                    <button onClick={(e) => {e.stopPropagation(); if(window.confirm('Silinsin mi?')) deleteTraining(teamId!, training.id)}} className="p-1.5 text-gray-400 hover:text-red-500 bg-gray-50 rounded-lg"><span className="material-icons-outlined text-sm">delete</span></button>
+                                                    <button onClick={async (e) => {
+                                                        e.stopPropagation(); 
+                                                        if(window.confirm('Silinsin mi?')) {
+                                                            const success = await deleteTraining(teamId!, training.id);
+                                                            if (success) setTrainings(prev => prev.filter(t => t.id !== training.id));
+                                                        }
+                                                    }} className="p-1.5 text-gray-400 hover:text-red-500 bg-gray-50 rounded-lg"><span className="material-icons-outlined text-sm">delete</span></button>
                                                 </div>
                                             </div>
                                             <h3 className="font-black text-2xl text-gray-800 mb-1">
@@ -490,7 +506,11 @@ export default function Trainings() {
                             </div>
                         </div>
                         <div className="p-6 sm:p-8 border-t border-gray-50 bg-white rounded-b-3xl">
-                            <button onClick={async () => { await saveTraining(teamId!, currentTraining as Training); setIsAttendanceModalOpen(false); }} className="w-full bg-[#00C4B4] text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-teal-50 transition-transform active:scale-95">Yoklamayı Kaydet ({currentTraining.attendeeIds?.length || 0} Kişi)</button>
+                            <button onClick={async () => { 
+                                await saveTraining(teamId!, currentTraining as Training); 
+                                setTrainings(prev => prev.map(t => t.id === currentTraining.id ? currentTraining as Training : t));
+                                setIsAttendanceModalOpen(false); 
+                            }} className="w-full bg-[#00C4B4] text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-teal-50 transition-transform active:scale-95">Yoklamayı Kaydet ({currentTraining.attendeeIds?.length || 0} Kişi)</button>
                         </div>
                     </div>
                 </div>
