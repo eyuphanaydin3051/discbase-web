@@ -12,7 +12,7 @@ import Roster from './pages/Roster'; // Yeni sayfayı import et
 import PlayerDetail from './pages/PlayerDetail';
 import MatchDetail from './pages/MatchDetail';
 import MatchTracking from './pages/MatchTracking';
-import Gameplay from './pages/Gameplay';
+import Gameplay from './pages/Gameplay'; // Game playbook
 import { useEffect } from 'react';
 function App() {
   // Tema Uygulama Mantığı
