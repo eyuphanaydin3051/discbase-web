@@ -214,3 +214,25 @@ export interface UserSettings {
     nameFormat: NameFormat;
     efficiencyCriteria: EfficiencyCriterion[];
 }
+
+// --- GAMEPLAY / PLAYBOOK TİPLERİ ---
+export type PathType = 'straight' | 'curved' | 'sprint' | 'cut' | 'pass';
+
+export interface PlaybookActor {
+  id: string;
+  type: 'offense' | 'defense' | 'disc';
+  x: number;
+  y: number;
+}
+
+export interface PlaybookFrame {
+  actors: PlaybookActor[];
+  pathSettings?: Record<string, PathType>;
+}
+
+export interface Playbook {
+  id: string;
+  title: string;
+  frames: PlaybookFrame[];
+  createdAt: number;
+}

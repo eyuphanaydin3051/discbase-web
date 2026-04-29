@@ -12,6 +12,7 @@ import Roster from './pages/Roster'; // Yeni sayfayı import et
 import PlayerDetail from './pages/PlayerDetail';
 import MatchDetail from './pages/MatchDetail';
 import MatchTracking from './pages/MatchTracking';
+import Gameplay from './pages/Gameplay';
 import { useEffect } from 'react';
 function App() {
   // Tema Uygulama Mantığı
@@ -40,6 +41,7 @@ function App() {
           <Route path="/player/:teamId/:playerId" element={<PlayerDetail />} />
           <Route path="/tournament/:tournamentId/match/:matchId" element={<MatchDetail />} />
           <Route path="/tournament/:tournamentId/match/:matchId/track" element={<MatchTracking />} />
+          <Route path="/gameplay" element={<Gameplay />} />
         </Route>
       </Routes>
     </Router>

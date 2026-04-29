@@ -49,6 +49,10 @@ export default function Layout() {
                                 <span className="material-icons-outlined text-[22px]">fitness_center</span>
                                 <span>İdman</span>
                             </NavLink>
+                            <NavLink to="/gameplay" className={getLinkClass}>
+                                <span className="material-icons-outlined text-[22px]">architecture</span>
+                                <span>Taktik</span>
+                            </NavLink>
                         </div>
                     </div>
                 </nav>
@@ -84,6 +88,10 @@ export default function Layout() {
                     <NavLink to="/trainings" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-[#5B4DBC]' : 'text-gray-400 hover:text-[#5B4DBC]'}`}>
                         <span className="material-icons-outlined">fitness_center</span>
                         <span className="text-[10px] font-medium mt-1">İdman</span>
+                    </NavLink>
+                    <NavLink to="/gameplay" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-[#5B4DBC]' : 'text-gray-400 hover:text-[#5B4DBC]'}`}>
+                        <span className="material-icons-outlined">architecture</span>
+                        <span className="text-[10px] font-medium mt-1">Taktik</span>
                     </NavLink>
                 </div>
             </div>
