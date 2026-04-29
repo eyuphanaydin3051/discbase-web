@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Stage, Layer, Rect, Circle, Line, Group, Text } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Line, Group, Text, Arrow } from 'react-konva';
 import type { Playbook, PathType } from '../types';
 
 const FIELD_WIDTH = 800;
@@ -123,6 +123,22 @@ const Gameplay: React.FC = () => {
     setSelectedActorId(id); // Sürüklenen oyuncuyu seçili yap
   };
 
+  // Kavis kontrol noktasını (Control Point) sürükleme
+  const handleControlPointDragEnd = (actorId: string, x: number, y: number) => {
+    if (!playbook || currentFrameIdx === 0) return;
+    const updatedFrames = [...playbook.frames];
+    const currentSettings = updatedFrames[currentFrameIdx].pathSettings || {};
+    
+    updatedFrames[currentFrameIdx].pathSettings = {
+        ...currentSettings,
+        [actorId]: { 
+            ...currentSettings[actorId], 
+            controlPoint: { x, y } 
+        }
+    };
+    setPlaybook({ ...playbook, frames: updatedFrames });
+  };
+
   // Yol tipini değiştiren fonksiyon
   const changePathType = (type: PathType) => {
     if (!playbook || !selectedActorId || currentFrameIdx === 0) return;
@@ -236,21 +252,65 @@ const Gameplay: React.FC = () => {
                 const pathSetting = currentFrame.pathSettings?.[actor.id];
                 const pathType = pathSetting?.type || (isDisc ? 'pass' : 'sprint');
                 
-                // Seçili oyuncunun yolu vurgulansın
                 const isSelected = selectedActorId === actor.id;
                 const strokeColor = isDisc ? '#FBBF24' : (isSelected ? '#5B4DBC' : '#E5E7EB');
 
+                // Kavis ayarları
+                let points = [prevActor.x, prevActor.y, actor.x, actor.y];
+                let tension = 0;
+                let cp = pathSetting?.controlPoint;
+
+                if (pathType === 'curved') {
+                  // Eğer kontrol noktası henüz atanmamışsa, yolun ortasına varsayılan bir nokta koy
+                  if (!cp) {
+                    cp = {
+                      x: (prevActor.x + actor.x) / 2,
+                      y: (prevActor.y + actor.y) / 2 - 50 
+                    };
+                  }
+                  // Konva Arrow'un kavis yapabilmesi için ortadaki noktayı (cp) diziye ekliyoruz
+                  points = [prevActor.x, prevActor.y, cp.x, cp.y, actor.x, actor.y];
+                  tension = 0.4; // Kavisin ne kadar yumuşak olacağı
+                }
+
                 return (
-                  <Line
-                    key={`path-${actor.id}`}
-                    points={[prevActor.x, prevActor.y, actor.x, actor.y]}
-                    stroke={strokeColor}
-                    strokeWidth={isDisc || isSelected ? 3 : 2}
-                    dash={pathType === 'sprint' ? [10, 5] : pathType === 'cut' ? [5, 5] : []}
-                    opacity={isSelected ? 1 : 0.7}
-                    onClick={() => setSelectedActorId(actor.id)}
-                    onTap={() => setSelectedActorId(actor.id)} // Mobilde dokunmak için
-                  />
+                  <Group key={`path-group-${actor.id}`}>
+                    <Arrow
+                      points={points}
+                      tension={tension}
+                      stroke={strokeColor}
+                      fill={strokeColor}
+                      strokeWidth={isDisc || isSelected ? 3 : 2}
+                      pointerLength={isDisc ? 10 : 8}
+                      pointerWidth={isDisc ? 10 : 8}
+                      dash={pathType === 'sprint' ? [10, 5] : pathType === 'cut' ? [4, 4] : []}
+                      opacity={isSelected ? 1 : 0.7}
+                      onClick={() => setSelectedActorId(actor.id)}
+                      onTap={() => setSelectedActorId(actor.id)}
+                    />
+                    
+                    {/* Kavisli yollar için Sürükle-Bırak Kontrol Noktası (Sadece oyuncu seçiliyse görünür) */}
+                    {pathType === 'curved' && cp && isSelected && (
+                      <Circle
+                        x={cp.x}
+                        y={cp.y}
+                        radius={6}
+                        fill="#5B4DBC"
+                        stroke="#FFF"
+                        strokeWidth={2}
+                        draggable
+                        onDragEnd={(e) => handleControlPointDragEnd(actor.id, e.target.x(), e.target.y())}
+                        onMouseEnter={(e) => {
+                          const container = e.target.getStage()?.container();
+                          if (container) container.style.cursor = 'grab';
+                        }}
+                        onMouseLeave={(e) => {
+                          const container = e.target.getStage()?.container();
+                          if (container) container.style.cursor = 'crosshair';
+                        }}
+                      />
+                    )}
+                  </Group>
                 );
               })}
 
