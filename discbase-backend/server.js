@@ -1,4 +1,5 @@
 const express = require('express');
+const gameplayRoutes = require('./routes/gameplay');
 const cors = require('cors');
 const admin = require('firebase-admin');
 
@@ -13,6 +14,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/gameplay', gameplayRoutes);
 // --- TEMEL OKUMA ENDPOINT'LERİ (LİSTELEME) ---
 
 // 1. Kullanıcının Takımlarını Getir (Giriş sonrası ilk çağrılan)

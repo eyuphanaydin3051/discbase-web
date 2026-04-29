@@ -7,27 +7,85 @@ const FIELD_HEIGHT = 350;
 const ENDZONE_SIZE = 120;
 
 const Gameplay: React.FC = () => {
-    const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
-    const [playbook, setPlaybook] = useState<Playbook>({
-        id: '1',
-        title: 'Yeni Hücum Taktiği',
-        frames: [
-            {
-                actors: [
-                    { id: '1', type: 'offense', x: 250, y: 150 },
-                    { id: '2', type: 'offense', x: 250, y: 200 },
-                    { id: '3', type: 'offense', x: 350, y: 100 },
-                    { id: 'D1', type: 'defense', x: 280, y: 150 },
-                    { id: 'D2', type: 'defense', x: 280, y: 200 },
-                    { id: 'Disk', type: 'disc', x: 265, y: 150 },
-                ],
-                pathSettings: {}
-            }
-        ],
-        createdAt: Date.now(),
-    });
+  const [isEditing, setIsEditing] = useState(false);
+  const [playbooks, setPlaybooks] = useState<Playbook[]>([]); // Kayıtlı taktikler listesi
+  const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
+  const [playbook, setPlaybook] = useState<Playbook | null>(null);
 
-    const currentFrame = playbook.frames[currentFrameIdx];
+  // Sayfa açıldığında taktikleri getir (Simülasyon)
+  useEffect(() => {
+    // Burada fetch('/api/gameplay/list') yapılacak
+    const mockData: Playbook[] = [
+      { id: '1', title: 'Vertical Stack - H1', frames: [], createdAt: Date.now() },
+      { id: '2', title: 'Side Stack - Zone Defense', frames: [], createdAt: Date.now() }
+    ];
+    setPlaybooks(mockData);
+  }, []);
+
+  const handleCreateNew = () => {
+    setPlaybook({
+      id: Math.random().toString(36).substr(2, 9),
+      title: 'Yeni Taktik',
+      frames: [{ actors: [
+        { id: '1', type: 'offense', x: 250, y: 150 },
+        { id: 'Disk', type: 'disc', x: 265, y: 150 }
+      ], pathSettings: {} }],
+      createdAt: Date.now(),
+    });
+    setIsEditing(true);
+  };
+
+  const handleEditPlay = (play: Playbook) => {
+    setPlaybook(play);
+    setIsEditing(true);
+    setCurrentFrameIdx(0);
+  };
+
+  // --- LİSTE EKRANI ---
+  if (!isEditing) {
+    return (
+      <div className="p-4 lg:p-8 bg-[#F9F9FB] min-h-screen">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Taktik Tahtası</h1>
+              <p className="text-gray-500">Kayıtlı oyun planlarını yönetin ve yenilerini oluşturun.</p>
+            </div>
+            <button 
+              onClick={handleCreateNew}
+              className="flex items-center gap-2 bg-[#5B4DBC] text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-[#4A3E9F] transition-all"
+            >
+              <span className="material-icons-outlined">add</span>
+              Yeni Taktik Oluştur
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {playbooks.map((play) => (
+              <div 
+                key={play.id} 
+                className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                onClick={() => handleEditPlay(play)}
+              >
+                <div className="w-full h-32 bg-gray-50 rounded-xl mb-4 flex items-center justify-center text-gray-300 group-hover:bg-[#5B4DBC]/5 transition-colors">
+                  <span className="material-icons-outlined text-4xl">play_circle</span>
+                </div>
+                <h3 className="font-bold text-gray-800 mb-1">{play.title}</h3>
+                <p className="text-xs text-gray-400 flex items-center gap-1">
+                  <span className="material-icons-outlined text-[14px]">calendar_today</span>
+                  {new Date(play.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- EDİTÖR EKRANI ---
+  const currentFrame = playbook!.frames[currentFrameIdx];
+  // ... (Buradan sonrası önceki editör kodlarının devamı)
 
     const addFrame = () => {
         const lastFrame = playbook.frames[playbook.frames.length - 1];
@@ -56,7 +114,10 @@ const Gameplay: React.FC = () => {
                         <div className="w-10 h-10 rounded-full bg-[#5B4DBC]/10 flex items-center justify-center text-[#5B4DBC]">
                             <span className="material-icons-outlined">architecture</span>
                         </div>
-                        <h2 className="text-xl font-bold text-gray-800">{playbook.title}</h2>
+                        <button onClick={() => setIsEditing(false)} className="mr-2 p-2 hover:bg-gray-100 rounded-full">
+    <span className="material-icons-outlined">arrow_back</span>
+</button>
+<h2 className="text-xl font-bold text-gray-800">{playbook.title}</h2>
                     </div>
 
                     <div className="flex gap-2 items-center overflow-x-auto pb-2 md:pb-0 w-full md:w-auto">
