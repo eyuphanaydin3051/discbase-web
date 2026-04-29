@@ -220,7 +220,7 @@ export type PathType = 'straight' | 'curved' | 'sprint' | 'cut' | 'pass';
 
 export interface PlaybookActor {
   id: string;
-  type: 'offense' | 'defense' | 'disc';
+  type: 'offense' | 'defense' | 'disc' | 'cone'; // Cone eklendi
   x: number;
   y: number;
 }
