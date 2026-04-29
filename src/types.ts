@@ -225,9 +225,14 @@ export interface PlaybookActor {
   y: number;
 }
 
+export interface PathDetail {
+  type: PathType;
+  controlPoint?: { x: number; y: number }; // Kavisli yollar için kullanılacak merkez nokta
+}
+
 export interface PlaybookFrame {
   actors: PlaybookActor[];
-  pathSettings?: Record<string, PathType>;
+  pathSettings?: Record<string, PathDetail>;
 }
 
 export interface Playbook {

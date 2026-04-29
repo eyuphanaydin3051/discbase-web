@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Stage, Layer, Rect, Circle, Line, Group, Text } from 'react-konva';
-import type { Playbook } from '../types';
+import type { Playbook, PathType } from '../types';
 
 const FIELD_WIDTH = 800;
 const FIELD_HEIGHT = 350;
@@ -11,6 +11,7 @@ const Gameplay: React.FC = () => {
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]); // Kayıtlı taktikler listesi
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [playbook, setPlaybook] = useState<Playbook | null>(null);
+  const [selectedActorId, setSelectedActorId] = useState<string | null>(null); // Tıklanan oyuncunun ID'si
 
   // Sayfa açıldığında taktikleri getir (Simülasyon)
   useEffect(() => {
@@ -84,25 +85,57 @@ const Gameplay: React.FC = () => {
   }
 
   // --- EDİTÖR EKRANI ---
-  const currentFrame = playbook!.frames[currentFrameIdx];
+  if (!playbook) return null; // TS güvenliği: Playbook yoksa renderlama
+  
+  const currentFrame = playbook.frames[currentFrameIdx];
   // ... (Buradan sonrası önceki editör kodlarının devamı)
 
     const addFrame = () => {
-        const lastFrame = playbook.frames[playbook.frames.length - 1];
-        // Bir önceki adımı (snapshot) kopyala
-        const newFrame = JSON.parse(JSON.stringify(lastFrame));
-        setPlaybook({ ...playbook, frames: [...playbook.frames, newFrame] });
-        setCurrentFrameIdx(playbook.frames.length);
-    };
+    if (!playbook) return; // Null kontrolü
+    const lastFrame = playbook.frames[playbook.frames.length - 1];
+    // Bir önceki adımı (snapshot) kopyala
+    const newFrame = JSON.parse(JSON.stringify(lastFrame));
+    setPlaybook({ ...playbook, frames: [...playbook.frames, newFrame] });
+    setCurrentFrameIdx(playbook.frames.length);
+  };
 
-    const handleDragEnd = (id: string, x: number, y: number) => {
-        const updatedFrames = [...playbook.frames];
-        const actorIdx = updatedFrames[currentFrameIdx].actors.findIndex(a => a.id === id);
-        updatedFrames[currentFrameIdx].actors[actorIdx] = {
-            ...updatedFrames[currentFrameIdx].actors[actorIdx], x, y
-        };
-        setPlaybook({ ...playbook, frames: updatedFrames });
+  const handleDragEnd = (id: string, x: number, y: number) => {
+    if (!playbook) return; 
+    const updatedFrames = [...playbook.frames];
+    const actorIdx = updatedFrames[currentFrameIdx].actors.findIndex(a => a.id === id);
+    updatedFrames[currentFrameIdx].actors[actorIdx] = { 
+        ...updatedFrames[currentFrameIdx].actors[actorIdx], x, y 
     };
+    
+    // Oyuncu hareket ettirildiyse ve henüz atanmış bir yolu yoksa varsayılan yol ata
+    if (currentFrameIdx > 0) {
+        const currentSettings = updatedFrames[currentFrameIdx].pathSettings || {};
+        if (!currentSettings[id]) {
+            const isDisc = updatedFrames[currentFrameIdx].actors[actorIdx].type === 'disc';
+            updatedFrames[currentFrameIdx].pathSettings = {
+                ...currentSettings,
+                [id]: { type: isDisc ? 'pass' : 'sprint' }
+            };
+        }
+    }
+    
+    setPlaybook({ ...playbook, frames: updatedFrames });
+    setSelectedActorId(id); // Sürüklenen oyuncuyu seçili yap
+  };
+
+  // Yol tipini değiştiren fonksiyon
+  const changePathType = (type: PathType) => {
+    if (!playbook || !selectedActorId || currentFrameIdx === 0) return;
+    const updatedFrames = [...playbook.frames];
+    
+    const currentSettings = updatedFrames[currentFrameIdx].pathSettings || {};
+    updatedFrames[currentFrameIdx].pathSettings = {
+        ...currentSettings,
+        [selectedActorId]: { ...currentSettings[selectedActorId], type }
+    };
+    
+    setPlaybook({ ...playbook, frames: updatedFrames });
+  };
 
     return (
         <div className="p-4 lg:p-8 bg-[#F9F9FB] min-h-screen">
@@ -143,9 +176,46 @@ const Gameplay: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Saha Alanı */}
-                <div className="flex justify-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-                    <Stage width={FIELD_WIDTH} height={FIELD_HEIGHT} className="rounded-lg overflow-hidden shadow-inner cursor-crosshair border-2 border-gray-300">
+{/* Yol (Path) Düzenleme Araç Çubuğu (Sadece Step 0'dan büyükse ve bir oyuncu seçiliyse görünür) */}
+        {currentFrameIdx > 0 && selectedActorId && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 bg-indigo-50 p-3 rounded-xl border border-indigo-100 transition-all">
+                <span className="text-sm font-bold text-indigo-800 flex items-center gap-1">
+                    <span className="material-icons-outlined text-[18px]">route</span>
+                    "{selectedActorId}" Rotası:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                    <button 
+                        onClick={() => changePathType('sprint')} 
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${playbook.frames[currentFrameIdx].pathSettings?.[selectedActorId]?.type === 'sprint' ? 'bg-[#5B4DBC] text-white shadow-md' : 'bg-white text-[#5B4DBC] border border-indigo-200 hover:bg-indigo-100'}`}
+                    >
+                        Sprint (Düz)
+                    </button>
+                    <button 
+                        onClick={() => changePathType('cut')} 
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${playbook.frames[currentFrameIdx].pathSettings?.[selectedActorId]?.type === 'cut' ? 'bg-[#5B4DBC] text-white shadow-md' : 'bg-white text-[#5B4DBC] border border-indigo-200 hover:bg-indigo-100'}`}
+                    >
+                        Cut (Keskin)
+                    </button>
+                    <button 
+                        onClick={() => changePathType('curved')} 
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${playbook.frames[currentFrameIdx].pathSettings?.[selectedActorId]?.type === 'curved' ? 'bg-[#5B4DBC] text-white shadow-md' : 'bg-white text-[#5B4DBC] border border-indigo-200 hover:bg-indigo-100'}`}
+                    >
+                        Kavisli Koşu
+                    </button>
+                    {playbook.frames[currentFrameIdx].actors.find(a => a.id === selectedActorId)?.type === 'disc' && (
+                        <button 
+                            onClick={() => changePathType('pass')} 
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${playbook.frames[currentFrameIdx].pathSettings?.[selectedActorId]?.type === 'pass' ? 'bg-yellow-500 text-white shadow-md' : 'bg-white text-yellow-600 border border-yellow-200 hover:bg-yellow-100'}`}
+                        >
+                            Pas (Disk)
+                        </button>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* Saha Alanı */}
+        <div className="flex justify-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">                    <Stage width={FIELD_WIDTH} height={FIELD_HEIGHT} className="rounded-lg overflow-hidden shadow-inner cursor-crosshair border-2 border-gray-300">
                         <Layer>
                             {/* Yeşil Saha Zemin */}
                             <Rect width={FIELD_WIDTH} height={FIELD_HEIGHT} fill="#3e8e41" />
@@ -158,32 +228,43 @@ const Gameplay: React.FC = () => {
                             <Line points={[FIELD_WIDTH / 2, 0, FIELD_WIDTH / 2, FIELD_HEIGHT]} stroke="white" strokeWidth={2} opacity={0.4} />
 
                             {/* Rota (Koşu ve Pas yolları) Çizimi (Şimdiki ve Önceki Step Arası) */}
-                            {currentFrameIdx > 0 && currentFrame.actors.map(actor => {
-                                const prevActor = playbook.frames[currentFrameIdx - 1].actors.find(a => a.id === actor.id);
-                                // Eğer oyuncu/disk önceki adımdan farklı bir yerdeyse arasına çizgi çek
-                                if (!prevActor || (prevActor.x === actor.x && prevActor.y === actor.y)) return null;
+              {currentFrameIdx > 0 && currentFrame.actors.map(actor => {
+                const prevActor = playbook.frames[currentFrameIdx - 1].actors.find(a => a.id === actor.id);
+                if (!prevActor || (prevActor.x === actor.x && prevActor.y === actor.y)) return null;
+                
+                const isDisc = actor.type === 'disc';
+                const pathSetting = currentFrame.pathSettings?.[actor.id];
+                const pathType = pathSetting?.type || (isDisc ? 'pass' : 'sprint');
+                
+                // Seçili oyuncunun yolu vurgulansın
+                const isSelected = selectedActorId === actor.id;
+                const strokeColor = isDisc ? '#FBBF24' : (isSelected ? '#5B4DBC' : '#E5E7EB');
 
-                                const isDisc = actor.type === 'disc';
-                                return (
-                                    <Line
-                                        key={`path-${actor.id}`}
-                                        points={[prevActor.x, prevActor.y, actor.x, actor.y]}
-                                        stroke={isDisc ? '#FBBF24' : '#E5E7EB'} // Disk pası sarı, koşu yolu beyazımsı
-                                        strokeWidth={isDisc ? 3 : 2}
-                                        dash={isDisc ? [] : [10, 5]} // Disk düz, koşu kesik çizgi
-                                    />
-                                );
-                            })}
+                return (
+                  <Line
+                    key={`path-${actor.id}`}
+                    points={[prevActor.x, prevActor.y, actor.x, actor.y]}
+                    stroke={strokeColor}
+                    strokeWidth={isDisc || isSelected ? 3 : 2}
+                    dash={pathType === 'sprint' ? [10, 5] : pathType === 'cut' ? [5, 5] : []}
+                    opacity={isSelected ? 1 : 0.7}
+                    onClick={() => setSelectedActorId(actor.id)}
+                    onTap={() => setSelectedActorId(actor.id)} // Mobilde dokunmak için
+                  />
+                );
+              })}
 
                             {/* Oyuncular ve Disk Objeleri */}
-                            {currentFrame.actors.map((actor) => (
-                                <Group
-                                    key={actor.id}
-                                    x={actor.x}
-                                    y={actor.y}
-                                    draggable
-                                    onDragEnd={(e) => handleDragEnd(actor.id, e.target.x(), e.target.y())}
-                                >
+              {currentFrame.actors.map((actor) => (
+                <Group
+                  key={actor.id}
+                  x={actor.x}
+                  y={actor.y}
+                  draggable
+                  onClick={() => setSelectedActorId(actor.id)}
+                  onTap={() => setSelectedActorId(actor.id)} // Mobilde dokunmak için
+                  onDragEnd={(e) => handleDragEnd(actor.id, e.target.x(), e.target.y())}
+                >
                                     <Circle
                                         radius={actor.type === 'disc' ? 8 : 14}
                                         fill={
