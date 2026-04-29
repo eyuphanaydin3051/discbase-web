@@ -11,7 +11,10 @@ const Gameplay: React.FC = () => {
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]); // Kayıtlı taktikler listesi
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [playbook, setPlaybook] = useState<Playbook | null>(null);
-  const [selectedActorId, setSelectedActorId] = useState<string | null>(null); // Tıklanan oyuncunun ID'si
+  const [selectedActorId, setSelectedActorId] = useState<string | null>(null);
+  // Animasyon state'leri
+  const [progress, setProgress] = useState(1); // 1 = Animasyon bitti / çalışmıyor
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Sayfa açıldığında taktikleri getir (Simülasyon)
   useEffect(() => {
@@ -139,6 +142,29 @@ const Gameplay: React.FC = () => {
     setPlaybook({ ...playbook, frames: updatedFrames });
   };
 
+  // Animasyonu Oynatan Fonksiyon (Step 1 -> Step 2 arası akış)
+  const playAnimation = () => {
+    if (!playbook || currentFrameIdx === 0) return;
+    setIsPlaying(true);
+    let start = performance.now();
+    const duration = 1500; // 1.5 saniyede hareketi tamamla
+
+    const animate = (time: number) => {
+        let timeFraction = (time - start) / duration;
+        if (timeFraction > 1) timeFraction = 1; // 1'i geçmesini engelle
+        
+        setProgress(timeFraction);
+
+        if (timeFraction < 1) {
+            requestAnimationFrame(animate); // Henüz bitmediyse sonraki kareyi çağır
+        } else {
+            setIsPlaying(false); // Bittiğinde durdur
+        }
+    };
+
+    requestAnimationFrame(animate);
+  };
+
   // Yol tipini değiştiren fonksiyon
   const changePathType = (type: PathType) => {
     if (!playbook || !selectedActorId || currentFrameIdx === 0) return;
@@ -182,15 +208,25 @@ const Gameplay: React.FC = () => {
                                 Step {idx + 1}
                             </button>
                         ))}
-                        <button
-                            onClick={addFrame}
-                            className="px-4 py-2 bg-green-50 text-green-600 border border-green-200 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-green-100 transition-all whitespace-nowrap"
-                        >
-                            <span className="material-icons-outlined text-[18px]">add</span>
-                            Step Ekle
-                        </button>
-                    </div>
-                </div>
+                        <button 
+                onClick={addFrame} 
+                className="px-4 py-2 bg-green-50 text-green-600 border border-green-200 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-green-100 transition-all whitespace-nowrap"
+            >
+              <span className="material-icons-outlined text-[18px]">add</span>
+              Step Ekle
+            </button>
+            {currentFrameIdx > 0 && (
+                <button 
+                    onClick={playAnimation}
+                    disabled={isPlaying}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 transition-all whitespace-nowrap ${isPlaying ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-50 text-[#5B4DBC] border border-blue-200 hover:bg-blue-100 shadow-sm'}`}
+                >
+                  <span className="material-icons-outlined text-[18px]">{isPlaying ? 'hourglass_empty' : 'play_arrow'}</span>
+                  {isPlaying ? 'Oynatılıyor' : 'Oynat'}
+                </button>
+            )}
+          </div>
+        </div>
 
 {/* Yol (Path) Düzenleme Araç Çubuğu (Sadece Step 0'dan büyükse ve bir oyuncu seçiliyse görünür) */}
         {currentFrameIdx > 0 && selectedActorId && (
@@ -255,22 +291,21 @@ const Gameplay: React.FC = () => {
                 const isSelected = selectedActorId === actor.id;
                 const strokeColor = isDisc ? '#FBBF24' : (isSelected ? '#5B4DBC' : '#E5E7EB');
 
-                // Kavis ayarları
+                // Kavis ve Keskin Dönüş (Cut) ayarları
                 let points = [prevActor.x, prevActor.y, actor.x, actor.y];
                 let tension = 0;
                 let cp = pathSetting?.controlPoint;
 
-                if (pathType === 'curved') {
-                  // Eğer kontrol noktası henüz atanmamışsa, yolun ortasına varsayılan bir nokta koy
+                // Hem kavis hem de cut için kontrol noktası ekliyoruz
+                if (pathType === 'curved' || pathType === 'cut') {
                   if (!cp) {
                     cp = {
                       x: (prevActor.x + actor.x) / 2,
                       y: (prevActor.y + actor.y) / 2 - 50 
                     };
                   }
-                  // Konva Arrow'un kavis yapabilmesi için ortadaki noktayı (cp) diziye ekliyoruz
                   points = [prevActor.x, prevActor.y, cp.x, cp.y, actor.x, actor.y];
-                  tension = 0.4; // Kavisin ne kadar yumuşak olacağı
+                  tension = pathType === 'curved' ? 0.4 : 0; // Kavis için 0.4, Cut (keskin köşe) için 0
                 }
 
                 return (
@@ -289,8 +324,8 @@ const Gameplay: React.FC = () => {
                       onTap={() => setSelectedActorId(actor.id)}
                     />
                     
-                    {/* Kavisli yollar için Sürükle-Bırak Kontrol Noktası (Sadece oyuncu seçiliyse görünür) */}
-                    {pathType === 'curved' && cp && isSelected && (
+                    {/* Kontrol Noktası (Sadece oyuncu seçiliyse görünür) */}
+                    {(pathType === 'curved' || pathType === 'cut') && cp && isSelected && !isPlaying && (
                       <Circle
                         x={cp.x}
                         y={cp.y}
@@ -315,14 +350,52 @@ const Gameplay: React.FC = () => {
               })}
 
                             {/* Oyuncular ve Disk Objeleri */}
-              {currentFrame.actors.map((actor) => (
+              {currentFrame.actors.map((actor) => {
+                // --- ANİMASYON İNTERPOLASYONU (Matematiksel Konum Hesaplama) ---
+                let renderX = actor.x;
+                let renderY = actor.y;
+
+                if (progress < 1 && currentFrameIdx > 0) {
+                    const prevActor = playbook.frames[currentFrameIdx - 1].actors.find(a => a.id === actor.id);
+                    if (prevActor && (prevActor.x !== actor.x || prevActor.y !== actor.y)) {
+                        const isDisc = actor.type === 'disc';
+                        const pathSetting = currentFrame.pathSettings?.[actor.id];
+                        const pathType = pathSetting?.type || (isDisc ? 'pass' : 'sprint');
+                        const cp = pathSetting?.controlPoint || { x: (prevActor.x + actor.x) / 2, y: (prevActor.y + actor.y) / 2 - 50 };
+
+                        if (pathType === 'curved') {
+                            // Quadratic Bezier Formülü (Pürüzsüz kavis hareketi)
+                            const t = progress;
+                            renderX = Math.pow(1-t, 2) * prevActor.x + 2 * (1-t) * t * cp.x + Math.pow(t, 2) * actor.x;
+                            renderY = Math.pow(1-t, 2) * prevActor.y + 2 * (1-t) * t * cp.y + Math.pow(t, 2) * actor.y;
+                        } else if (pathType === 'cut') {
+                            // 2 Segmentli Lineer Formül (Köşeden dönüş)
+                            const t = progress;
+                            if (t < 0.5) {
+                                const segmentT = t * 2; // 0-0.5 arasını 0-1'e genişlet
+                                renderX = prevActor.x + segmentT * (cp.x - prevActor.x);
+                                renderY = prevActor.y + segmentT * (cp.y - prevActor.y);
+                            } else {
+                                const segmentT = (t - 0.5) * 2; // 0.5-1 arasını 0-1'e genişlet
+                                renderX = cp.x + segmentT * (actor.x - cp.x);
+                                renderY = cp.y + segmentT * (actor.y - cp.y);
+                            }
+                        } else { 
+                            // Lineer Formül (Sprint ve Pas için düz gidiş)
+                            renderX = prevActor.x + progress * (actor.x - prevActor.x);
+                            renderY = prevActor.y + progress * (actor.y - prevActor.y);
+                        }
+                    }
+                }
+
+                return (
                 <Group
                   key={actor.id}
-                  x={actor.x}
-                  y={actor.y}
-                  draggable
-                  onClick={() => setSelectedActorId(actor.id)}
-                  onTap={() => setSelectedActorId(actor.id)} // Mobilde dokunmak için
+                  x={renderX}
+                  y={renderY}
+                  draggable={!isPlaying} // Animasyon oynarken sürükleme kapalı
+                  onClick={() => !isPlaying && setSelectedActorId(actor.id)}
+                  onTap={() => !isPlaying && setSelectedActorId(actor.id)}
                   onDragEnd={(e) => handleDragEnd(actor.id, e.target.x(), e.target.y())}
                 >
                                     <Circle
@@ -349,7 +422,8 @@ const Gameplay: React.FC = () => {
                                         />
                                     )}
                                 </Group>
-                            ))}
+                            );
+                        })}
                         </Layer>
                     </Stage>
                 </div>
