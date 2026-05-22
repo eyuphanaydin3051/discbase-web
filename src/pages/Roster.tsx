@@ -254,7 +254,24 @@ export default function Roster() {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-100">
-                                    {leaderboard.map((item, idx) => (
+                                    {leaderboard.map((item, idx) => {
+                                        // Android App Mantığı: Toplam Pas Hesaplaması (Başarılı Paslar + Asistler)
+                                        const successfulPass = item.stats?.successfulPass ?? 0;
+                                        const assist = item.stats?.assist ?? 0;
+                                        const throwaway = item.stats?.throwaway ?? 0;
+                                        const totalPassesCompleted = successfulPass + assist;
+                                        const totalPassesAttempted = totalPassesCompleted + throwaway;
+                                        const passRate = totalPassesAttempted > 0 ? ((totalPassesCompleted / totalPassesAttempted) * 100).toFixed(1) : "0";
+
+                                        // Android App Mantığı: Catch Oranı Hesaplaması (Yakalama + Gol / Toplam Deneme)
+                                        const catchStat = item.stats?.catchStat ?? 0;
+                                        const goal = item.stats?.goal ?? 0;
+                                        const drop = item.stats?.drop ?? 0;
+                                        const totalCatchesSuccessful = catchStat + goal;
+                                        const totalCatchesAttempted = totalCatchesSuccessful + drop;
+                                        const catchRate = totalCatchesAttempted > 0 ? ((totalCatchesSuccessful / totalCatchesAttempted) * 100).toFixed(1) : "0";
+
+                                        return (
                                         <tr key={item.player.id} 
                                             onClick={() => navigate(`/player/${activeTeamId}/${item.player.id}`)}
                                             className="hover:bg-gray-50 cursor-pointer transition-colors group">
@@ -279,12 +296,12 @@ export default function Roster() {
                                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.callahan, false, item)}</td>
                                             <td className="px-4 py-4 whitespace-nowrap text-sm text-pink-600 font-medium">{formatStatValue(item.stats?.drop, false, item)}</td>
                                             <td className="px-4 py-4 whitespace-nowrap text-sm text-red-600 font-bold">{formatStatValue(item.stats?.throwaway, false, item)}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.passCount, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(totalPassesCompleted, false, item)}</td>
                                             <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.pointsPlayed, false, item)}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.catchRate, true, item)}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.passRate, true, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">%{catchRate}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">%{passRate}</td>
                                         </tr>
-                                    ))}
+                                    )})}
                                 </tbody>
                             </table>
                         )}
