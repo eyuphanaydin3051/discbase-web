@@ -102,6 +102,66 @@ const Gameplay: React.FC = () => {
     e.dataTransfer.setData('actorType', type);
   };
 
+  // Yeni Adım (Frame) Ekleme
+  const addFrame = () => {
+    if (!playbook) return; 
+    const lastFrame = playbook.frames[playbook.frames.length - 1];
+    const newFrame = JSON.parse(JSON.stringify(lastFrame));
+    setPlaybook({ ...playbook, frames: [...playbook.frames, newFrame] });
+    setCurrentFrameIdx(playbook.frames.length);
+  };
+
+  // Sahada oyuncu sürüklendiğinde konumunu güncelleme
+  const handleDragEnd = (id: string, x: number, y: number) => {
+    if (!playbook) return; 
+    const updatedFrames = [...playbook.frames];
+    const actorIdx = updatedFrames[currentFrameIdx].actors.findIndex(a => a.id === id);
+    updatedFrames[currentFrameIdx].actors[actorIdx] = { 
+        ...updatedFrames[currentFrameIdx].actors[actorIdx], x, y 
+    };
+    
+    // Hareket ettiğinde henüz rotası yoksa varsayılan rota ata
+    if (currentFrameIdx > 0) {
+        const currentSettings = updatedFrames[currentFrameIdx].pathSettings || {};
+        if (!currentSettings[id]) {
+            const isDisc = updatedFrames[currentFrameIdx].actors[actorIdx].type === 'disc';
+            updatedFrames[currentFrameIdx].pathSettings = {
+                ...currentSettings,
+                [id]: { type: isDisc ? 'pass' : 'sprint' }
+            };
+        }
+    }
+    
+    setPlaybook({ ...playbook, frames: updatedFrames });
+    setSelectedActorId(id);
+  };
+
+  // Kavis (Curve) veya Cut köşe noktasını sürüklediğinde kaydetme
+  const handleControlPointDragEnd = (actorId: string, x: number, y: number) => {
+    if (!playbook || currentFrameIdx === 0) return;
+    const updatedFrames = [...playbook.frames];
+    const currentSettings = updatedFrames[currentFrameIdx].pathSettings || {};
+    
+    updatedFrames[currentFrameIdx].pathSettings = {
+        ...currentSettings,
+        [actorId]: { ...currentSettings[actorId], controlPoint: { x, y } }
+    };
+    setPlaybook({ ...playbook, frames: updatedFrames });
+  };
+
+  // Seçili oyuncunun rota (yol) türünü değiştirme
+  const changePathType = (type: PathType) => {
+    if (!playbook || !selectedActorId || currentFrameIdx === 0) return;
+    const updatedFrames = [...playbook.frames];
+    
+    const currentSettings = updatedFrames[currentFrameIdx].pathSettings || {};
+    updatedFrames[currentFrameIdx].pathSettings = {
+        ...currentSettings,
+        [selectedActorId]: { ...currentSettings[selectedActorId], type }
+    };
+    setPlaybook({ ...playbook, frames: updatedFrames });
+  };
+
 
   // --- ANİMASYON MANTIĞI REVİZYONU ---
 

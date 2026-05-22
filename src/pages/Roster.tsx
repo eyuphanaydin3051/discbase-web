@@ -22,7 +22,6 @@ export default function Roster() {
     const [viewMode, setViewMode] = useState<'roster' | 'leaderboard'>('roster');
 
     // --- FİLTRE VE HESAPLAMA STATE'LERİ ---
-    const [selectedStatType, setSelectedStatType] = useState('PLUS_MINUS');
     const [calculationMode, setCalculationMode] = useState('TOTAL');
     const [selectedTournamentId, setSelectedTournamentId] = useState('GENEL');
     const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -63,7 +62,8 @@ export default function Roster() {
             setLoading(true);
             try {
                 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-                let url = `${API_URL}/teams/${activeTeamId}/leaderboard?statType=${selectedStatType}&calculationMode=${calculationMode}`;
+                // statType parametresini varsayılan olarak 'PLUS_MINUS' veriyoruz ki API oyuncuları verimliliğe göre sıralı döndürsün
+                let url = `${API_URL}/teams/${activeTeamId}/leaderboard?statType=PLUS_MINUS&calculationMode=${calculationMode}`;
                 
                 if (selectedTournamentId && selectedTournamentId !== 'GENEL') {
                     url += `&tournamentId=${selectedTournamentId}`;
@@ -82,7 +82,7 @@ export default function Roster() {
         };
         
         fetchLeaderboard();
-    }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId, selectedStatType, calculationMode]);
+    }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId, calculationMode]);
 
     const filteredPlayers = players.filter(player => (player.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -175,40 +175,19 @@ export default function Roster() {
                     </div>
 
                     {/* 2. HESAPLAMA MODU */}
-                    {!['CATCH_RATE', 'PASS_RATE', 'AVG_PULL_TIME', 'AVG_PLAYTIME'].includes(selectedStatType) && (
-                        <div className="flex bg-gray-200 p-1 rounded-full animate-fade-in">
-                            {[{ id: 'TOTAL', label: 'Toplam' }, { id: 'PER_MATCH', label: 'Maç Başına' }, { id: 'PER_POINT', label: 'Sayı Başına' }].map(mode => (
-                                <button
-                                    key={mode.id}
-                                    onClick={() => setCalculationMode(mode.id)}
-                                    className={`flex-1 py-2.5 text-xs font-bold rounded-full transition-all duration-300 ${calculationMode === mode.id ? 'bg-[#5B4DBC] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    {mode.label}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* 3. İSTATİSTİK TİPLERİ (YATAY SCROLL CHIPLER) */}
-                    <div className="flex overflow-x-auto gap-2 pb-3 custom-scrollbar">
-                        {[
-                            { id: 'PLUS_MINUS', label: 'Verimlilik' }, { id: 'GOAL', label: 'Gol' }, { id: 'ASSIST', label: 'Asist' },
-                            { id: 'BLOCK', label: 'Blok' }, { id: 'CALLAHAN', label: 'Callahan' }, { id: 'THROWAWAY', label: 'Hatalı Pas' },
-                            { id: 'DROP', label: 'Drop' }, { id: 'PASS_COUNT', label: 'Pas Sayısı' }, { id: 'POINTS_PLAYED', label: 'Oynanan Sayı' },
-                            { id: 'PLAYTIME', label: 'Süre (Web Özel)' }, { id: 'CATCH_RATE', label: 'Yakalama %' }, { id: 'PASS_RATE', label: 'Pas %' },
-                            { id: 'AVG_PLAYTIME', label: 'Ort. Süre' }, { id: 'AVG_PULL_TIME', label: 'Ort. Pull Süresi' }
-                        ].map(stat => (
+                    <div className="flex bg-gray-200 p-1 rounded-full animate-fade-in mb-4">
+                        {[{ id: 'TOTAL', label: 'Toplam' }, { id: 'PER_MATCH', label: 'Maç Başına' }, { id: 'PER_POINT', label: 'Sayı Başına' }].map(mode => (
                             <button
-                                key={stat.id}
-                                onClick={() => setSelectedStatType(stat.id)}
-                                className={`whitespace-nowrap px-4 py-2 rounded-full border text-sm font-bold transition-colors ${selectedStatType === stat.id ? 'bg-[#5B4DBC] text-white border-[#5B4DBC]' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'}`}
+                                key={mode.id}
+                                onClick={() => setCalculationMode(mode.id)}
+                                className={`flex-1 py-2.5 text-xs font-bold rounded-full transition-all duration-300 ${calculationMode === mode.id ? 'bg-[#5B4DBC] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
                             >
-                                {stat.label}
+                                {mode.label}
                             </button>
                         ))}
                     </div>
 
-                    {/* 4. SIRALAMA TABLOSU */}
+                    {/* 3. SIRALAMA TABLOSU */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
                         {leaderboard.length === 0 ? (
                             <div className="p-10 text-center text-gray-500 font-medium flex flex-col items-center">
@@ -221,12 +200,17 @@ export default function Roster() {
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Oyuncu</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Verimlilik</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Gol</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Asist</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Blok</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Callahan</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Drop</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Hatalı Pas</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Verimlilik</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Pas Sayısı</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Oynanan Sayı</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Yakalama %</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Pas %</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-100">
@@ -246,14 +230,19 @@ export default function Roster() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats.goal}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats.assist}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats.block}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-pink-600 font-medium">{item.stats.drop}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-red-600 font-bold">{item.stats.throwaway}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-right">
-                                                <span className="text-lg font-black text-[#5B4DBC]">{item.formattedValue}</span>
+                                            <td className="px-4 py-4 whitespace-nowrap text-left">
+                                                <span className="text-base font-black text-[#5B4DBC]">{item.stats?.plusMinus ?? item.formattedValue ?? 0}</span>
                                             </td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.goal ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.assist ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.block ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.callahan ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-pink-600 font-medium">{item.stats?.drop ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-red-600 font-bold">{item.stats?.throwaway ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.passCount ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.pointsPlayed ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">%{item.stats?.catchRate ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">%{item.stats?.passRate ?? 0}</td>
                                         </tr>
                                     ))}
                                 </tbody>
