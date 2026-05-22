@@ -32,23 +32,35 @@ export default function Roster() {
 
         const fetchInitialData = async () => {
             setLoading(true);
-            const fetchedTeams = await getUserTeamsAsync(user.uid);
-            setTeams(fetchedTeams);
-
-            const fetchedPlayers = await getPlayersAsync(activeTeamId);
-            setPlayers(fetchedPlayers.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
-
             try {
-                const API_URL = "http://localhost:3000/api";
-                const tourRes = await fetch(`${API_URL}/teams/${activeTeamId}/tournaments`);
-                const fetchedTours = await tourRes.json();
-                for (let t of fetchedTours) {
-                    const matchRes = await fetch(`${API_URL}/teams/${activeTeamId}/tournaments/${t.id}/matches`);
-                    t.matches = await matchRes.json();
-                }
-                setTournaments(fetchedTours);
-            } catch (err) {}
+                const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+                
+                // İlk ana verileri tek tek beklemek yerine Promise.all ile paralel başlatıyoruz
+                const [fetchedTeams, fetchedPlayers, fetchedTours] = await Promise.all([
+                    getUserTeamsAsync(user.uid),
+                    getPlayersAsync(activeTeamId),
+                    fetch(`${API_URL}/teams/${activeTeamId}/tournaments`).then(res => res.json())
+                ]);
 
+                setTeams(fetchedTeams);
+                setPlayers(fetchedPlayers.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
+
+                // N+1 ağ problemini çözmek için turnuva maçlarını eş zamanlı (paralel) çekiyoruz
+                const tournamentsWithMatches = await Promise.all(
+                    fetchedTours.map(async (t: any) => {
+                        try {
+                            const matchRes = await fetch(`${API_URL}/teams/${activeTeamId}/tournaments/${t.id}/matches`);
+                            t.matches = await matchRes.json();
+                        } catch (err) {
+                            t.matches = [];
+                        }
+                        return t;
+                    })
+                );
+                setTournaments(tournamentsWithMatches);
+            } catch (err) {
+                console.error("İlk veriler yüklenirken hata oluştu:", err);
+            }
             setLoading(false);
         };
         fetchInitialData();
@@ -85,6 +97,34 @@ export default function Roster() {
     }, [activeTeamId, viewMode, selectedTournamentId, selectedMatchId, calculationMode]);
 
     const filteredPlayers = players.filter(player => (player.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
+
+    // Hesaplama moduna göre istatistiklerin bölüneceği maç/sayı çarpanını dinamik bulur
+    const getDivisor = (item: any) => {
+        if (calculationMode === 'PER_POINT') {
+            return item.stats?.pointsPlayed || 1;
+        }
+        if (calculationMode === 'PER_MATCH') {
+            if (selectedMatchId) return 1;
+            if (selectedTournamentId && selectedTournamentId !== 'GENEL') {
+                return tournaments.find(t => t.id === selectedTournamentId)?.matches?.length || 1;
+            }
+            const totalMatches = tournaments.reduce((acc, t) => acc + (t.matches?.length || 0), 0);
+            return totalMatches || 1;
+        }
+        return 1;
+    };
+
+    // Ham istatistik değerlerini seçili moda göre oranlar ve doğru biçimde formatlar
+    const formatStatValue = (value: number | undefined, isPercentage = false, item: any = null) => {
+        if (value === undefined || value === null) return '0';
+        if (isPercentage) return `%${value}`;
+        
+        const divisor = getDivisor(item);
+        const calculated = value / divisor;
+        
+        // Tam sayıysa küsuratsız, ondalıklıysa virgülden sonra 2 basamak gösterir
+        return calculated % 1 === 0 ? calculated.toString() : calculated.toFixed(2);
+    };
 
     const getInitials = (name: string) => {
         if (!name) return '??';
@@ -187,8 +227,8 @@ export default function Roster() {
                         ))}
                     </div>
 
-                    {/* 3. SIRALAMA TABLOSU */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
+                    {/* 4. SIRALAMA TABLOSU */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-auto max-h-[calc(100vh-320px)] custom-scrollbar">
                         {leaderboard.length === 0 ? (
                             <div className="p-10 text-center text-gray-500 font-medium flex flex-col items-center">
                                 <span className="material-icons-outlined text-4xl text-gray-300 mb-2">sentiment_dissatisfied</span>
@@ -196,7 +236,7 @@ export default function Roster() {
                             </div>
                         ) : (
                             <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
+                                <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Oyuncu</th>
@@ -217,9 +257,9 @@ export default function Roster() {
                                     {leaderboard.map((item, idx) => (
                                         <tr key={item.player.id} 
                                             onClick={() => navigate(`/player/${activeTeamId}/${item.player.id}`)}
-                                            className="hover:bg-gray-50 cursor-pointer transition-colors">
+                                            className="hover:bg-gray-50 cursor-pointer transition-colors group">
                                             <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-400">#{idx + 1}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap">
+                                            <td className="px-4 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                                 <div className="flex items-center">
                                                     <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200 overflow-hidden mr-3">
                                                         {item.player.photoUrl ? <img src={item.player.photoUrl} className="h-full w-full object-cover" /> : <span className="text-xs font-bold text-gray-500">{getInitials(item.player.name)}</span>}
@@ -231,18 +271,18 @@ export default function Roster() {
                                                 </div>
                                             </td>
                                             <td className="px-4 py-4 whitespace-nowrap text-left">
-                                                <span className="text-base font-black text-[#5B4DBC]">{item.stats?.plusMinus ?? item.formattedValue ?? 0}</span>
+                                                <span className="text-base font-black text-[#5B4DBC]">{item.formattedValue}</span>
                                             </td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.goal ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.assist ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.block ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.callahan ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-pink-600 font-medium">{item.stats?.drop ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-red-600 font-bold">{item.stats?.throwaway ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.passCount ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{item.stats?.pointsPlayed ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">%{item.stats?.catchRate ?? 0}</td>
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">%{item.stats?.passRate ?? 0}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.goal, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.assist, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.block, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.callahan, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-pink-600 font-medium">{formatStatValue(item.stats?.drop, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-red-600 font-bold">{formatStatValue(item.stats?.throwaway, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.passCount, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.pointsPlayed, false, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.catchRate, true, item)}</td>
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatStatValue(item.stats?.passRate, true, item)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
